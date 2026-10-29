@@ -372,7 +372,17 @@ infra/terraform         S3, Lambda, API Gateway, EventBridge, CloudFront
 curation/               overlay example
 ```
 
+## Contributing
+
+Branching (gitflow on `develop` and `main`), commit messages, what CI checks, the
+coverage gates, and how images are built and promoted are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
-Licensed under the [Apache License, Version 2.0](LICENSE). The bundled Poppins fonts in
-`web/fonts/` are under the SIL Open Font License (`web/fonts/OFL.txt`).
+Licensed under the [Apache License, Version 2.0](LICENSE); see also [NOTICE](NOTICE). The
+bundled Poppins fonts in `web/fonts/` are under the SIL Open Font License
+(`web/fonts/OFL.txt`). Dependency licenses are held to an allow-list in CI with
+[`cargo-deny`](deny.toml), and their attributions are generated with
+[`cargo-about`](about.toml) into `THIRD-PARTY-LICENSES.html` (`make notices`), which
+ships in the container image.
