@@ -81,8 +81,9 @@ async function fedIndex() {
 const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().replace(/\/+$/, "").toLowerCase();
 
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
-// a service must carry every category, and may be registered by any of the federations.
-const MULTI = { category: "all", federation: "any" };
+// a service must carry every category, and may be registered by any of the federations
+// or be in any of the environments.
+const MULTI = { category: "all", federation: "any", environment: "any" };
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
 
 function parseHash() {
@@ -127,7 +128,13 @@ const AVAILABILITY_HELP = {
 };
 // Sirtfi is near-universal and the InCommon tag is implied by the registrar, so
 // cards leave them off to keep the meaningful tags visible.
+const ENVIRONMENT = { production: "Production", test: "Test", staging: "Staging", development: "Development", unknown: "Unknown" };
 const NON_PRODUCTION = { test: "test", staging: "staging", development: "dev" };
+// What decided a service's environment (`environment_source` on results).
+const ENVIRONMENT_SOURCE = {
+  metadata: "Read from a marker in the entityID, the name, or the endpoint hosts",
+  generated: "Claude's reading of this service's metadata",
+};
 const BASIS_NOTES = {
   metadata: "Based only on this service's metadata.",
   metadata_and_general_knowledge: "Based on this service's metadata plus general knowledge about the product it names.",
@@ -167,7 +174,7 @@ function serviceCard(s) {
     h(
       "div",
       { class: "badges" },
-      NON_PRODUCTION[s.environment] && h("span", { class: "badge env" }, NON_PRODUCTION[s.environment]),
+      NON_PRODUCTION[s.environment] && h("span", { class: "badge env", title: ENVIRONMENT_SOURCE[s.environment_source] }, NON_PRODUCTION[s.environment]),
       s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
       cats.map((c) => h("span", { class: "badge cat" }, CATEGORY_LABELS[c] || c)),
       s.federation_name && h("span", { class: "badge" }, `${flag(s.countries[0])} ${s.federation_name}`.trim()),
@@ -232,6 +239,7 @@ const FIELD_LABELS = {
   country: "Country",
   category: "Category",
   availability: "Availability",
+  environment: "Environment",
   attribute: "Requests",
   source: "Seen in",
   provider_type: "Provider type",
@@ -341,6 +349,7 @@ async function landing() {
 
 const FACET_ORDER = [
   ["availability", "Availability"],
+  ["environment", "Environment"],
   ["category", "Category"],
   ["federation", "Registered by"],
   ["country", "Country"],
@@ -445,11 +454,13 @@ async function search(params) {
   const chipLabel = (k, v) =>
     k === "availability"
       ? AVAILABILITY[v] || v
-      : k === "category"
-        ? CATEGORY_LABELS[v] || v
-        : (k === "federation" && feds?.get(v.toLowerCase())?.name) ||
-          (page.facets[k] || []).find((f) => f.value.toLowerCase() === v.toLowerCase())?.label ||
-          v;
+      : k === "environment"
+        ? ENVIRONMENT[v] || v
+        : k === "category"
+          ? CATEGORY_LABELS[v] || v
+          : (k === "federation" && feds?.get(v.toLowerCase())?.name) ||
+            (page.facets[k] || []).find((f) => f.value.toLowerCase() === v.toLowerCase())?.label ||
+            v;
   const chips = FACET_ORDER.filter(([k]) => params[k]).flatMap(([k, label]) =>
     (k in MULTI ? listOf(params[k]) : [params[k]]).map((v) =>
       h(
@@ -498,6 +509,16 @@ async function search(params) {
         h("button", { class: "btn", disabled: page.page >= pages, onclick: () => go("/search", { ...params, page: page.page + 1 }) }, "Next →"),
       ),
   );
+}
+
+// "Test, from "test" in the entityID's host", "Production, as Claude read it": the
+// value with what decided it, so a generated reading is never shown as published.
+function environmentNote(env) {
+  if (!env) return "unknown";
+  const label = ENVIRONMENT[env.value] || env.value;
+  if (env.source === "metadata") return `${label}, from ${env.evidence}`;
+  if (env.source === "generated") return [h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "), `${label}, as Claude read this service's metadata`];
+  return "Unknown: nothing in the metadata marks it, and there is no summary to go by";
 }
 
 function langList(map) {
@@ -596,7 +617,6 @@ async function serviceView(id) {
               "p",
               { class: "gen-note" },
               BASIS_NOTES[s.enrichment.basis] || "",
-              NON_PRODUCTION[s.enrichment.environment] ? ` Looks like a ${s.enrichment.environment} instance.` : "",
               ` Generated ${s.enrichment.generated_at.slice(0, 10)} by ${s.enrichment.model}; may be wrong.`,
             ),
           ),
@@ -613,6 +633,8 @@ async function serviceView(id) {
             s.registration.instant && [h("dt", {}, "Registered"), h("dd", {}, s.registration.instant.slice(0, 10))],
             h("dt", {}, "Seen in"),
             h("dd", {}, s.sources.map((x) => (x === "incommon" ? "InCommon aggregate" : "eduGAIN aggregate")).join(", ")),
+            h("dt", {}, "Environment"),
+            h("dd", {}, environmentNote(d.environment)),
             s.also_registered_by?.length > 0 && [h("dt", {}, "Also registered by"), h("dd", {}, s.also_registered_by.join(", "))],
           ),
         ),
