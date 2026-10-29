@@ -1862,7 +1862,7 @@ mod tests {
         assert_eq!(p.regions.len(), 1, "once each, and unknown keys not at all");
         let eu = &p.regions[0];
         assert_eq!(eu.key, "eu");
-        assert_eq!(eu.as_of.as_deref(), Some("2020-02-01"));
+        assert_eq!(eu.as_of.as_deref(), Some("2020-01-31"));
         assert_eq!(eu.countries.len(), 27);
         assert!(c.search(&ServiceQuery::default()).regions.is_empty());
     }

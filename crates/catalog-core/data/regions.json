@@ -5,8 +5,8 @@
    "key": "africa",
    "label": "Africa",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
    "checked": "2026-10-29",
    "aliases": [
     "african",
@@ -21,8 +21,8 @@
    "key": "northern-africa",
    "label": "Northern Africa",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
    "checked": "2026-10-29",
    "aliases": [
     "north africa",
@@ -42,8 +42,8 @@
    "key": "sub-saharan-africa",
    "label": "Sub-Saharan Africa",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
    "checked": "2026-10-29",
    "aliases": [
     "subsaharan africa",
@@ -60,8 +60,8 @@
    "key": "eastern-africa",
    "label": "Eastern Africa",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
    "checked": "2026-10-29",
    "aliases": [
     "east africa",
@@ -96,8 +96,8 @@
    "key": "middle-africa",
    "label": "Middle Africa",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
    "checked": "2026-10-29",
    "aliases": [
     "central africa",
@@ -119,8 +119,8 @@
    "key": "southern-africa",
    "label": "Southern Africa",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
    "checked": "2026-10-29",
    "countries": [
     "BW",
@@ -134,8 +134,8 @@
    "key": "western-africa",
    "label": "Western Africa",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
    "checked": "2026-10-29",
    "aliases": [
     "west africa",
@@ -165,8 +165,8 @@
    "key": "americas",
    "label": "the Americas",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
    "checked": "2026-10-29",
    "aliases": [
     "the americas",
@@ -181,8 +181,8 @@
    "key": "northern-america",
    "label": "Northern America",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
    "checked": "2026-10-29",
    "aliases": [
     "north america",
@@ -201,8 +201,8 @@
    "key": "latin-america",
    "label": "Latin America and the Caribbean",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
    "checked": "2026-10-29",
    "aliases": [
     "latin america",
@@ -219,8 +219,8 @@
    "key": "caribbean",
    "label": "the Caribbean",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
    "checked": "2026-10-29",
    "aliases": [
     "caribbean"
@@ -260,8 +260,8 @@
    "key": "central-america",
    "label": "Central America",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
    "checked": "2026-10-29",
    "aliases": [
     "central american"
@@ -281,8 +281,8 @@
    "key": "south-america",
    "label": "South America",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
    "checked": "2026-10-29",
    "aliases": [
     "south american"
@@ -310,8 +310,8 @@
    "key": "asia",
    "label": "Asia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
    "checked": "2026-10-29",
    "aliases": [
     "asian"
@@ -328,8 +328,8 @@
    "key": "central-asia",
    "label": "Central Asia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
    "checked": "2026-10-29",
    "aliases": [
     "central asian"
@@ -346,8 +346,8 @@
    "key": "eastern-asia",
    "label": "Eastern Asia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
    "checked": "2026-10-29",
    "aliases": [
     "east asia",
@@ -367,8 +367,8 @@
    "key": "south-eastern-asia",
    "label": "South-eastern Asia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
    "checked": "2026-10-29",
    "aliases": [
     "southeast asia",
@@ -394,8 +394,8 @@
    "key": "southern-asia",
    "label": "Southern Asia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
    "checked": "2026-10-29",
    "aliases": [
     "south asia",
@@ -417,8 +417,8 @@
    "key": "western-asia",
    "label": "Western Asia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
    "checked": "2026-10-29",
    "aliases": [
     "west asia"
@@ -449,7 +449,7 @@
    "label": "Asia-Pacific",
    "kind": "geographic",
    "source": "Not an M49 region: the union of M49 Eastern, South-eastern, and Southern Asia and Oceania",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
    "checked": "2026-10-29",
    "aliases": [
     "asia-pacific",
@@ -468,8 +468,8 @@
    "key": "europe",
    "label": "Europe",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
    "checked": "2026-10-29",
    "aliases": [
     "european",
@@ -486,8 +486,8 @@
    "key": "eastern-europe",
    "label": "Eastern Europe",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
    "checked": "2026-10-29",
    "aliases": [
     "east europe",
@@ -511,8 +511,8 @@
    "key": "northern-europe",
    "label": "Northern Europe",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
    "checked": "2026-10-29",
    "aliases": [
     "north europe",
@@ -541,8 +541,8 @@
    "key": "southern-europe",
    "label": "Southern Europe",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
    "checked": "2026-10-29",
    "aliases": [
     "south europe",
@@ -571,8 +571,8 @@
    "key": "western-europe",
    "label": "Western Europe",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
    "checked": "2026-10-29",
    "aliases": [
     "west europe",
@@ -594,8 +594,8 @@
    "key": "oceania",
    "label": "Oceania",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
    "checked": "2026-10-29",
    "aliases": [
     "oceanian",
@@ -612,8 +612,8 @@
    "key": "australia-and-new-zealand",
    "label": "Australia and New Zealand",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
    "checked": "2026-10-29",
    "aliases": [
     "australasia",
@@ -632,8 +632,8 @@
    "key": "melanesia",
    "label": "Melanesia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
    "checked": "2026-10-29",
    "countries": [
     "FJ",
@@ -647,8 +647,8 @@
    "key": "micronesia",
    "label": "Micronesia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
    "checked": "2026-10-29",
    "countries": [
     "GU",
@@ -665,8 +665,8 @@
    "key": "polynesia",
    "label": "Polynesia",
    "kind": "geographic",
-   "source": "UN M49",
-   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
+   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
    "checked": "2026-10-29",
    "countries": [
     "AS",
@@ -686,9 +686,9 @@
    "label": "the European Union",
    "kind": "political",
    "source": "EU member states",
-   "url": "https://european-union.europa.eu/principles-countries-history/eu-countries_en",
+   "url": "https://en.wikipedia.org/wiki/Member_state_of_the_European_Union",
    "checked": "2026-10-29",
-   "as_of": "2020-02-01",
+   "as_of": "2020-01-31",
    "aliases": [
     "the eu",
     "eu",
@@ -697,7 +697,7 @@
     "eu member states",
     "eu countries"
    ],
-   "note": "The United Kingdom left on 2020-02-01; no state has joined since.",
+   "note": "The United Kingdom left on 2020-01-31; no state has joined since Croatia.",
    "countries": [
     "AT",
     "BE",
@@ -729,16 +729,19 @@
    ],
    "joined": {
     "HR": "2013-07-01"
+   },
+   "left": {
+    "GB": "2020-01-31"
    }
   },
   {
    "key": "eea",
    "label": "the European Economic Area",
    "kind": "political",
-   "source": "The EU plus Iceland, Liechtenstein, and Norway",
-   "url": "https://www.efta.int/eea",
+   "source": "The EU plus the EEA EFTA states",
+   "url": "https://en.wikipedia.org/wiki/European_Economic_Area",
    "checked": "2026-10-29",
-   "as_of": "2020-02-01",
+   "as_of": "2020-01-31",
    "aliases": [
     "the eea",
     "eea",
@@ -754,10 +757,10 @@
    "key": "eea-efta",
    "label": "the EEA EFTA states",
    "kind": "political",
-   "source": "EFTA members in the EEA",
-   "url": "https://www.efta.int/eea",
+   "source": "EFTA states in the EEA",
+   "url": "https://en.wikipedia.org/wiki/European_Economic_Area",
    "checked": "2026-10-29",
-   "as_of": "1995-05-01",
+   "as_of": "1994-01-01",
    "aliases": [
     "eea efta"
    ],
@@ -765,14 +768,15 @@
     "IS",
     "LI",
     "NO"
-   ]
+   ],
+   "note": "The EEA Agreement entered into force on 1994-01-01; the source gives no separate date for Liechtenstein."
   },
   {
    "key": "schengen",
    "label": "the Schengen Area",
    "kind": "political",
    "source": "Schengen Area members",
-   "url": "https://home-affairs.ec.europa.eu/policies/schengen/schengen-area_en",
+   "url": "https://en.wikipedia.org/wiki/Schengen_Area",
    "checked": "2026-10-29",
    "as_of": "2025-01-01",
    "aliases": [
@@ -826,7 +830,7 @@
    "label": "the euro area",
    "kind": "political",
    "source": "EU states that use the euro",
-   "url": "https://www.ecb.europa.eu/euro/intro/html/index.en.html",
+   "url": "https://en.wikipedia.org/wiki/Eurozone",
    "checked": "2026-10-29",
    "as_of": "2026-01-01",
    "aliases": [
@@ -861,18 +865,19 @@
     "ES"
    ],
    "joined": {
-    "HR": "2023-01-01",
+    "HR": "2023",
     "BG": "2026-01-01"
-   }
+   },
+   "note": "Bulgaria's date is from the ECB (https://www.ecb.europa.eu/press/pr/date/2026/html/ecb.pr260101~c830245e42.en.html)."
   },
   {
    "key": "nordic-council",
    "label": "the Nordic Council",
    "kind": "political",
    "source": "Nordic Council members and autonomous territories",
-   "url": "https://www.norden.org/en/information/about-nordic-council",
+   "url": "https://en.wikipedia.org/wiki/Nordic_Council",
    "checked": "2026-10-29",
-   "as_of": "1984-01-01",
+   "as_of": "1984",
    "aliases": [
     "nordic council",
     "the nordic council",
@@ -881,7 +886,7 @@
     "the nordics",
     "nordics"
    ],
-   "note": "The five states and the Faroe Islands, Greenland, and Åland.",
+   "note": "The five states and the Faroe Islands (represented since 1970), Greenland (since 1984), and Åland.",
    "countries": [
     "DK",
     "FI",
@@ -898,7 +903,7 @@
    "label": "NATO",
    "kind": "political",
    "source": "NATO member countries",
-   "url": "https://www.nato.int/cps/en/natohq/nato_countries.htm",
+   "url": "https://en.wikipedia.org/wiki/Member_states_of_NATO",
    "checked": "2026-10-29",
    "as_of": "2024-03-07",
    "aliases": [
@@ -951,10 +956,10 @@
    "key": "five-eyes",
    "label": "Five Eyes",
    "kind": "political",
-   "source": "The UKUSA intelligence alliance",
-   "url": "https://www.dni.gov/index.php/ncsc-how-we-work/217-about/organization/icig-pages/2660-icig-fiorc",
+   "source": "The Five Eyes intelligence alliance",
+   "url": "https://en.wikipedia.org/wiki/Five_Eyes",
    "checked": "2026-10-29",
-   "as_of": "1956-01-01",
+   "as_of": "1956",
    "aliases": [
     "five eyes",
     "five eyes countries",
@@ -974,7 +979,7 @@
    "label": "the OECD",
    "kind": "political",
    "source": "OECD member countries",
-   "url": "https://www.oecd.org/en/about/members-partners.html",
+   "url": "https://en.wikipedia.org/wiki/OECD",
    "checked": "2026-10-29",
    "as_of": "2021-05-25",
    "aliases": [
@@ -1033,16 +1038,16 @@
    "label": "the G7",
    "kind": "political",
    "source": "Group of Seven member countries",
-   "url": "https://www.international.gc.ca/world-monde/international_relations-relations_internationales/g7/index.aspx?lang=eng",
+   "url": "https://en.wikipedia.org/wiki/G7",
    "checked": "2026-10-29",
-   "as_of": "1997-06-20",
+   "as_of": "2014-03",
    "aliases": [
     "g7",
     "the g7",
     "g7 countries",
     "group of seven"
    ],
-   "note": "The seven countries; the EU takes part but is not counted as a member.",
+   "note": "The seven countries. The EU takes part as a non-enumerated member. Russia's membership of the G8 was suspended in March 2014.",
    "countries": [
     "CA",
     "FR",
@@ -1058,9 +1063,9 @@
    "label": "the G20",
    "kind": "political",
    "source": "G20 members",
-   "url": "https://g20.org/about-the-g20/",
+   "url": "https://en.wikipedia.org/wiki/G20",
    "checked": "2026-10-29",
-   "as_of": "2023-09-09",
+   "as_of": "2023-09",
    "aliases": [
     "g20",
     "the g20",
@@ -1095,7 +1100,7 @@
    "label": "ASEAN",
    "kind": "political",
    "source": "ASEAN member states",
-   "url": "https://asean.org/member-states/",
+   "url": "https://en.wikipedia.org/wiki/ASEAN",
    "checked": "2026-10-29",
    "as_of": "2025-10-26",
    "aliases": [
@@ -1126,9 +1131,9 @@
    "label": "APEC",
    "kind": "political",
    "source": "APEC member economies",
-   "url": "https://www.apec.org/who-we-are/member-economies",
+   "url": "https://en.wikipedia.org/wiki/Asia-Pacific_Economic_Cooperation",
    "checked": "2026-10-29",
-   "as_of": "1998-11-14",
+   "as_of": "1998-11",
    "aliases": [
     "apec",
     "apec economies",
@@ -1165,7 +1170,7 @@
    "label": "Mercosur",
    "kind": "political",
    "source": "Mercosur states parties",
-   "url": "https://www.mercosur.int/en/about-mercosur/mercosur-countries/",
+   "url": "https://en.wikipedia.org/wiki/Member_states_of_Mercosur",
    "checked": "2026-10-29",
    "as_of": "2024-07-08",
    "aliases": [
@@ -1174,7 +1179,7 @@
     "mercosur countries",
     "mercosur members"
    ],
-   "note": "Full members. Venezuela has been suspended since 2016 and is not listed.",
+   "note": "Full members. Venezuela has been suspended since 2016-12-01 and is not listed.",
    "countries": [
     "AR",
     "BR",
@@ -1191,7 +1196,7 @@
    "label": "USMCA",
    "kind": "political",
    "source": "United States–Mexico–Canada Agreement parties",
-   "url": "https://ustr.gov/trade-agreements/free-trade-agreements/united-states-mexico-canada-agreement",
+   "url": "https://en.wikipedia.org/wiki/United_States%E2%80%93Mexico%E2%80%93Canada_Agreement",
    "checked": "2026-10-29",
    "as_of": "2020-07-01",
    "aliases": [
@@ -1211,9 +1216,9 @@
    "label": "the African Union",
    "kind": "political",
    "source": "African Union member states",
-   "url": "https://au.int/en/member_states/countryprofiles2",
+   "url": "https://en.wikipedia.org/wiki/Member_states_of_the_African_Union",
    "checked": "2026-10-29",
-   "as_of": "2017-01-30",
+   "as_of": "2017-01-31",
    "aliases": [
     "african union",
     "the african union",
@@ -1221,7 +1226,7 @@
     "african union countries",
     "au member states"
    ],
-   "note": "The 54 UN member states in Africa. The AU also counts the Sahrawi Arab Democratic Republic, which has no ISO 3166 code of its own; Western Sahara (EH) is not equated with it. Suspended members are still members.",
+   "note": "The 54 UN member states in Africa; Morocco rejoined on 2017-01-31. The AU also counts the Sahrawi Arab Democratic Republic, which has no ISO 3166 code of its own; Western Sahara (EH) is not equated with it. Members suspended after coups (such as Mali, Niger, Sudan, Burkina Faso, Guinea-Bissau, and Madagascar) are still members.",
    "countries": [
     "AO",
     "BF",
@@ -1284,7 +1289,7 @@
    "label": "ECOWAS",
    "kind": "political",
    "source": "ECOWAS member states",
-   "url": "https://ecowas.int/member-states/",
+   "url": "https://en.wikipedia.org/wiki/Economic_Community_of_West_African_States",
    "checked": "2026-10-29",
    "as_of": "2025-01-29",
    "aliases": [
@@ -1295,7 +1300,7 @@
     "economic community of west african states",
     "cedeao"
    ],
-   "note": "Burkina Faso, Mali, and Niger left on 2025-01-29. The Alliance of Sahel States they formed is not listed as a grouping.",
+   "note": "Burkina Faso, Mali, and Niger left on 2025-01-29. The Alliance of Sahel States they formed is not listed as a grouping. Guinea-Bissau is suspended but still a member.",
    "countries": [
     "BJ",
     "CV",
@@ -1321,9 +1326,9 @@
    "label": "SADC",
    "kind": "political",
    "source": "SADC member states",
-   "url": "https://www.sadc.int/member-states",
+   "url": "https://en.wikipedia.org/wiki/Southern_African_Development_Community",
    "checked": "2026-10-29",
-   "as_of": "2017-08-20",
+   "as_of": "2017-08",
    "aliases": [
     "sadc",
     "sadc countries",
@@ -1350,7 +1355,7 @@
     "ZW"
    ],
    "joined": {
-    "KM": "2017-08-20"
+    "KM": "2017-08"
    }
   },
   {
@@ -1358,7 +1363,7 @@
    "label": "the East African Community",
    "kind": "political",
    "source": "EAC partner states",
-   "url": "https://www.eac.int/eac-partner-states",
+   "url": "https://www.eac.int/overview-of-eac",
    "checked": "2026-10-29",
    "as_of": "2024-03-04",
    "aliases": [
@@ -1390,7 +1395,7 @@
    "label": "COMESA",
    "kind": "political",
    "source": "COMESA member states",
-   "url": "https://www.comesa.int/members/",
+   "url": "https://en.wikipedia.org/wiki/Common_Market_for_Eastern_and_Southern_Africa",
    "checked": "2026-10-29",
    "as_of": "2018-07-19",
    "aliases": [
@@ -1433,9 +1438,9 @@
    "label": "ECCAS",
    "kind": "political",
    "source": "ECCAS member states",
-   "url": "https://ceeac-eccas.org/en/",
+   "url": "https://en.wikipedia.org/wiki/Economic_Community_of_Central_African_States",
    "checked": "2026-10-29",
-   "as_of": "2016-08-18",
+   "as_of": "2025-06-07",
    "aliases": [
     "eccas",
     "eccas countries",
@@ -1453,21 +1458,21 @@
     "CD",
     "GQ",
     "GA",
-    "RW",
     "ST"
    ],
-   "joined": {
-    "RW": "2016-08-18"
-   }
+   "left": {
+    "RW": "2025-06-07"
+   },
+   "note": "Rwanda, which rejoined in 2016, withdrew on 2025-06-07. Gabon has been suspended since 2023-09-05 but is still listed as a member."
   },
   {
    "key": "igad",
    "label": "IGAD",
    "kind": "political",
    "source": "IGAD member states",
-   "url": "https://igad.int/about/member-states/",
+   "url": "https://en.wikipedia.org/wiki/Intergovernmental_Authority_on_Development",
    "checked": "2026-10-29",
-   "as_of": "2026-02-09",
+   "as_of": "2026-02",
    "aliases": [
     "igad",
     "igad countries",
@@ -1475,7 +1480,7 @@
     "igad member states",
     "intergovernmental authority on development"
    ],
-   "note": "Eritrea withdrew on 2025-12-12. Sudan suspended its participation in January 2024 and returned on 2026-02-09. South Sudan is a member whose rights have been suspended over unpaid dues since 2021.",
+   "note": "Eritrea announced its withdrawal on 2025-12-12. Sudan suspended its participation in January 2024 and returned in February 2026. South Sudan's membership has been suspended since December 2021 over unpaid fees.",
    "countries": [
     "DJ",
     "ET",
@@ -1560,7 +1565,7 @@
    "label": "WAEMU (UEMOA)",
    "kind": "political",
    "source": "WAEMU member states",
-   "url": "https://www.uemoa.int/",
+   "url": "https://en.wikipedia.org/wiki/West_African_Economic_and_Monetary_Union",
    "checked": "2026-10-29",
    "as_of": "1997-05-02",
    "aliases": [
@@ -1590,9 +1595,9 @@
    "label": "CEMAC",
    "kind": "political",
    "source": "CEMAC member states",
-   "url": "https://www.cemac.int/",
+   "url": "https://en.wikipedia.org/wiki/Economic_and_Monetary_Community_of_Central_Africa",
    "checked": "2026-10-29",
-   "as_of": "1999-06-25",
+   "as_of": "1999-06",
    "aliases": [
     "cemac",
     "cemac countries",
@@ -1614,7 +1619,7 @@
    "label": "the CFA franc zone",
    "kind": "political",
    "source": "WAEMU and CEMAC together",
-   "url": "https://www.bceao.int/",
+   "url": "https://en.wikipedia.org/wiki/West_African_Economic_and_Monetary_Union",
    "checked": "2026-10-29",
    "as_of": "1999-06-25",
    "aliases": [
@@ -1635,7 +1640,7 @@
    "label": "SACU",
    "kind": "political",
    "source": "Southern African Customs Union members",
-   "url": "https://www.sacu.int/",
+   "url": "https://en.wikipedia.org/wiki/Southern_African_Customs_Union",
    "checked": "2026-10-29",
    "as_of": "1970-03-01",
    "aliases": [
@@ -1724,7 +1729,7 @@
    "label": "the Arab League",
    "kind": "political",
    "source": "League of Arab States members",
-   "url": "https://en.wikipedia.org/wiki/Arab_League",
+   "url": "https://en.wikipedia.org/wiki/Member_states_of_the_Arab_League",
    "checked": "2026-10-29",
    "as_of": "2023-05-07",
    "aliases": [
@@ -1769,7 +1774,7 @@
    "label": "the Gulf Cooperation Council",
    "kind": "political",
    "source": "GCC member states",
-   "url": "https://www.gcc-sg.org/en/",
+   "url": "https://en.wikipedia.org/wiki/Gulf_Cooperation_Council",
    "checked": "2026-10-29",
    "as_of": "1981-05-25",
    "aliases": [
@@ -1794,9 +1799,9 @@
    "label": "the Commonwealth of Nations",
    "kind": "political",
    "source": "Commonwealth member countries",
-   "url": "https://thecommonwealth.org/our-member-countries",
+   "url": "https://en.wikipedia.org/wiki/Member_states_of_the_Commonwealth_of_Nations",
    "checked": "2026-10-29",
-   "as_of": "2022-06-29",
+   "as_of": "2022-06",
    "aliases": [
     "the commonwealth",
     "commonwealth countries",
@@ -1863,9 +1868,10 @@
     "ZM"
    ],
    "joined": {
-    "GA": "2022-06-29",
-    "TG": "2022-06-29"
-   }
+    "GA": "2022-06",
+    "TG": "2022-06"
+   },
+   "note": "Gabon and Togo joined in June 2022; the source gives both 25 and 29 June."
   },
   {
    "key": "brics",
@@ -1896,9 +1902,9 @@
    ],
    "joined": {
     "EG": "2024-01-01",
-    "ET": "2024-01-01",
-    "IR": "2024-01-01",
-    "AE": "2024-01-01",
+    "ET": "2024",
+    "IR": "2024",
+    "AE": "2024",
     "ID": "2025-01-06"
    }
   },

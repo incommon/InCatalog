@@ -262,7 +262,7 @@ mod tests {
         assert!(!brics.countries().contains(&"SA"), "invited, not confirmed");
         assert!(!brics.countries().contains(&"GB"));
         let eu = get("eu").unwrap().expansion();
-        assert_eq!(eu.as_of.as_deref(), Some("2020-02-01"));
+        assert_eq!(eu.as_of.as_deref(), Some("2020-01-31"));
         assert_eq!(eu.kind, RegionKind::Political);
         assert!(!eu.countries.contains(&"GB".to_owned()));
     }
@@ -430,7 +430,7 @@ mod tests {
                 ("sadc", 16),
                 ("eac", 8),
                 ("comesa", 21),
-                ("eccas", 11),
+                ("eccas", 10),
                 ("igad", 7),
                 ("cen-sad", 25),
                 ("amu", 5),
@@ -452,5 +452,29 @@ mod tests {
             .as_deref()
             .unwrap()
             .contains("not every signatory"));
+    }
+
+    #[test]
+    fn corrections_from_checking_the_sources() {
+        // Rwanda withdrew from ECCAS on 2025-06-07; Gabon is suspended but listed.
+        let eccas = get("eccas").unwrap();
+        assert_eq!(eccas.left.get("RW").map(String::as_str), Some("2025-06-07"));
+        assert!(!countries("eccas").contains(&"RW") && countries("eccas").contains(&"GA"));
+        // The United Kingdom left the EU on 2020-01-31.
+        let eu = get("eu").unwrap();
+        assert_eq!(eu.left.get("GB").map(String::as_str), Some("2020-01-31"));
+        // Where the source gives only a month or a year, so does the data.
+        assert_eq!(
+            get("sadc").unwrap().joined.get("KM").map(String::as_str),
+            Some("2017-08")
+        );
+        assert_eq!(
+            get("brics").unwrap().joined.get("ET").map(String::as_str),
+            Some("2024")
+        );
+        // Every entry points at the page its list was read from.
+        for r in REGIONS.iter() {
+            assert!(r.url.starts_with("https://"), "{}", r.key);
+        }
     }
 }
