@@ -508,6 +508,9 @@ async function search(params) {
               { class: "region-source" },
               region.as_of && region.kind !== "geographic" ? `Membership as of ${region.as_of}. ` : "",
               region.note ? `${region.note} ` : "",
+              Object.keys(region.left || {}).length
+                ? `Former members: ${Object.entries(region.left).map(([cc, d]) => `${flag(cc)} ${cc} (left ${d})`).join(", ")}. `
+                : "",
               h("a", { href: region.url, target: "_blank", rel: "noopener noreferrer" }, region.source),
               `, checked ${region.checked}.`,
             ),
