@@ -220,7 +220,7 @@ results so the user can check it or search the literal words instead.
 |---|---|
 | R&S services in Sweden that request email | `category=research-and-scholarship`, `country=SE`, `attribute=mail` |
 | UK federation services that need ORCID | `federation=UK-FEDERATION`, `attribute=eduPersonOrcid` |
-| German library services | `country=DE`, words `library` |
+| German library services | `country=DE`, `sector=libraries` |
 | journals not in InCommon | `availability=edugain-only`, words `journals` |
 | test instances of Canvas | `environment=test`, words `canvas` |
 | only production services, no test instances | `environment=production` (or `production,unknown`) |
@@ -506,12 +506,11 @@ Publicly funded institutions are labeled by what they are: a public university i
 `commercial`.
 
 In plain language:
-- "libraries", "run by museums", "universities" and "government agencies" filter on
-  sector
+- "libraries", "library services", "museum SPs", "run by museums", "universities" and
+  "government agencies" filter on sector
 - "commercial", "vendors" and "companies" → `commercial`
 - "non-commercial" → every sector except `commercial` and `publishers`
-- "library services" and "museum SPs" stay words, since "R&S library services" means
-  library-related services
+- "library" alone stays a word, so "library management system" searches the words
 
 `crates/catalog-core/tests/fixtures/sector-sample.json` is a hand-labeled sample of 60
 organizations, including the false positives above. `cargo test` checks the rules'
