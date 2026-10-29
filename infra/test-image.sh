@@ -79,6 +79,10 @@ services=$(python3 -c 'import gzip,json,sys; print(len(json.load(gzip.open(sys.a
 ok "ingest built a snapshot from the fixtures ($services services)"
 
 # 4. Serve it
+# The image runs as uid 1000, and mktemp -d made $WORK 0700 for the user running this
+# script (uid 1001 on a GitHub runner). Docker Desktop ignores that on macOS bind
+# mounts; Linux does not, and the API could not read the snapshot.
+chmod -R a+rX "$WORK"
 docker run -d --platform linux/arm64 --name "$NAME" -p 127.0.0.1::8080 -v "$WORK:/data:ro" \
   -e CATALOG_SOURCE=/data/catalog.json.gz "$IMAGE" >/dev/null
 URL="http://$(docker port "$NAME" 8080 | head -1)"
