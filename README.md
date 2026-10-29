@@ -148,6 +148,14 @@ what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
   - NATO and Five Eyes
   - the OECD, the G7, the G20, ASEAN, APEC, Mercosur, and USMCA
   - the African Union, the GCC, the Commonwealth of Nations, and BRICS
+  - Africa's regional economic communities (ECOWAS, SADC, the EAC, COMESA, ECCAS,
+    IGAD, CEN-SAD, the Arab Maghreb Union), the CFA franc zone (WAEMU and CEMAC),
+    SACU, AfCFTA's state parties, and the Arab League
+
+  Former members are recorded with the date they left (`left`), rather than dropped
+  silently. For example, Burkina Faso, Mali, and Niger left ECOWAS on 2025-01-29,
+  and Eritrea left IGAD on 2025-12-12. Memberships overlap: Kenya is in the EAC,
+  COMESA, and IGAD.
 
   The EU is not Europe, and Schengen is not the EU: Norway and Switzerland are in it,
   and Ireland and Cyprus are not.
@@ -164,6 +172,9 @@ what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
   - Mercosur's suspended Venezuela is left out
   - so is Saudi Arabia, invited to BRICS in 2023 but not confirmed
   - so is Kosovo, whose network is a GÉANT associate but which has no ISO code
+  - AfCFTA lists the states that have ratified the agreement, not every signatory
+  - the Alliance of Sahel States (Burkina Faso, Mali, Niger) is not listed, as a
+    politically sensitive grouping
 
   Groupings whose membership is contested, or that label countries by a judgment
   (sanctions lists, "developed countries"), are left out on purpose.

@@ -1280,6 +1280,491 @@
    ]
   },
   {
+   "key": "ecowas",
+   "label": "ECOWAS",
+   "kind": "political",
+   "source": "ECOWAS member states",
+   "url": "https://ecowas.int/member-states/",
+   "checked": "2026-10-29",
+   "as_of": "2025-01-29",
+   "aliases": [
+    "ecowas",
+    "ecowas countries",
+    "ecowas members",
+    "ecowas member states",
+    "economic community of west african states",
+    "cedeao"
+   ],
+   "note": "Burkina Faso, Mali, and Niger left on 2025-01-29. The Alliance of Sahel States they formed is not listed as a grouping.",
+   "countries": [
+    "BJ",
+    "CV",
+    "CI",
+    "GM",
+    "GH",
+    "GN",
+    "GW",
+    "LR",
+    "NG",
+    "SN",
+    "SL",
+    "TG"
+   ],
+   "left": {
+    "BF": "2025-01-29",
+    "ML": "2025-01-29",
+    "NE": "2025-01-29"
+   }
+  },
+  {
+   "key": "sadc",
+   "label": "SADC",
+   "kind": "political",
+   "source": "SADC member states",
+   "url": "https://www.sadc.int/member-states",
+   "checked": "2026-10-29",
+   "as_of": "2017-08-20",
+   "aliases": [
+    "sadc",
+    "sadc countries",
+    "sadc members",
+    "sadc member states",
+    "southern african development community"
+   ],
+   "countries": [
+    "AO",
+    "BW",
+    "KM",
+    "CD",
+    "SZ",
+    "LS",
+    "MG",
+    "MW",
+    "MU",
+    "MZ",
+    "NA",
+    "SC",
+    "ZA",
+    "TZ",
+    "ZM",
+    "ZW"
+   ],
+   "joined": {
+    "KM": "2017-08-20"
+   }
+  },
+  {
+   "key": "eac",
+   "label": "the East African Community",
+   "kind": "political",
+   "source": "EAC partner states",
+   "url": "https://www.eac.int/eac-partner-states",
+   "checked": "2026-10-29",
+   "as_of": "2024-03-04",
+   "aliases": [
+    "eac",
+    "eac countries",
+    "eac members",
+    "eac partner states",
+    "east african community",
+    "the east african community"
+   ],
+   "countries": [
+    "BI",
+    "CD",
+    "KE",
+    "RW",
+    "SO",
+    "SS",
+    "TZ",
+    "UG"
+   ],
+   "joined": {
+    "SS": "2016-09-05",
+    "CD": "2022-07-11",
+    "SO": "2024-03-04"
+   }
+  },
+  {
+   "key": "comesa",
+   "label": "COMESA",
+   "kind": "political",
+   "source": "COMESA member states",
+   "url": "https://www.comesa.int/members/",
+   "checked": "2026-10-29",
+   "as_of": "2018-07-19",
+   "aliases": [
+    "comesa",
+    "comesa countries",
+    "comesa members",
+    "comesa member states",
+    "common market for eastern and southern africa"
+   ],
+   "countries": [
+    "BI",
+    "KM",
+    "CD",
+    "DJ",
+    "EG",
+    "ER",
+    "SZ",
+    "ET",
+    "KE",
+    "LY",
+    "MG",
+    "MW",
+    "MU",
+    "RW",
+    "SC",
+    "SO",
+    "SD",
+    "TN",
+    "UG",
+    "ZM",
+    "ZW"
+   ],
+   "joined": {
+    "TN": "2018-07-18",
+    "SO": "2018-07-19"
+   }
+  },
+  {
+   "key": "eccas",
+   "label": "ECCAS",
+   "kind": "political",
+   "source": "ECCAS member states",
+   "url": "https://ceeac-eccas.org/en/",
+   "checked": "2026-10-29",
+   "as_of": "2016-08-18",
+   "aliases": [
+    "eccas",
+    "eccas countries",
+    "eccas members",
+    "ceeac",
+    "economic community of central african states"
+   ],
+   "countries": [
+    "AO",
+    "BI",
+    "CM",
+    "CF",
+    "TD",
+    "CG",
+    "CD",
+    "GQ",
+    "GA",
+    "RW",
+    "ST"
+   ],
+   "joined": {
+    "RW": "2016-08-18"
+   }
+  },
+  {
+   "key": "igad",
+   "label": "IGAD",
+   "kind": "political",
+   "source": "IGAD member states",
+   "url": "https://igad.int/about/member-states/",
+   "checked": "2026-10-29",
+   "as_of": "2026-02-09",
+   "aliases": [
+    "igad",
+    "igad countries",
+    "igad members",
+    "igad member states",
+    "intergovernmental authority on development"
+   ],
+   "note": "Eritrea withdrew on 2025-12-12. Sudan suspended its participation in January 2024 and returned on 2026-02-09. South Sudan is a member whose rights have been suspended over unpaid dues since 2021.",
+   "countries": [
+    "DJ",
+    "ET",
+    "KE",
+    "SO",
+    "SS",
+    "SD",
+    "UG"
+   ],
+   "left": {
+    "ER": "2025-12-12"
+   }
+  },
+  {
+   "key": "cen-sad",
+   "label": "CEN-SAD",
+   "kind": "political",
+   "source": "CEN-SAD member states",
+   "url": "https://en.wikipedia.org/wiki/Community_of_Sahel%E2%80%93Saharan_States",
+   "checked": "2026-10-29",
+   "as_of": "2007-01-01",
+   "aliases": [
+    "cen-sad",
+    "censad",
+    "cen-sad countries",
+    "cen-sad members",
+    "community of sahel-saharan states"
+   ],
+   "note": "The 25 states of the revised 2013 treaty. Cabo Verde, Kenya, Liberia, and São Tomé and Príncipe, earlier members, did not sign it.",
+   "countries": [
+    "BJ",
+    "BF",
+    "CF",
+    "TD",
+    "KM",
+    "DJ",
+    "EG",
+    "ER",
+    "GM",
+    "GH",
+    "GN",
+    "GW",
+    "CI",
+    "LY",
+    "ML",
+    "MR",
+    "MA",
+    "NE",
+    "NG",
+    "SN",
+    "SL",
+    "SO",
+    "SD",
+    "TG",
+    "TN"
+   ]
+  },
+  {
+   "key": "amu",
+   "label": "the Arab Maghreb Union",
+   "kind": "political",
+   "source": "Arab Maghreb Union member states",
+   "url": "https://en.wikipedia.org/wiki/Arab_Maghreb_Union",
+   "checked": "2026-10-29",
+   "as_of": "1989-02-17",
+   "aliases": [
+    "arab maghreb union",
+    "the arab maghreb union",
+    "maghreb union",
+    "amu countries"
+   ],
+   "countries": [
+    "DZ",
+    "LY",
+    "MR",
+    "MA",
+    "TN"
+   ]
+  },
+  {
+   "key": "waemu",
+   "label": "WAEMU (UEMOA)",
+   "kind": "political",
+   "source": "WAEMU member states",
+   "url": "https://www.uemoa.int/",
+   "checked": "2026-10-29",
+   "as_of": "1997-05-02",
+   "aliases": [
+    "waemu",
+    "uemoa",
+    "waemu countries",
+    "uemoa countries",
+    "west african economic and monetary union"
+   ],
+   "note": "The West African CFA franc zone. Burkina Faso, Mali, and Niger remain members after leaving ECOWAS.",
+   "countries": [
+    "BJ",
+    "BF",
+    "CI",
+    "GW",
+    "ML",
+    "NE",
+    "SN",
+    "TG"
+   ],
+   "joined": {
+    "GW": "1997-05-02"
+   }
+  },
+  {
+   "key": "cemac",
+   "label": "CEMAC",
+   "kind": "political",
+   "source": "CEMAC member states",
+   "url": "https://www.cemac.int/",
+   "checked": "2026-10-29",
+   "as_of": "1999-06-25",
+   "aliases": [
+    "cemac",
+    "cemac countries",
+    "cemac members",
+    "central african economic and monetary community"
+   ],
+   "note": "The Central African CFA franc zone.",
+   "countries": [
+    "CM",
+    "CF",
+    "TD",
+    "CG",
+    "GQ",
+    "GA"
+   ]
+  },
+  {
+   "key": "cfa-franc-zone",
+   "label": "the CFA franc zone",
+   "kind": "political",
+   "source": "WAEMU and CEMAC together",
+   "url": "https://www.bceao.int/",
+   "checked": "2026-10-29",
+   "as_of": "1999-06-25",
+   "aliases": [
+    "cfa franc zone",
+    "the cfa franc zone",
+    "cfa zone",
+    "cfa franc countries",
+    "franc zone"
+   ],
+   "note": "Both CFA francs: the West African (WAEMU) and the Central African (CEMAC). Comoros has its own franc and is not included.",
+   "regions": [
+    "waemu",
+    "cemac"
+   ]
+  },
+  {
+   "key": "sacu",
+   "label": "SACU",
+   "kind": "political",
+   "source": "Southern African Customs Union members",
+   "url": "https://www.sacu.int/",
+   "checked": "2026-10-29",
+   "as_of": "1970-03-01",
+   "aliases": [
+    "sacu",
+    "sacu countries",
+    "southern african customs union"
+   ],
+   "countries": [
+    "BW",
+    "SZ",
+    "LS",
+    "NA",
+    "ZA"
+   ]
+  },
+  {
+   "key": "afcfta",
+   "label": "AfCFTA state parties",
+   "kind": "political",
+   "source": "AfCFTA ratifications deposited with the AU Commission (tralac)",
+   "url": "https://www.tralac.org/resources/infographic/13795-status-of-afcfta-ratification.html",
+   "checked": "2026-10-29",
+   "as_of": "2026-09-04",
+   "aliases": [
+    "afcfta",
+    "afcfta countries",
+    "afcfta members",
+    "afcfta state parties",
+    "african continental free trade area"
+   ],
+   "note": "States that have ratified the agreement (50 as at 2026-09-04), not every signatory. The Sahrawi Arab Democratic Republic has also ratified and has no ISO 3166 code of its own.",
+   "countries": [
+    "GH",
+    "KE",
+    "RW",
+    "NE",
+    "TD",
+    "SZ",
+    "GN",
+    "CI",
+    "ML",
+    "NA",
+    "ZA",
+    "CG",
+    "DJ",
+    "MR",
+    "UG",
+    "SN",
+    "TG",
+    "EG",
+    "ET",
+    "GM",
+    "SL",
+    "ZW",
+    "BF",
+    "ST",
+    "GQ",
+    "GA",
+    "MU",
+    "CF",
+    "AO",
+    "LS",
+    "TN",
+    "CM",
+    "NG",
+    "MW",
+    "ZM",
+    "DZ",
+    "BI",
+    "SC",
+    "TZ",
+    "CV",
+    "CD",
+    "MA",
+    "GW",
+    "BW",
+    "KM",
+    "MZ",
+    "LR",
+    "MG",
+    "SO"
+   ]
+  },
+  {
+   "key": "arab-league",
+   "label": "the Arab League",
+   "kind": "political",
+   "source": "League of Arab States members",
+   "url": "https://en.wikipedia.org/wiki/Arab_League",
+   "checked": "2026-10-29",
+   "as_of": "2023-05-07",
+   "aliases": [
+    "arab league",
+    "the arab league",
+    "arab league countries",
+    "arab league members",
+    "league of arab states",
+    "arab states"
+   ],
+   "note": "Its 22 members as the League lists them, spanning Africa and Asia. Syria's membership, suspended in 2011, was restored on 2023-05-07.",
+   "countries": [
+    "DZ",
+    "BH",
+    "KM",
+    "DJ",
+    "EG",
+    "IQ",
+    "JO",
+    "KW",
+    "LB",
+    "LY",
+    "MR",
+    "MA",
+    "OM",
+    "PS",
+    "QA",
+    "SA",
+    "SO",
+    "SD",
+    "SY",
+    "TN",
+    "AE",
+    "YE"
+   ],
+   "joined": {
+    "SY": "2023-05-07"
+   }
+  },
+  {
    "key": "gcc",
    "label": "the Gulf Cooperation Council",
    "kind": "political",
