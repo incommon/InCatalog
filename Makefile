@@ -16,7 +16,8 @@ lint:
 
 # Regenerate the dependencies' license notices after Cargo.lock changes (CI checks them).
 notices:
-	cargo about generate about.hbs -o THIRD-PARTY-LICENSES.html
+	cargo fetch --locked
+	cargo about generate --offline --locked about.hbs -o THIRD-PARTY-LICENSES.html
 
 # Fetch InCommon + eduGAIN metadata and write a local snapshot (~10 s on a warm cache).
 ingest:

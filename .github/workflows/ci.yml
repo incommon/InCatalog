@@ -99,8 +99,8 @@ jobs:
 
       # The org allows only GitHub-owned and verified-creator actions, so this is
       # actions/cache rather than a Rust-specific cache action. ~/.cargo/bin
-      # holds cargo-llvm-cov between runs; `cargo install` skips a tool that is
-      # already at the requested version.
+      # holds cargo-llvm-cov between runs (but not cargo's install records, so
+      # the install step checks the version itself).
       - uses: actions/cache@v6
         with:
           path: |
@@ -121,8 +121,12 @@ jobs:
       - name: Tests
         run: cargo test --workspace
 
+      # A cached binary comes back without cargo's install records, and
+      # `cargo install` then refuses to overwrite it; hence the version check.
       - name: Install cargo-llvm-cov
-        run: cargo install --locked cargo-llvm-cov@0.8.7
+        run: |
+          cargo llvm-cov --version 2>/dev/null | grep -qx 'cargo-llvm-cov 0.8.7' \
+            || cargo install --locked --force cargo-llvm-cov@0.8.7
 
       - name: Coverage gate (ratchet-up only — see CONTRIBUTING.md)
         run: |
@@ -230,8 +234,10 @@ jobs:
           key: license-tools-${{ runner.os }}-deny-0.20.2-about-0.9.1
       - name: Install cargo-deny and cargo-about
         run: |
-          cargo install --locked cargo-deny@0.20.2
-          cargo install --locked --features cli cargo-about@0.9.1
+          cargo deny --version 2>/dev/null | grep -qx 'cargo-deny 0.20.2' \
+            || cargo install --locked --force cargo-deny@0.20.2
+          cargo about --version 2>/dev/null | grep -qx 'cargo-about 0.9.1' \
+            || cargo install --locked --force --features cli cargo-about@0.9.1
 
       # Enforce the permissive-only license allow-list (deny.toml). A
       # dependency under a non-permissive license fails here.
@@ -239,11 +245,16 @@ jobs:
         run: cargo deny check licenses
 
       # The shipped THIRD-PARTY-LICENSES.html must match what about.toml +
-      # the current Cargo.lock produce.
+      # the current Cargo.lock produce. Generated --offline, from the crates'
+      # own files only, as `make notices` does: online, cargo-about also asks
+      # clearlydefined.io and the crates' git repositories, whose answers vary
+      # from run to run, and the check would fail on files nobody changed.
       - name: Third-party notices are up to date
         run: |
-          cargo about generate about.hbs -o /tmp/THIRD-PARTY-LICENSES.html
+          cargo fetch --locked
+          cargo about generate --offline --locked about.hbs -o /tmp/THIRD-PARTY-LICENSES.html
           if ! diff -q THIRD-PARTY-LICENSES.html /tmp/THIRD-PARTY-LICENSES.html; then
+            diff THIRD-PARTY-LICENSES.html /tmp/THIRD-PARTY-LICENSES.html | head -40 || true
             echo "::error::THIRD-PARTY-LICENSES.html is stale — regenerate with: make notices"
             exit 1
           fi

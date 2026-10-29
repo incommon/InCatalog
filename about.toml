@@ -1,5 +1,8 @@
 # cargo-about — third-party attribution generation.
-#   cargo about generate about.hbs -o THIRD-PARTY-LICENSES.html
+#   make notices   (cargo about generate --offline --locked ...)
+# --offline keeps it reproducible: online, cargo-about also consults
+# clearlydefined.io and the crates' git repositories, which answer differently
+# from run to run.
 # Produces the aggregated dependency license/copyright notices shipped in the
 # container image (Apache-2.0 §4 + the MIT/BSD/ISC attribution clauses).
 # The accepted set mirrors deny.toml's allow-list.
