@@ -76,6 +76,12 @@ variable "summary_max_per_run" {
   default     = 500
 }
 
+variable "sharing_max_per_run" {
+  description = "Most multilateral/bilateral labels to request per ingest run (a tenant cluster is one request). Like summaries they are written during the run; the first run's backlog carries over to later ones."
+  type        = number
+  default     = 400
+}
+
 variable "github_oidc_provider_arn" {
   description = "ARN of this account's IAM OIDC provider for token.actions.githubusercontent.com. Set it to create the role .github/workflows/build-images.yml assumes to push images; empty creates nothing."
   type        = string

@@ -10,6 +10,7 @@
 mod enrich;
 mod fetch;
 mod logos;
+mod sharing;
 
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -99,6 +100,15 @@ struct Args {
     /// whose submit reached the API but whose reply never came back.
     #[arg(long, env = "CATALOG_ENRICH_ADOPT_BATCH")]
     enrich_adopt_batch: Option<String>,
+
+    /// Most multilateral/bilateral requests to send to Claude per run (a tenant
+    /// cluster is one); 0 turns them off.
+    #[arg(long, env = "CATALOG_SHARING_MAX", default_value_t = 400)]
+    sharing_max: usize,
+
+    /// Where sharing labels are kept (default: `sharing-cache.json` beside `--out`).
+    #[arg(long, env = "CATALOG_SHARING_CACHE")]
+    sharing_cache: Option<String>,
 }
 
 #[tokio::main]
@@ -243,6 +253,39 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         Some(report)
     };
 
+    let sharing_report = if args.sharing_max == 0 {
+        None
+    } else {
+        let cache = args
+            .sharing_cache
+            .clone()
+            .unwrap_or_else(|| sibling(&args.out, "sharing-cache.json"));
+        let claude = catalog_claude::Claude::from_env(
+            "CATALOG_SHARING_MODEL",
+            "CATALOG_SHARING_EFFORT",
+            std::time::Duration::from_secs(60),
+        )
+        .await?;
+        let report = sharing::classify(
+            &mut services,
+            &federations,
+            sharing::Options {
+                cache: Location::parse(&cache)?,
+                claude,
+                max: args.sharing_max,
+            },
+        )
+        .await?;
+        tracing::info!(?report, "sharing");
+        if let Some(why) = &report.skipped_reason {
+            warnings.push(format!(
+                "{} multilateral/bilateral requests are waiting: {why}",
+                report.waiting
+            ));
+        }
+        Some(report)
+    };
+
     let logo_report = if args.skip_logos {
         None
     } else {
@@ -303,6 +346,7 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         "warnings": snapshot.warnings,
         "logos": logo_report,
         "summaries": enrich_report,
+        "sharing": sharing_report,
     }))
 }
 

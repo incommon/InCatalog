@@ -302,6 +302,9 @@ resource "aws_lambda_function" "ingest" {
         # run. This keeps a large backlog (a prompt change) inside the 15-minute limit;
         # the rest follows on later runs.
         CATALOG_ENRICH_MAX = tostring(var.summary_max_per_run)
+        # Multilateral/bilateral labels, capped the same way, with their own cache.
+        CATALOG_SHARING_MODEL = var.claude_model
+        CATALOG_SHARING_MAX   = tostring(var.sharing_max_per_run)
       },
     )
   }
