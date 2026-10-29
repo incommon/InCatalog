@@ -27,9 +27,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Same action and version as the license gate in ci.yml, pointed at the
-      # advisory and source-provenance policy instead.
-      - name: cargo-deny (advisories, sources)
-        uses: EmbarkStudios/cargo-deny-action@v2
+      # Same cargo-deny version as the license gate in ci.yml, installed with
+      # cargo because the org's allow-list (GitHub-owned and verified creators
+      # only) does not admit cargo-deny's own action.
+      - name: Install toolchain
+        run: rustup show
+      - uses: actions/cache@v6
         with:
-          command: check advisories sources
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-0.20.2
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
+
+      - name: cargo-deny (advisories, sources)
+        run: cargo deny check advisories sources

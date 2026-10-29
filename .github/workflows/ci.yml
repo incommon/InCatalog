@@ -97,7 +97,20 @@ jobs:
             /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
           df -h /
 
-      - uses: Swatinem/rust-cache@v2
+      # The org allows only GitHub-owned and verified-creator actions, so this is
+      # actions/cache rather than a Rust-specific cache action. ~/.cargo/bin
+      # holds cargo-llvm-cov between runs; `cargo install` skips a tool that is
+      # already at the requested version.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-llvm-cov
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: rust-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-
 
       - name: Format
         run: cargo fmt --all --check
@@ -108,9 +121,8 @@ jobs:
       - name: Tests
         run: cargo test --workspace
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov
+      - name: Install cargo-llvm-cov
+        run: cargo install --locked cargo-llvm-cov@0.8.7
 
       - name: Coverage gate (ratchet-up only — see CONTRIBUTING.md)
         run: |
@@ -205,20 +217,29 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Install toolchain
+        run: rustup show
+
+      # Installed with cargo rather than their own actions, which the org's
+      # allow-list (GitHub-owned and verified creators only) does not admit.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-deny
+            ~/.cargo/bin/cargo-about
+          key: license-tools-${{ runner.os }}-deny-0.20.2-about-0.9.1
+      - name: Install cargo-deny and cargo-about
+        run: |
+          cargo install --locked cargo-deny@0.20.2
+          cargo install --locked cargo-about@0.9.1
+
       # Enforce the permissive-only license allow-list (deny.toml). A
       # dependency under a non-permissive license fails here.
       - name: cargo-deny (license policy)
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check licenses
+        run: cargo deny check licenses
 
       # The shipped THIRD-PARTY-LICENSES.html must match what about.toml +
       # the current Cargo.lock produce.
-      - name: Install toolchain
-        run: rustup show
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-about@0.9.1
       - name: Third-party notices are up to date
         run: |
           cargo about generate about.hbs -o /tmp/THIRD-PARTY-LICENSES.html
