@@ -760,7 +760,7 @@ dependencies = [
 
 [[package]]
 name = "catalog-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -782,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "catalog-claude"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "catalog-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "catalog-ingest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "aws-credential-types",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "catalog-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "aws-config",
