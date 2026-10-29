@@ -594,7 +594,7 @@ mod tests {
             .find(|r| r["key"] == "eu")
             .unwrap();
         assert_eq!(eu["service_count"], 2);
-        assert_eq!(eu["as_of"], "2020-02-01");
+        assert_eq!(eu["as_of"], "2020-01-31");
         let nato = regions
             .as_array()
             .unwrap()

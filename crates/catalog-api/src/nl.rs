@@ -595,7 +595,7 @@ mod tests {
             .contains(&json!("brics")));
         let system = body["system"][0]["text"].as_str().unwrap();
         assert!(
-            system.contains("- eu: the European Union; ") && system.contains("as of 2020-02-01")
+            system.contains("- eu: the European Union; ") && system.contains("as of 2020-01-31")
         );
     }
 
