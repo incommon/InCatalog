@@ -116,6 +116,72 @@ locals {
   image_uri = "${aws_ecr_repository.app.repository_url}@${data.aws_ecr_image.app.image_digest}"
 }
 
+# ---------- CI image push (GitHub OIDC, no stored keys) ----------
+
+# .github/workflows/build-images.yml assumes this role to push to the ECR
+# repository above, and nothing else. Only jobs in one GitHub Environment of one
+# repository can assume it. Created only when github_oidc_provider_arn is set:
+# the provider is per account and usually exists already.
+locals {
+  github_push = var.github_oidc_provider_arn != "" ? 1 : 0
+}
+
+data "aws_iam_policy_document" "github_assume" {
+  count = local.github_push
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [var.github_oidc_provider_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repository}:environment:${var.github_environment}"]
+    }
+  }
+}
+
+resource "aws_iam_role" "github_image_push" {
+  count              = local.github_push
+  name               = "${var.name}-github-image-push"
+  assume_role_policy = data.aws_iam_policy_document.github_assume[0].json
+}
+
+data "aws_iam_policy_document" "github_image_push" {
+  count = local.github_push
+  statement {
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages",
+      "ecr:DescribeRepositories",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+    ]
+    resources = [aws_ecr_repository.app.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "github_image_push" {
+  count  = local.github_push
+  name   = "ecr-push"
+  role   = aws_iam_role.github_image_push[0].id
+  policy = data.aws_iam_policy_document.github_image_push[0].json
+}
+
 # ---------- IAM ----------
 
 data "aws_iam_policy_document" "lambda_assume" {
