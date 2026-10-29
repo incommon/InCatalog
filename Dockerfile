@@ -30,6 +30,9 @@ COPY web /srv/web
 # Signing certificates for the two aggregates. See certs/README.md for where they came
 # from and how their fingerprints were checked.
 COPY certs/*.pem /etc/incatalog/certs/
+# The license, attribution notice, and the dependencies' license texts ship with the
+# binaries (Apache-2.0 §4 and the MIT/BSD/ISC attribution clauses).
+COPY LICENSE NOTICE THIRD-PARTY-LICENSES.html /usr/share/doc/incatalog/
 ENV CATALOG_STATIC_DIR=/srv/web \
     CATALOG_INCOMMON_CERT=/etc/incatalog/certs/incommon-mdq.pem \
     CATALOG_EDUGAIN_CERT=/etc/incatalog/certs/edugain-mds-v2.pem \

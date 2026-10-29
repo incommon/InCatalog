@@ -29,11 +29,13 @@ flate2 = "1"
 sha1 = "0.10"
 sha2 = "0.10"
 hex = "0.4"
-quick-xml = "0.37"
+quick-xml = "0.41"
 percent-encoding = "2"
 aws-config = { version = "1", features = ["behavior-version-latest"] }
-aws-sdk-s3 = "1"
-aws-sdk-ssm = "1"
+# Without the default `rustls` (legacy hyper 0.14 / rustls 0.21 client) and `sigv4a`
+# features: both drag in crates with open RustSec advisories (deny.toml).
+aws-sdk-s3 = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio", "http-1x"] }
+aws-sdk-ssm = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
 lambda_runtime = "0.14"
 lambda_http = "0.15"
 catalog-core = { path = "crates/catalog-core" }

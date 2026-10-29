@@ -25,3 +25,8 @@ output "first_ingest_command" {
   description = "The API needs one snapshot before it can start; run this once after the first apply."
   value       = "aws lambda invoke --region ${var.region} --function-name ${aws_lambda_function.ingest.function_name} /dev/stdout"
 }
+
+output "github_image_push_role_arn" {
+  description = "Set as the AWS_ROLE_ARN variable on the GitHub Environment the image build runs in."
+  value       = one(aws_iam_role.github_image_push[*].arn)
+}

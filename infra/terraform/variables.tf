@@ -75,3 +75,21 @@ variable "summary_max_per_run" {
   type        = number
   default     = 500
 }
+
+variable "github_oidc_provider_arn" {
+  description = "ARN of this account's IAM OIDC provider for token.actions.githubusercontent.com. Set it to create the role .github/workflows/build-images.yml assumes to push images; empty creates nothing."
+  type        = string
+  default     = ""
+}
+
+variable "github_repository" {
+  description = "The GitHub repository (owner/name) whose image builds may assume the push role."
+  type        = string
+  default     = "incommon/InCatalog"
+}
+
+variable "github_environment" {
+  description = "The GitHub Environment the image build runs in. The push role trusts only that environment's jobs."
+  type        = string
+  default     = "dev"
+}

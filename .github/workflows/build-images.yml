@@ -1,0 +1,126 @@
+name: Build image
+
+# Builds the one container image both Lambda functions run (the Dockerfile),
+# smoke-tests it (infra/test-image.sh), and pushes it to ECR.
+#
+# ARCHITECTURE: the functions run on arm64 (Graviton), so the image MUST be
+# linux/arm64. It is built on a native arm64 runner (fast, no QEMU).
+#
+# TAGGING and PROMOTION:
+#   - push to develop  -> builds, tests and pushes :<sha>. Nothing deploys.
+#   - workflow_dispatch -> the same, and also moves :latest to that image.
+# Terraform deploys whatever :latest points at (var.image_tag, pinned by
+# digest), so `terraform apply` after a dispatch ships it. Promotion is a
+# deliberate act, as in `make deploy`; a merge never changes what is live.
+#
+# PREREQUISITES (one-time), on the GitHub Environment `dev`:
+#   1. Apply infra/terraform with `github_oidc_provider_arn` set, which creates
+#      the push role, then set its output `github_image_push_role_arn` as the
+#      AWS_ROLE_ARN *variable* (not a secret).
+#   2. Set ECR_REPOSITORY to the repository's name (the `ecr_repository_url`
+#      output, after the slash).
+# Keyless via GitHub OIDC — no long-lived AWS keys in GitHub. Until both are
+# set, the job builds and tests the image, then skips the push with a warning.
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "crates/**"
+      - "web/**"
+      - "certs/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "Dockerfile"
+      - "LICENSE"
+      - "NOTICE"
+      - "THIRD-PARTY-LICENSES.html"
+      - "infra/test-image.sh"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+
+# One in-flight build; a newer push supersedes an older one.
+concurrency:
+  group: build-images
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write # mint the OIDC token aws-actions/configure-aws-credentials exchanges for the push role
+
+env:
+  AWS_REGION: us-east-2
+  IMAGE: incatalog:ci
+
+jobs:
+  build:
+    name: image (linux/arm64)
+    runs-on: ubuntu-24.04-arm
+    # Binds this job to the GitHub Environment holding the AWS variables (and
+    # any required-reviewer protection).
+    environment: dev
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Loaded into the runner's Docker, not pushed, so the smoke test runs on
+      # exactly the image that is pushed next.
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          provenance: false
+          load: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Without data/cache the signature step is skipped; the contents,
+      # certificate pins, fixture ingest and serving checks all run.
+      - name: Smoke test
+        run: ./infra/test-image.sh
+
+      - name: Check push configuration
+        id: cfg
+        env:
+          ROLE: ${{ vars.AWS_ROLE_ARN }}
+          REPO: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          if [ -n "$ROLE" ] && [ -n "$REPO" ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::AWS_ROLE_ARN or ECR_REPOSITORY is not set on the 'dev' environment; the image was built and tested but not pushed. See this workflow's header."
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.cfg.outputs.push == 'true'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        if: steps.cfg.outputs.push == 'true'
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push
+        if: steps.cfg.outputs.push == 'true'
+        env:
+          REPO: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}
+          PROMOTE: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          docker tag "$IMAGE" "$REPO:$GITHUB_SHA"
+          docker push -q "$REPO:$GITHUB_SHA"
+          if [ "$PROMOTE" = "true" ]; then
+            docker tag "$IMAGE" "$REPO:latest"
+            docker push -q "$REPO:latest"
+            echo "Promoted $GITHUB_SHA to :latest — \`terraform apply\` deploys it." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Pushed :$GITHUB_SHA (not promoted; run this workflow manually to move :latest)." >> "$GITHUB_STEP_SUMMARY"
+          fi

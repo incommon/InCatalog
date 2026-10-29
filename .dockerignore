@@ -1,0 +1,12 @@
+# Keep the image build context small: build artifacts (tens of GB once coverage
+# builds are in target/), VCS, and local data never belong in the context.
+target
+.git
+# Local snapshots and the cached aggregates (hundreds of MB). The smoke test mounts
+# data/cache from the host instead.
+data
+# Infra is applied from a workstation or CI, not from the image; its .terraform
+# provider binaries are large.
+infra
+.DS_Store
+**/.DS_Store

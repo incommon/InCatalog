@@ -3,6 +3,18 @@ Copyright 2026 Internet2
 
 This product includes software developed at Internet2 (https://internet2.edu/).
 
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
 This product bundles the Poppins typeface (web/fonts/), Copyright 2020 The Poppins
 Project Authors, licensed under the SIL Open Font License, Version 1.1. See
 web/fonts/OFL.txt.
+
+This product includes third-party open-source software, distributed under
+permissive licenses (predominantly MIT and Apache-2.0, plus BSD-3-Clause, ISC,
+Zlib, Unicode-3.0 and CDLA-Permissive-2.0) and, for four crates of Servo's CSS
+engine used unmodified, MPL-2.0. A complete list of dependencies with their
+license texts and copyright notices is in THIRD-PARTY-LICENSES.html, generated
+with cargo-about (see about.toml) and shipped in the container image.
+
+The set of permitted dependency licenses is enforced in CI by cargo-deny (see
+deny.toml); adding a dependency under another license fails the build.

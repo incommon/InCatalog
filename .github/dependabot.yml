@@ -1,0 +1,29 @@
+# Dependabot keeps dependencies current so the weekly `security-audit` scan
+# (cargo deny check advisories) stays green: it opens the version-bump PRs that
+# clear RustSec advisories instead of leaving them to a manual `cargo update`.
+# PRs target `develop` (the default branch and the integration branch); the
+# normal CI suite runs on each one.
+version: 2
+updates:
+  # Rust crates across the workspace. One root Cargo.lock covers every member,
+  # so a single "/" entry watches the whole tree. Patch/minor bumps are grouped
+  # into one PR to keep review volume sane; a security-fix bump still comes
+  # through here.
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions pinned in .github/workflows/*. The repo pins to major-version
+  # tags (@v2, @v7); Dependabot bumps those tags as new majors ship.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
