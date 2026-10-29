@@ -828,12 +828,12 @@ impl Vocab {
                 }
             }
         }
-        for r in REGIONS {
-            for n in [r.label, r.label.trim_start_matches("the ")]
+        for r in REGIONS.iter() {
+            for n in [r.label.as_str(), r.label.trim_start_matches("the ")]
                 .into_iter()
-                .chain(r.aliases.iter().copied())
+                .chain(r.aliases.iter().map(String::as_str))
             {
-                v.add(n, Field::Region, r.key, r.label, false);
+                v.add(n, Field::Region, &r.key, &r.label, false);
             }
         }
         for def in CATEGORIES {
@@ -1032,7 +1032,7 @@ impl Vocab {
                         notes.push("\"America\" was read as the United States; say \"the Americas\" for North and South America.".into());
                     }
                     if let Some(note) = (p.field == Field::Region)
-                        .then(|| regions::get(&p.value).and_then(|r| r.reading_note))
+                        .then(|| regions::get(&p.value).and_then(|r| r.reading_note.as_deref()))
                         .flatten()
                     {
                         notes.push(note.into());
@@ -1759,5 +1759,42 @@ mod tests {
         );
         assert_eq!(p.sharing.as_deref(), Some("multilateral"));
         assert_eq!(notes.len(), 1);
+    }
+
+    #[test]
+    fn groupings_by_name() {
+        let v = vocab();
+        for (q, region) in [
+            ("R&S services in Schengen countries", "schengen"),
+            ("services from NATO members", "nato"),
+            ("OECD library services", "oecd"),
+            ("wikis in the eurozone", "eurozone"),
+            ("Nordic countries' research data", "nordic-council"),
+            ("services in G20 countries", "g20"),
+            ("ASEAN universities' services", "asean"),
+            ("services registered in GÉANT countries", "geant"),
+            ("UbuntuNet countries' services", "ubuntunet"),
+            ("anything from Mercosur", "mercosur"),
+            ("services from Commonwealth countries", "commonwealth"),
+        ] {
+            assert_eq!(v.interpret(q).params.region.as_deref(), Some(region), "{q}");
+        }
+        // Several groupings combine like countries.
+        let i = v.interpret("services in NATO members or the GCC");
+        assert_eq!(i.params.region.as_deref(), Some("nato,gcc"));
+    }
+
+    #[test]
+    fn network_and_grouping_names_inside_service_names_stay_words() {
+        let v = vocab();
+        for q in [
+            "RedCLARA communities",
+            "virginia commonwealth university",
+            "geant edusign",
+            "apan conference",
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.region, None, "{q}");
+        }
     }
 }

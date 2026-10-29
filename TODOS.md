@@ -21,33 +21,6 @@ working name. These must change together, as a planned migration:
   wherever it is attached, before the first deploy under the new names, or deploys lose
   permission.
 
-## Search by more groupings: "Schengen", "NATO", "OECD", research networks, …
-
-Region search (`region=`, `catalog-core/src/regions.rs`) covers UN M49 geographic regions,
-Asia-Pacific, the EU, the EEA, and BRICS. Extend it:
-
-- **Further political, security and economic groupings,** each with its source and a
-  dated membership list:
-  - *Treaty and travel areas:* the Schengen Area, which is not the EU (it has non-EU
-    members such as Norway and Switzerland, and EU states outside it), the eurozone, and
-    the Nordic Council.
-  - *Security alliances:* NATO, and Five Eyes.
-  - *Economic and trade blocs:* the OECD, G7, G20, ASEAN, APEC, Mercosur, USMCA, the
-    African Union, the Gulf Cooperation Council, and the Commonwealth.
-  - *Research networks,* where people search that way: the countries of GÉANT's NRENs,
-    and of the regional networks RedCLARA, APAN, WACREN, UbuntuNet and ASREN.
-- **Keep the data maintainable.** Store groupings as data (say
-  `crates/catalog-core/data/regions.json`), each with its source, the date its list was
-  checked, and per-country join dates where they matter, rather than hard-coding them.
-  Membership moves (Sweden and Finland joining NATO, Bulgaria and Romania joining
-  Schengen), so a test should fail once a list is older than a year, as a prompt to
-  recheck it.
-- **Deliberately leave out** groupings whose membership is contested or politically
-  sensitive to assert, and anything that labels countries by a judgment, such as
-  sanctions lists. If one is added later, document how its list was chosen.
-- **Natural-language search.** Teach the rules and the Claude reading the new names and
-  their common forms ("Schengen countries", "NATO members", "OECD").
-
 ## Show the new search behaviors on the main page and document them in About
 
 The landing page's "try:" row (`web/app.js`, near the search box) still offers the three

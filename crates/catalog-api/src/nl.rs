@@ -262,7 +262,7 @@ fn schema(vocab: &Vocab) -> Value {
             "keywords": { "type": "string" },
             "federations": enum_array(vocab.federations.keys().cloned().collect()),
             "countries": enum_array(vocab.countries.keys().cloned().collect()),
-            "regions": { "type": "array", "items": { "type": "string", "enum": REGIONS.iter().map(|r| r.key).collect::<Vec<_>>() } },
+            "regions": { "type": "array", "items": { "type": "string", "enum": REGIONS.iter().map(|r| r.key.as_str()).collect::<Vec<_>>() } },
             "environments": enum_array(Environment::ALL.iter().map(|e| e.key().to_owned()).collect()),
             "sharing": enum_array(Sharing::ALL.iter().map(|s| s.key().to_owned()).collect()),
             "categories": { "type": "array", "items": { "type": "string", "enum": CATEGORIES.iter().map(|c| c.key).collect::<Vec<_>>() } },
@@ -285,7 +285,7 @@ Set a filter only when the search clearly asks for it, and leave it null otherwi
 
 - `federations`: the registering federations, when the search names one or more (\"SWAMID\", \"the UK federation\", \"registered by InCommon\", \"SWAMID or DFN-AAI services\"). A service matches any of them, so list every federation the search names; leave the list empty when it names none.
 - `countries`: the registering federation's countries, when the search names one or more countries or nationalities rather than a federation. A service registered in any of them matches. \"America\" alone usually means the United States.
-- `regions`: when the search names a region or a grouping of countries (\"Europe\", \"the EU\", \"the Americas\", \"Asia-Pacific\", \"BRICS\"). Pick the region; do not list its countries. A place word inside an organization's name (\"European Molecular Biology Laboratory\", \"American Chemical Society\") is a keyword, not a place.
+- `regions`: when the search names a region or a grouping of countries (\"Europe\", \"the EU\", \"the Americas\", \"Asia-Pacific\", \"Schengen countries\", \"NATO members\", \"OECD\", \"BRICS\", \"GÉANT countries\"). Pick the region; do not list its countries. The EU, Schengen, and the euro area are different lists. Use a research network's region only when the search is about where its member networks are, not about the network's own services. A place word inside an organization's name (\"European Molecular Biology Laboratory\", \"American Chemical Society\") is a keyword, not a place.
 - `environments`: only when the search asks for test, staging, or development instances (\"test instances of Canvas\", \"the staging environment\") or for live ones only (\"only production services\"); a service in any listed environment matches. To leave out test instances (\"no test sites\"), list `production` and `unknown`. \"Test\" or \"production\" as a subject (\"test prep\", \"video production\") is a keyword, not an environment. Leave the list empty otherwise.
 - `sharing`: only when the search asks who a service is open to. `multilateral` for services any institution's users can use (\"services anyone in eduGAIN can use\"); `bilateral` for ones registered for a single institution (\"institution-specific\", \"per-campus\"). To leave out single-institution registrations (\"not institution-specific\"), list `multilateral` and `unknown`. Leave the list empty otherwise.
 - `categories`: entity categories and certifications the service must carry, all of them.
@@ -310,12 +310,20 @@ Categories:
         s.push_str(&format!("- {code}: {name}, {}\n", ccs.join(" ")));
     }
     s.push_str("\nRegions (key: name; source):\n");
-    for r in REGIONS {
-        let dated = match (r.kind, r.as_of) {
-            (RegionKind::Political, Some(d)) => format!(", membership as of {d}"),
-            _ => String::new(),
+    for r in REGIONS.iter() {
+        let dated = match (r.kind, r.as_of.as_deref()) {
+            (RegionKind::Geographic, _) | (_, None) => String::new(),
+            (_, Some(d)) => format!(", membership as of {d}"),
         };
-        s.push_str(&format!("- {}: {}; {}{dated}\n", r.key, r.label, r.source));
+        let note = r
+            .note
+            .as_deref()
+            .map(|n| format!(" {n}"))
+            .unwrap_or_default();
+        s.push_str(&format!(
+            "- {}: {}; {}{dated}.{note}\n",
+            r.key, r.label, r.source
+        ));
     }
     s.push_str("\nCountries (code: name):\n");
     for (cc, name) in &vocab.countries {
