@@ -736,8 +736,8 @@ const SHARING_ALIASES: &[(&str, &[&str])] = &[
 ];
 
 /// Who runs a service. A sector needs a word that makes it about the organization:
-/// "library" is a subject ("library management system", "R&S library services"),
-/// "libraries" and "run by libraries" are who runs it.
+/// "library" alone is a subject ("library management system"), while "libraries",
+/// "library services", and "run by libraries" are who runs it.
 const NOT_COMMERCIAL: &str =
     "academia,research,libraries,museums,government,healthcare,k12,nonprofit,nren";
 const SECTOR_ALIASES: &[(&str, &[&str])] = &[
@@ -799,12 +799,22 @@ const SECTOR_ALIASES: &[(&str, &[&str])] = &[
             "non-profit",
         ],
     ),
-    ("libraries", &["libraries", "run by libraries"]),
+    (
+        "libraries",
+        &[
+            "libraries",
+            "library services",
+            "library sps",
+            "run by libraries",
+        ],
+    ),
     (
         "museums",
         &[
             "museums",
             "run by museums",
+            "museum services",
+            "museum sps",
             "archives",
             "galleries",
             "glam",
@@ -1541,7 +1551,7 @@ mod tests {
 
     #[test]
     fn reads_filters_and_keeps_subject_words() {
-        let i = vocab().interpret("R&S library services in Sweden that request email");
+        let i = vocab().interpret("R&S wiki services in Sweden that request email");
         assert_eq!(
             i.params.category.as_deref(),
             Some("research-and-scholarship")
@@ -1551,7 +1561,13 @@ mod tests {
             i.params.attribute.as_deref(),
             Some("urn:oid:0.9.2342.19200300.100.1.3")
         );
-        assert_eq!(i.params.q.as_deref(), Some("library"));
+        assert_eq!(i.params.q.as_deref(), Some("wiki"));
+
+        // "library services" is who runs them.
+        let i = vocab().interpret("R&S library services in Sweden that request email");
+        assert_eq!(i.params.sector.as_deref(), Some("libraries"));
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert_eq!(i.params.q, None);
     }
 
     #[test]
@@ -1701,11 +1717,18 @@ mod tests {
         assert_eq!(i.matched[0].label, "Anything but companies");
         let i = v.interpret("government agencies or hospitals");
         assert_eq!(i.params.sector.as_deref(), Some("government,healthcare"));
+        for (q, sector) in [
+            ("library services", "libraries"),
+            ("German library SPs", "libraries"),
+            ("museum SPs", "museums"),
+            ("museum services in Europe", "museums"),
+        ] {
+            assert_eq!(v.interpret(q).params.sector.as_deref(), Some(sector), "{q}");
+        }
         // A subject is not who runs it.
         for q in [
             "library management system",
-            "library services",
-            "museum SPs",
+            "museum ticketing",
             "research data",
         ] {
             assert_eq!(v.interpret(q).params.sector, None, "{q}");
