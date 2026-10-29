@@ -1,5 +1,6 @@
 # cargo-about — third-party attribution generation.
-#   make notices   (cargo about generate --offline --locked ...)
+#   make notices   (cargo about generate --offline --locked --fail ...)
+# The image build runs the same command (Dockerfile); the output is not committed.
 # --offline keeps it reproducible: online, cargo-about also consults
 # clearlydefined.io and the crates' git repositories, which answer differently
 # from run to run.

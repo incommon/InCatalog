@@ -384,5 +384,6 @@ Licensed under the [Apache License, Version 2.0](LICENSE); see also [NOTICE](NOT
 bundled Poppins fonts in `web/fonts/` are under the SIL Open Font License
 (`web/fonts/OFL.txt`). Dependency licenses are held to an allow-list in CI with
 [`cargo-deny`](deny.toml), and their attributions are generated with
-[`cargo-about`](about.toml) into `THIRD-PARTY-LICENSES.html` (`make notices`), which
-ships in the container image.
+[`cargo-about`](about.toml) into `THIRD-PARTY-LICENSES.html`, which the image build
+writes from the `Cargo.lock` it builds and ships in the container image (`make notices`
+writes it locally).

@@ -14,10 +14,10 @@ lint:
 	terraform -chdir=infra/terraform fmt -check
 	cargo deny check
 
-# Regenerate the dependencies' license notices after Cargo.lock changes (CI checks them).
+# The dependencies' license notices, as the image build writes them (not committed).
 notices:
 	cargo fetch --locked
-	cargo about generate --offline --locked about.hbs -o THIRD-PARTY-LICENSES.html
+	cargo about generate --offline --locked --fail about.hbs -o THIRD-PARTY-LICENSES.html
 
 # Fetch InCommon + eduGAIN metadata and write a local snapshot (~10 s on a warm cache).
 ingest:

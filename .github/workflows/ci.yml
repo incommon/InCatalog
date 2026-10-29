@@ -244,17 +244,18 @@ jobs:
       - name: cargo-deny (license policy)
         run: cargo deny check licenses
 
-      # The shipped THIRD-PARTY-LICENSES.html must match what about.toml +
-      # the current Cargo.lock produce. Generated --offline, from the crates'
-      # own files only, as `make notices` does: online, cargo-about also asks
-      # clearlydefined.io and the crates' git repositories, whose answers vary
-      # from run to run, and the check would fail on files nobody changed.
-      - name: Third-party notices are up to date
+      # The image build writes THIRD-PARTY-LICENSES.html from the Cargo.lock it
+      # builds (see the Dockerfile), so nothing generated is committed and a
+      # dependency bump, Dependabot's included, needs no follow-up commit. This
+      # checks the generation itself will succeed: every license is accepted in
+      # about.toml, and every clarification there still matches its file
+      # (--fail turns a failed one into an error). The notices are attached to
+      # the run for review.
+      - name: Third-party notices generate
         run: |
           cargo fetch --locked
-          cargo about generate --offline --locked about.hbs -o /tmp/THIRD-PARTY-LICENSES.html
-          if ! diff -q THIRD-PARTY-LICENSES.html /tmp/THIRD-PARTY-LICENSES.html; then
-            diff THIRD-PARTY-LICENSES.html /tmp/THIRD-PARTY-LICENSES.html | head -40 || true
-            echo "::error::THIRD-PARTY-LICENSES.html is stale — regenerate with: make notices"
-            exit 1
-          fi
+          cargo about generate --offline --locked --fail about.hbs -o THIRD-PARTY-LICENSES.html
+      - uses: actions/upload-artifact@v7
+        with:
+          name: third-party-licenses
+          path: THIRD-PARTY-LICENSES.html
