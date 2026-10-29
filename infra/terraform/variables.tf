@@ -67,7 +67,7 @@ variable "claude_model" {
 variable "logo_max_lookups" {
   description = "Most organization websites to look up per ingest run. Results are cached for 30 days."
   type        = number
-  default     = 150
+  default     = 300
 }
 
 variable "summary_max_per_run" {
