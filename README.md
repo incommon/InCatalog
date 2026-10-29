@@ -126,6 +126,7 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/examples` | Example searches, one or more for each thing the search understands |
 | `/v1/categories` | Known categories with synonyms and counts, plus every raw tag value seen |
 | `/v1/attributes` | Requested attributes, most requested first |
+| `/v1/releases`, `/v1/releases/{version}` | Release notes from `CHANGELOG.md`, as built into this version; `/v1/meta` has the running `version` |
 
 Facet counts for each dimension apply every *other* active filter, so a user can switch
 between values without losing sight of the alternatives.
@@ -600,9 +601,9 @@ curation/               overlay example
 
 ## Contributing
 
-Branching (gitflow on `develop` and `main`), commit messages, what CI checks, the
-coverage gates, and how images are built and promoted are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Branching (gitflow on `develop` and `main`), commit messages, versioning and cutting a
+release, what CI checks, the coverage gates, and how images are built and promoted are
+in [CONTRIBUTING.md](CONTRIBUTING.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

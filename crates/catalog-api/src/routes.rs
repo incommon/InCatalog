@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use tower_http::set_header::SetResponseHeaderLayer;
 use utoipa::{IntoParams, OpenApi, ToSchema};
 
+use crate::releases::Release;
 use crate::state::AppState;
 
 type St = State<Arc<AppState>>;
@@ -27,6 +28,8 @@ type St = State<Arc<AppState>>;
 #[openapi(
     info(
         title = "Federation Service Catalog API",
+        // The workspace version, as `/v1/meta` reports it.
+        version = env!("CARGO_PKG_VERSION"),
         description = "Services (SAML service providers) available through InCommon and eduGAIN, derived from published federation metadata."
     ),
     paths(
@@ -42,7 +45,9 @@ type St = State<Arc<AppState>>;
         regions,
         categories,
         attributes,
-        examples
+        examples,
+        releases,
+        release
     ),
     components(schemas(
         Meta,
@@ -83,6 +88,7 @@ type St = State<Arc<AppState>>;
         catalog_core::sector::SectorReading,
         catalog_core::examples::Example,
         RegionView,
+        Release,
     ))
 )]
 pub struct ApiDoc;
@@ -102,6 +108,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/examples", get(examples))
         .route("/categories", get(categories))
         .route("/attributes", get(attributes))
+        .route("/releases", get(releases))
+        .route("/releases/{version}", get(release))
         // Metadata is republished daily; five minutes of caching is plenty fresh.
         .layer(SetResponseHeaderLayer::if_not_present(
             header::CACHE_CONTROL,
@@ -343,6 +351,24 @@ async fn attributes(State(s): St) -> Json<Vec<AttributeView>> {
     Json(s.catalog().await.attributes())
 }
 
+/// Release notes for every version, newest first, from the changelog this build
+/// embeds. `Unreleased`, when present, lists changes merged since the last release.
+#[utoipa::path(get, path = "/v1/releases", responses((status = 200, body = Vec<Release>)))]
+async fn releases() -> Json<&'static [Release]> {
+    Json(crate::releases::all())
+}
+
+/// One release's notes. The running version is in `/v1/meta` as `version`.
+#[utoipa::path(get, path = "/v1/releases/{version}",
+    params(("version" = String, Path, description = "A SemVer version (a leading `v` is accepted), or `unreleased`")),
+    responses((status = 200, body = Release), (status = 404, body = ApiError)))]
+async fn release(Path(version): Path<String>) -> Response {
+    match crate::releases::find(&version) {
+        Some(r) => Json(r).into_response(),
+        None => not_found("release"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
@@ -383,6 +409,45 @@ mod tests {
             status,
             serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null),
         )
+    }
+
+    #[tokio::test]
+    async fn version_and_release_notes() {
+        let version = env!("CARGO_PKG_VERSION");
+        let (_, m) = get_json("/v1/meta").await;
+        assert_eq!(m["version"], version);
+
+        let (st, all) = get_json("/v1/releases").await;
+        assert_eq!(st, StatusCode::OK);
+        let all = all.as_array().unwrap();
+        let current: Vec<_> = all.iter().filter(|r| r["current"] == true).collect();
+        assert_eq!(current.len(), 1);
+        assert_eq!(current[0]["version"], version);
+
+        for path in [
+            format!("/v1/releases/{version}"),
+            format!("/v1/releases/v{version}"),
+        ] {
+            let (st, r) = get_json(&path).await;
+            assert_eq!(st, StatusCode::OK, "{path}");
+            assert_eq!(&r, current[0]);
+            assert!(r["notes"].as_str().unwrap().contains("### "));
+        }
+        if all[0]["version"] == "Unreleased" {
+            let (st, r) = get_json("/v1/releases/unreleased").await;
+            assert_eq!(st, StatusCode::OK);
+            assert!(r["date"].is_null());
+        }
+        let (st, e) = get_json("/v1/releases/0.0.0-nope").await;
+        assert_eq!(st, StatusCode::NOT_FOUND);
+        assert_eq!(e["error"], "release not found");
+
+        let (_, spec) = get_json("/openapi.json").await;
+        assert_eq!(spec["info"]["version"], version);
+        assert!(spec["paths"]["/v1/releases"]["get"].is_object());
+        assert!(spec["paths"]["/v1/releases/{version}"]["get"].is_object());
+        assert!(spec["components"]["schemas"]["Release"]["properties"]["notes"].is_object());
+        assert!(spec["components"]["schemas"]["Meta"]["properties"]["version"].is_object());
     }
 
     #[tokio::test]
