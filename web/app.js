@@ -65,19 +65,33 @@ async function meta() {
   return (metaCache ??= api("/v1/meta"));
 }
 
-// Federation code or registration authority → name, for labeling filters.
-let fedNamesCache = null;
-async function fedNames() {
-  fedNamesCache ??= api("/v1/federations")
-    .then((feds) => new Map(feds.flatMap((f) => [[f.code.toLowerCase(), f.name], [f.registration_authority.toLowerCase(), f.name]])))
-    .catch(() => ((fedNamesCache = null), new Map()));
-  return fedNamesCache;
+// Federation code or registration authority (lowercase) → { name, ra }, for labeling
+// filters and for telling that a code in a link and a registrar in a facet are one federation.
+let fedIndexCache = null;
+async function fedIndex() {
+  fedIndexCache ??= api("/v1/federations")
+    .then((feds) =>
+      new Map(feds.flatMap((f) => [f.code, f.registration_authority].filter(Boolean).map((k) => [k.toLowerCase(), { name: f.name, ra: f.registration_authority }]))),
+    )
+    .catch(() => ((fedIndexCache = null), new Map()));
+  return fedIndexCache;
 }
+
+// The same comparison the API makes: by registrar, ignoring case and a trailing slash.
+const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().replace(/\/+$/, "").toLowerCase();
+
+// Filters that take several values, kept comma-separated in the URL as the API reads them:
+// a service must carry every category, and may be registered by any of the federations.
+const MULTI = { category: "all", federation: "any" };
+const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
 
 function parseHash() {
   const raw = location.hash.replace(/^#/, "") || "/";
   const [path, query] = raw.split("?");
-  return { parts: path.split("/").filter(Boolean), params: Object.fromEntries(new URLSearchParams(query || "")) };
+  // A hand-written link may repeat a multi-value key (federation=A&federation=B).
+  const params = {};
+  for (const [k, v] of new URLSearchParams(query || "")) params[k] = k in MULTI && params[k] ? `${params[k]},${v}` : v;
+  return { parts: path.split("/").filter(Boolean), params };
 }
 
 function go(path, params) {
@@ -370,7 +384,7 @@ async function search(params) {
     const { nl, ...query } = params;
     [page, feds] = await Promise.all([
       api("/v1/services", { ...query, per_page: 24 }),
-      params.federation ? fedNames() : null,
+      params.federation ? fedIndex() : null,
       nl &&
         answer(nl)
           .then((r) => banner.replaceWith(readingBanner(params, r)))
@@ -386,10 +400,12 @@ async function search(params) {
     const values = page.facets[key] || [];
     if (!values.length) continue;
     const active = params[key];
+    const selected = listOf(active);
+    const same = key === "federation" ? (a, b) => fedKey(feds, a) === fedKey(feds, b) : (a, b) => a === b;
     const list = h("div", {});
     const limit = 8;
     values.forEach((v, i) => {
-      const on = key === "category" ? (active || "").split(",").includes(v.value) : active === v.value;
+      const on = key in MULTI ? selected.some((a) => same(a, v.value)) : active === v.value;
       const btn = h(
         "button",
         {
@@ -398,11 +414,7 @@ async function search(params) {
           hidden: i >= limit && !on,
           onclick: () => {
             let next = on ? "" : v.value;
-            if (key === "category") {
-              const set = new Set((active || "").split(",").filter(Boolean));
-              on ? set.delete(v.value) : set.add(v.value);
-              next = [...set].join(",");
-            }
+            if (key in MULTI) next = (on ? selected.filter((a) => !same(a, v.value)) : [...selected, v.value]).join(",");
             refine({ [key]: next });
           },
         },
@@ -425,7 +437,8 @@ async function search(params) {
         },
         `+ ${values.length - limit} more`,
       );
-    facetsEl.append(h("div", { class: "facet" }, h("h3", {}, label), list, more));
+    const mode = key in MULTI && selected.length > 1 && h("span", { class: "mode" }, `matching ${MULTI[key]}`);
+    facetsEl.append(h("div", { class: "facet" }, h("h3", {}, label, mode), list, more));
   }
 
   // Active filters as removable chips, labeled the way the facets label them.
@@ -434,18 +447,18 @@ async function search(params) {
       ? AVAILABILITY[v] || v
       : k === "category"
         ? CATEGORY_LABELS[v] || v
-        : (k === "federation" && feds?.get(v.toLowerCase())) ||
+        : (k === "federation" && feds?.get(v.toLowerCase())?.name) ||
           (page.facets[k] || []).find((f) => f.value.toLowerCase() === v.toLowerCase())?.label ||
           v;
-  const chips =FACET_ORDER.filter(([k]) => params[k]).flatMap(([k, label]) =>
-    (k === "category" ? params[k].split(",") : [params[k]]).map((v) =>
+  const chips = FACET_ORDER.filter(([k]) => params[k]).flatMap(([k, label]) =>
+    (k in MULTI ? listOf(params[k]) : [params[k]]).map((v) =>
       h(
         "button",
         {
           class: "chip",
           type: "button",
           onclick: () => {
-            const rest = k === "category" ? params[k].split(",").filter((x) => x !== v).join(",") : "";
+            const rest = k in MULTI ? listOf(params[k]).filter((x) => x !== v).join(",") : "";
             refine({ [k]: rest });
           },
         },
