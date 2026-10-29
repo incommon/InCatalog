@@ -9,6 +9,11 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- A push to `develop` no longer cancels an image build for a release tag or a manual
+  promotion run; each event and ref builds on its own.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added
