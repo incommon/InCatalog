@@ -79,6 +79,12 @@ fn parses_and_merges() {
     assert_eq!(s.requested_attributes.len(), 2);
     assert!(s.requested_attributes[0].required);
     assert!(s.has_signing_key && s.has_encryption_key && s.supports_discovery_response);
+    // Endpoint hosts are lowercase, without ports or repeats.
+    assert_eq!(s.endpoint_hosts, ["sp.example.edu"]);
+    assert_eq!(
+        wiki.environment.value,
+        catalog_core::environment::Environment::Unknown
+    );
     assert_eq!(
         wiki.federation.as_ref().map(|f| f.code.as_str()),
         Some("INCOMMON")

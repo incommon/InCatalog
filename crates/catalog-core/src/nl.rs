@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::categories::CATEGORIES;
+use crate::environment::Environment;
 use crate::model::{Availability, Federation, Service};
 use crate::search::split_list;
 
@@ -27,6 +28,8 @@ pub struct InterpretedParams {
     /// Comma-separated federation codes; a service registered by any of them matches.
     pub federation: Option<String>,
     pub country: Option<String>,
+    /// Comma-separated environments; a service in any of them matches.
+    pub environment: Option<String>,
     /// Comma-separated category keys.
     pub category: Option<String>,
     pub availability: Option<String>,
@@ -64,6 +67,7 @@ impl Interpretation {
         [
             &p.federation,
             &p.country,
+            &p.environment,
             &p.category,
             &p.availability,
             &p.attribute,
@@ -108,6 +112,7 @@ enum Field {
     // Order is match priority when two phrases of equal length compete.
     Availability,
     Source,
+    Environment,
     Category,
     Federation,
     Country,
@@ -120,6 +125,7 @@ impl Field {
         match self {
             Field::Availability => "availability",
             Field::Source => "source",
+            Field::Environment => "environment",
             Field::Category => "category",
             Field::Federation => "federation",
             Field::Country => "country",
@@ -516,6 +522,161 @@ const AVAILABILITY_ALIASES: &[(Availability, &[&str])] = &[
     ),
 ];
 
+/// Ways to ask for, or leave out, test and development instances. "test" alone is
+/// a subject ("test prep", "proctored tests"), and so is "production" ("video
+/// production"), so each needs a word that makes it about the instance.
+const ENVIRONMENT_ALIASES: &[(&str, &[&str])] = &[
+    (
+        "production",
+        &[
+            "only production",
+            "production only",
+            "production services only",
+            "in production",
+            "production instance",
+            "production instances",
+            "production version",
+            "production versions",
+            "production environment",
+            "production environments",
+            "prod",
+            "prod instances",
+            "live services",
+            "live instances",
+            "live versions",
+            "only live",
+        ],
+    ),
+    (
+        "test",
+        &[
+            "test instance",
+            "test instances",
+            "test environment",
+            "test environments",
+            "test version",
+            "test versions",
+            "test copy",
+            "test copies",
+            "test sp",
+            "test sps",
+            "test site",
+            "test sites",
+            "test server",
+            "test servers",
+            "test system",
+            "test systems",
+            "testing instance",
+            "testing instances",
+            "testing environment",
+            "sandboxes",
+            "sandbox instance",
+            "sandbox instances",
+            "sandbox environment",
+            "qa instance",
+            "qa instances",
+            "qa environment",
+            "uat",
+            "uat instances",
+        ],
+    ),
+    (
+        "staging",
+        &[
+            "staging instance",
+            "staging instances",
+            "staging environment",
+            "staging environments",
+            "staging sites",
+            "staging servers",
+            "staging copies",
+            "staging versions",
+            "stage instances",
+            "preprod",
+            "pre-production",
+            "pre production",
+        ],
+    ),
+    (
+        "development",
+        &[
+            "dev instance",
+            "dev instances",
+            "dev environment",
+            "dev environments",
+            "dev sites",
+            "dev servers",
+            "dev versions",
+            "development instance",
+            "development instances",
+            "development environment",
+            "development environments",
+            "development servers",
+            "development sites",
+        ],
+    ),
+    (
+        "test,staging",
+        &[
+            "test or staging instances",
+            "test and staging instances",
+            "staging or test instances",
+            "test and staging environments",
+        ],
+    ),
+    (
+        "test,staging,development",
+        &[
+            "non-production",
+            "nonproduction",
+            "non production",
+            "non-prod",
+            "nonprod",
+            "not production",
+            "not in production",
+        ],
+    ),
+];
+
+/// "no test instances", "excluding staging", "without dev sites": what is left is
+/// the live services and the ones nothing marks.
+const ENVIRONMENT_NEGATIONS: &[&str] = &[
+    "no",
+    "not",
+    "excluding",
+    "exclude",
+    "without",
+    "hide",
+    "skip",
+];
+const ENVIRONMENT_EXCLUDED: &[&str] = &[
+    "test",
+    "testing",
+    "test instances",
+    "test sites",
+    "test environments",
+    "test or staging",
+    "test and staging",
+    "test or dev",
+    "test and dev",
+    "staging",
+    "dev",
+    "dev instances",
+    "development instances",
+    "non-production",
+    "nonproduction",
+    "sandboxes",
+];
+
+/// "test or staging": several environments in one filter.
+fn environment_label(value: &str) -> String {
+    value
+        .split(',')
+        .map(|k| Environment::from_key(k).map(|e| e.label()).unwrap_or(k))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 const SOURCE_ALIASES: &[(&str, &[&str])] = &[
     (
         "incommon",
@@ -611,6 +772,23 @@ impl Vocab {
         for (a, names) in AVAILABILITY_ALIASES {
             for n in *names {
                 v.add(n, Field::Availability, a.key(), a.label(), false);
+            }
+        }
+        for (env, names) in ENVIRONMENT_ALIASES {
+            for n in *names {
+                v.add(n, Field::Environment, env, &environment_label(env), false);
+            }
+        }
+        for neg in ENVIRONMENT_NEGATIONS {
+            for what in ENVIRONMENT_EXCLUDED {
+                let value = "production,unknown";
+                v.add(
+                    &format!("{neg} {what}"),
+                    Field::Environment,
+                    value,
+                    &environment_label(value),
+                    false,
+                );
             }
         }
         for (src, names) in SOURCE_ALIASES {
@@ -825,8 +1003,15 @@ impl Vocab {
         }
         let mut cats: Vec<&str> = Vec::new();
         let mut feds: Vec<&str> = Vec::new();
+        let mut envs: Vec<&str> = Vec::new();
         for m in matched {
             let slot = match m.field.as_str() {
+                "environment" => {
+                    for v in m.value.split(',') {
+                        add(&mut envs, v);
+                    }
+                    continue;
+                }
                 "category" => {
                     add(&mut cats, &m.value);
                     continue;
@@ -858,6 +1043,9 @@ impl Vocab {
         if !feds.is_empty() {
             p.federation = Some(feds.join(","));
         }
+        if !envs.is_empty() {
+            p.environment = Some(envs.join(","));
+        }
         // An availability already says which aggregates; a source on top is redundant
         // and can contradict it ("not in InCommon" contains "in InCommon").
         if p.availability.is_some() {
@@ -887,8 +1075,18 @@ impl Vocab {
             .into_iter()
             .filter_map(|v| keep("federation", Some(v), &|v| self.federations.contains_key(v)))
             .collect();
+        let environments: Vec<String> =
+            split_list(p.environment.map(|e| e.to_lowercase()).as_deref())
+                .into_iter()
+                .filter_map(|v| {
+                    keep("environment", Some(v), &|v| {
+                        Environment::from_key(v).is_some()
+                    })
+                })
+                .collect();
         InterpretedParams {
             q: p.q.map(|q| q.trim().to_owned()).filter(|q| !q.is_empty()),
+            environment: (!environments.is_empty()).then(|| environments.join(",")),
             federation: (!federations.is_empty()).then(|| federations.join(",")),
             country: keep("country", p.country.map(|c| c.to_uppercase()), &|v| {
                 self.countries.contains_key(v)
@@ -919,6 +1117,7 @@ impl Vocab {
                 .find(|d| d.key == value)
                 .map(|d| d.label.to_owned()),
             "availability" => Availability::from_key(value).map(|a| a.label().to_owned()),
+            "environment" => Some(environment_label(value)),
             "attribute" => self
                 .attributes
                 .iter()
@@ -1200,5 +1399,77 @@ mod tests {
         );
         assert_eq!(p.federation.as_deref(), Some("SWAMID,INCOMMON"));
         assert_eq!(notes, ["Dropped an unknown federation \"NOPE\"."]);
+    }
+
+    #[test]
+    fn environments_are_read_with_their_instance_words() {
+        let v = vocab();
+        let i = v.interpret("test instances of Canvas");
+        assert_eq!(i.params.environment.as_deref(), Some("test"));
+        assert_eq!(i.params.q.as_deref(), Some("canvas"));
+        assert_eq!(i.matched[0].label, "Test");
+
+        let i = v.interpret("only production services");
+        assert_eq!(i.params.environment.as_deref(), Some("production"));
+        assert_eq!(i.params.q, None);
+
+        let i = v.interpret("test or staging instances of zoom");
+        assert_eq!(i.params.environment.as_deref(), Some("test,staging"));
+        assert_eq!(i.matched[0].label, "Test or Staging");
+
+        let i = v.interpret("non-production wikis");
+        assert_eq!(
+            i.params.environment.as_deref(),
+            Some("test,staging,development")
+        );
+        assert_eq!(i.params.q.as_deref(), Some("wikis"));
+
+        let i = v.interpret("R&S services in Sweden, no test instances");
+        assert_eq!(i.params.environment.as_deref(), Some("production,unknown"));
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert_eq!(
+            i.params.category.as_deref(),
+            Some("research-and-scholarship")
+        );
+
+        // Two readings combine, like federations.
+        let i = v.interpret("dev instances and staging environments of the library proxy");
+        assert_eq!(i.params.environment.as_deref(), Some("development,staging"));
+        assert_eq!(i.params.q.as_deref(), Some("library proxy"));
+    }
+
+    #[test]
+    fn test_and_production_as_subjects_are_left_alone() {
+        let v = vocab();
+        for q in [
+            "test prep",
+            "proctored test delivery",
+            "video production services",
+            "cancer staging calculator",
+            "sandbox games",
+            "music production",
+            "testing center",
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.environment, None, "{q}");
+        }
+    }
+
+    #[test]
+    fn validate_keeps_known_environments() {
+        let mut notes = Vec::new();
+        let p = vocab().validate(
+            InterpretedParams {
+                environment: Some("Test, prod,staging,test".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.environment.as_deref(), Some("test,staging"));
+        assert_eq!(notes, ["Dropped an unknown environment \"prod\"."]);
+        assert_eq!(
+            vocab().label("environment", "production,unknown"),
+            "Production or Unknown"
+        );
     }
 }
