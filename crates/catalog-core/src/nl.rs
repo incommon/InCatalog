@@ -1797,4 +1797,21 @@ mod tests {
             assert_eq!(i.params.region, None, "{q}");
         }
     }
+
+    #[test]
+    fn african_blocs_by_name() {
+        let v = vocab();
+        for (q, region) in [
+            ("services in ECOWAS countries", "ecowas"),
+            ("SADC members' library services", "sadc"),
+            ("services from the East African Community", "eac"),
+            ("anything in the CFA franc zone", "cfa-franc-zone"),
+            ("Arab League countries", "arab-league"),
+            ("COMESA services", "comesa"),
+        ] {
+            assert_eq!(v.interpret(q).params.region.as_deref(), Some(region), "{q}");
+        }
+        // Aligarh Muslim University's "AMU" is not the Arab Maghreb Union.
+        assert_eq!(v.interpret("amu library").params.region, None);
+    }
 }

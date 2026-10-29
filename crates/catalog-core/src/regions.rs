@@ -17,8 +17,10 @@
 //!   a union of M49 regions and says so.
 //! - **Political, security, and economic groupings** (the EU, Schengen, the euro
 //!   area, NATO, the OECD, ASEAN, BRICS, …) carry the date their listed membership
-//!   took effect, and when recent members joined. The EU is not "Europe", and
-//!   Schengen is not the EU.
+//!   took effect, when recent members joined, and when former members left. The EU
+//!   is not "Europe", and Schengen is not the EU. Africa's regional economic
+//!   communities, currency and customs unions, AfCFTA, and the Arab League are here
+//!   too; memberships overlap (Kenya is in the EAC, COMESA, and IGAD).
 //! - **Research and education networks** (GÉANT, RedCLARA, APAN, WACREN,
 //!   UbuntuNet, ASREN) stand for the countries of their member networks.
 //!
@@ -74,6 +76,10 @@ pub struct Region {
     /// When recent members joined, by country code.
     #[serde(default)]
     pub joined: BTreeMap<String, String>,
+    /// Former members and when they left, by country code. They are not in
+    /// `countries`; recording them says the list was not simply left short.
+    #[serde(default)]
+    pub left: BTreeMap<String, String>,
     #[serde(default)]
     countries: Vec<String>,
     /// Other regions, by key, whose countries this one also includes.
@@ -118,6 +124,7 @@ impl Region {
             as_of: self.as_of.clone(),
             note: self.note.clone(),
             joined: self.joined.clone(),
+            left: self.left.clone(),
             countries: self.countries().into_iter().map(str::to_owned).collect(),
         }
     }
@@ -140,6 +147,8 @@ pub struct RegionExpansion {
     pub note: Option<String>,
     /// When recent members joined, by country code.
     pub joined: BTreeMap<String, String>,
+    /// Former members and when they left, by country code.
+    pub left: BTreeMap<String, String>,
     /// ISO 3166 alpha-2 codes, sorted.
     pub countries: Vec<String>,
 }
@@ -180,6 +189,13 @@ mod tests {
                 assert!(
                     r.countries().contains(&cc.as_str()),
                     "{}: {cc} joined but is not listed",
+                    r.key
+                );
+            }
+            for cc in r.left.keys() {
+                assert!(
+                    !r.countries().contains(&cc.as_str()),
+                    "{}: {cc} left but is still listed",
                     r.key
                 );
             }
@@ -363,5 +379,78 @@ mod tests {
         for k in ["redclara", "apan", "wacren", "ubuntunet", "asren"] {
             assert_eq!(get(k).unwrap().kind, RegionKind::Network, "{k}");
         }
+    }
+
+    #[test]
+    fn african_blocs_record_who_left_and_overlap() {
+        let ecowas = get("ecowas").unwrap();
+        assert_eq!(ecowas.countries().len(), 12);
+        for cc in ["BF", "ML", "NE"] {
+            assert_eq!(
+                ecowas.left.get(cc).map(String::as_str),
+                Some("2025-01-29"),
+                "{cc}"
+            );
+            // They left ECOWAS but are still in the West African CFA franc zone.
+            assert!(countries("waemu").contains(&cc), "{cc}");
+        }
+        assert_eq!(
+            get("igad").unwrap().left.get("ER").map(String::as_str),
+            Some("2025-12-12")
+        );
+        assert_eq!(ecowas.expansion().left.len(), 3);
+
+        // Kenya is in three blocs at once.
+        for k in ["eac", "comesa", "igad", "afcfta"] {
+            assert!(countries(k).contains(&"KE"), "{k}");
+        }
+        assert!(!countries("sadc").contains(&"KE"));
+
+        let lens: Vec<(&str, usize)> = [
+            "sadc",
+            "eac",
+            "comesa",
+            "eccas",
+            "igad",
+            "cen-sad",
+            "amu",
+            "waemu",
+            "cemac",
+            "cfa-franc-zone",
+            "sacu",
+            "afcfta",
+            "arab-league",
+        ]
+        .into_iter()
+        .map(|k| (k, countries(k).len()))
+        .collect();
+        assert_eq!(
+            lens,
+            [
+                ("sadc", 16),
+                ("eac", 8),
+                ("comesa", 21),
+                ("eccas", 11),
+                ("igad", 7),
+                ("cen-sad", 25),
+                ("amu", 5),
+                ("waemu", 8),
+                ("cemac", 6),
+                ("cfa-franc-zone", 14),
+                ("sacu", 5),
+                ("afcfta", 49),
+                ("arab-league", 22),
+            ]
+        );
+        // The Arab League spans Africa and Asia.
+        assert!(
+            countries("arab-league").contains(&"SA") && countries("arab-league").contains(&"EG")
+        );
+        assert!(get("afcfta")
+            .unwrap()
+            .note
+            .as_deref()
+            .unwrap()
+            .contains("not every signatory"));
     }
 }
