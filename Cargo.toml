@@ -37,7 +37,7 @@ aws-config = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-s3 = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio", "http-1x"] }
 aws-sdk-ssm = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
 lambda_runtime = "0.14"
-lambda_http = "0.15"
+lambda_http = "1.3"
 catalog-core = { path = "crates/catalog-core" }
 catalog-store = { path = "crates/catalog-store" }
 catalog-claude = { path = "crates/catalog-claude" }
