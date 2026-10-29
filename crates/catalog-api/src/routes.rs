@@ -67,6 +67,8 @@ type St = State<Arc<AppState>>;
         catalog_core::model::Service,
         catalog_core::model::Federation,
         catalog_core::model::SourceInfo,
+        catalog_core::environment::Environment,
+        catalog_core::environment::EnvironmentReading,
     ))
 )]
 pub struct ApiDoc;
@@ -206,10 +208,13 @@ async fn read(
 }
 
 /// Search services with filters, paging, and facet counts. Filters combine with
-/// AND; several `federation` values combine with OR.
+/// AND; several `federation` or `environment` values combine with OR.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
 async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
-    let query = join_repeated(raw.as_deref().unwrap_or(""), "federation");
+    let mut query = raw.unwrap_or_default();
+    for key in ["federation", "environment"] {
+        query = join_repeated(&query, key);
+    }
     // It came from a valid URI and only gained commas, so it parses again.
     let Ok(uri) = format!("/?{query}").parse::<Uri>() else {
         return StatusCode::BAD_REQUEST.into_response();
@@ -451,5 +456,66 @@ mod tests {
         assert_eq!(param["schema"]["items"]["type"], "string");
         assert_eq!(param["style"], "form");
         assert_eq!(param["explode"], true);
+    }
+
+    #[tokio::test]
+    async fn services_filter_by_environment() {
+        let svc = |id: &str, name: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: catalog_core::entity_hash(id),
+                ..Default::default()
+            };
+            s.display_names.insert("en".into(), name.into());
+            s
+        };
+        let app = || {
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services: vec![
+                    svc("https://canvas.example.edu/sp", "Canvas"),
+                    svc("https://canvas-test.example.edu/sp", "Canvas"),
+                    svc("https://canvas.example.edu/dev", "Canvas"),
+                ],
+                ..Default::default()
+            })))
+        };
+        let total = |path: &'static str| async move {
+            let (st, page) = get_json_from(app(), path).await;
+            assert_eq!(st, StatusCode::OK, "{path}");
+            page["total"].as_u64().unwrap()
+        };
+        assert_eq!(total("/v1/services?environment=test").await, 1);
+        assert_eq!(total("/v1/services?environment=test,development").await, 2);
+        assert_eq!(
+            total("/v1/services?environment=test&environment=unknown").await,
+            2
+        );
+        assert_eq!(total("/v1/services?environment=nope").await, 0);
+
+        let (_, page) = get_json_from(app(), "/v1/services?environment=test").await;
+        assert_eq!(page["items"][0]["environment"], "test");
+        assert_eq!(page["items"][0]["environment_source"], "metadata");
+        let facet = page["facets"]["environment"].as_array().unwrap();
+        assert_eq!(facet.len(), 3, "the facet ignores its own selection");
+
+        let id = page["items"][0]["id"].as_str().unwrap().to_owned();
+        let (_, d) = get_json_from(app(), &format!("/v1/services/{id}")).await;
+        assert_eq!(d["environment"]["value"], "test");
+        assert_eq!(
+            d["environment"]["evidence"],
+            "\"test\" in the entityID's host"
+        );
+
+        let (_, spec) = get_json("/openapi.json").await;
+        let param = spec["paths"]["/v1/services"]["get"]["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "environment")
+            .unwrap()
+            .clone();
+        assert_eq!(param["schema"]["type"], "array");
+        assert_eq!(param["explode"], true);
+        assert!(spec["components"]["schemas"]["EnvironmentReading"].is_object());
     }
 }

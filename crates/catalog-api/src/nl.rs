@@ -21,6 +21,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use catalog_claude::Claude;
 use catalog_core::categories::CATEGORIES;
+use catalog_core::environment::Environment;
 use catalog_core::model::Availability;
 use catalog_core::nl::{Interpretation, InterpretedParams, MatchedTerm, Vocab};
 use catalog_core::search::Catalog;
@@ -92,6 +93,7 @@ impl ClaudeReader {
                 q: Some(out.keywords),
                 federation: (!federations.is_empty()).then(|| federations.join(",")),
                 country: out.country,
+                environment: (!out.environments.is_empty()).then(|| out.environments.join(",")),
                 category: (!out.categories.is_empty()).then(|| out.categories.join(",")),
                 availability: out.availability,
                 attribute: out.attribute,
@@ -160,6 +162,8 @@ struct ModelReading {
     /// `null` items only when the catalog lists no federations (see [`enum_array`]).
     federations: Vec<Option<String>>,
     country: Option<String>,
+    #[serde(default)]
+    environments: Vec<String>,
     categories: Vec<String>,
     availability: Option<String>,
     attribute: Option<String>,
@@ -195,6 +199,9 @@ fn matched_from(vocab: &Vocab, p: &InterpretedParams) -> Vec<MatchedTerm> {
     for c in p.category.iter().flat_map(|c| c.split(',')) {
         push("category", c);
     }
+    for e in p.environment.iter().flat_map(|e| e.split(',')) {
+        push("environment", e);
+    }
     out
 }
 
@@ -225,11 +232,12 @@ fn schema(vocab: &Vocab) -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["keywords", "federations", "country", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
+        "required": ["keywords", "federations", "country", "environments", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
         "properties": {
             "keywords": { "type": "string" },
             "federations": enum_array(vocab.federations.keys().cloned().collect()),
             "country": nullable_enum(vocab.countries.keys().cloned().collect()),
+            "environments": enum_array(Environment::ALL.iter().map(|e| e.key().to_owned()).collect()),
             "categories": { "type": "array", "items": { "type": "string", "enum": CATEGORIES.iter().map(|c| c.key).collect::<Vec<_>>() } },
             "availability": nullable_enum(Availability::ALL.iter().map(|a| a.key().to_owned()).collect()),
             "attribute": nullable_enum(attributes(vocab).map(|(n, _)| n.clone()).collect()),
@@ -250,6 +258,7 @@ Set a filter only when the search clearly asks for it, and leave it null otherwi
 
 - `federations`: the registering federations, when the search names one or more (\"SWAMID\", \"the UK federation\", \"registered by InCommon\", \"SWAMID or DFN-AAI services\"). A service matches any of them, so list every federation the search names; leave the list empty when it names none.
 - `country`: the registering federation's country, when the search names a country or nationality rather than a federation.
+- `environments`: only when the search asks for test, staging, or development instances (\"test instances of Canvas\", \"the staging environment\") or for live ones only (\"only production services\"); a service in any listed environment matches. To leave out test instances (\"no test sites\"), list `production` and `unknown`. \"Test\" or \"production\" as a subject (\"test prep\", \"video production\") is a keyword, not an environment. Leave the list empty otherwise.
 - `categories`: entity categories and certifications the service must carry, all of them.
 - `availability`: where the service can be used from. Use it only for searches about reach (\"not in InCommon\", \"exported to eduGAIN\"); do not combine it with `source`.
 - `source`: `incommon` when the search asks only for services InCommon members can use; `edugain` for services available through eduGAIN.
@@ -391,7 +400,7 @@ mod tests {
     #[tokio::test]
     async fn claude_reading_is_requested_correctly_and_validated() {
         let answer = json!({
-            "keywords": "collaborative writing", "federations": ["NOT-A-FED"], "country": "SE",
+            "keywords": "collaborative writing", "federations": ["NOT-A-FED"], "country": "SE", "environments": [],
             "categories": ["research-and-scholarship"], "availability": null,
             "attribute": "urn:oid:0.9.2342.19200300.100.1.3", "source": null, "provider_type": null,
             "explanation": "Services for collaborative writing in Sweden that request email.",
@@ -448,7 +457,7 @@ mod tests {
     #[tokio::test]
     async fn claude_can_name_several_federations() {
         let answer = json!({
-            "keywords": "", "federations": ["SWAMID", "DFN-AAI", "NOPE"], "country": null,
+            "keywords": "", "federations": ["SWAMID", "DFN-AAI", "NOPE"], "country": null, "environments": [],
             "categories": [], "availability": null, "attribute": null, "source": null,
             "provider_type": null, "explanation": "Services registered by SWAMID or DFN-AAI.",
         });
@@ -469,6 +478,44 @@ mod tests {
             .collect();
         assert_eq!(feds, ["SWAMID", "DFN-AAI"]);
         assert!(i.notes.iter().any(|n| n.contains("NOPE")));
+    }
+
+    #[tokio::test]
+    async fn claude_can_ask_for_environments() {
+        let answer = json!({
+            "keywords": "canvas", "federations": [], "country": null,
+            "environments": ["test", "staging", "prod"], "categories": [], "availability": null,
+            "attribute": null, "source": null, "provider_type": null,
+            "explanation": "Test and staging instances of Canvas.",
+        });
+        let (base, seen) = stub(message("end_turn", &answer.to_string())).await;
+        let i = interpret(
+            Some(&reader(base)),
+            &catalog(),
+            "canvas test and staging copies",
+            "auto",
+        )
+        .await;
+        assert_eq!(i.params.environment.as_deref(), Some("test,staging"));
+        let envs: Vec<&str> = i
+            .matched
+            .iter()
+            .filter(|m| m.field == "environment")
+            .map(|m| m.label.as_str())
+            .collect();
+        assert_eq!(envs, ["Test", "Staging"]);
+        assert!(i.notes.iter().any(|n| n.contains("prod")));
+
+        let body = seen.lock().unwrap()[0].1.clone();
+        let schema = &body["output_config"]["format"]["schema"];
+        assert_eq!(
+            schema["properties"]["environments"]["items"]["enum"],
+            json!(["production", "test", "staging", "development", "unknown"])
+        );
+        assert!(schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("environments")));
     }
 
     #[test]

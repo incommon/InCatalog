@@ -214,6 +214,9 @@ pub struct Service {
     pub has_signing_key: bool,
     pub has_encryption_key: bool,
     pub supports_discovery_response: bool,
+    /// Hosts of the `AssertionConsumerService` locations, lowercase, without repeats.
+    #[serde(default)]
+    pub endpoint_hosts: Vec<String>,
 
     pub sources: Vec<Source>,
     /// Other registration authorities publishing this same entityID (a clash).

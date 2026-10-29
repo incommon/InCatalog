@@ -117,7 +117,7 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/ask?q=` | Read a plain-language search and find results, loosening it when it matches nothing (see Natural-language search) |
 | `/v1/interpret?q=` | Only the reading: the filters a plain-language search maps to |
 | `/v1/meta` | Snapshot provenance (URLs, `Last-Modified`, SHA-256, `validUntil`, signature status), counts, caveats |
-| `/v1/services` | Search. `q`, `federation`, `country`, `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
+| `/v1/services` | Search. `q`, `federation` and `environment` (comma-separated or repeated, OR), `country`, `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
 | `/v1/services/{id}` | One service. `id` is the lowercase hex SHA-1 of the entityID, which is the same identifier MDQ uses, so `{sha1}` is accepted as a prefix |
 | `/v1/lookup?entity_id=` | One service, by entityID |
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
@@ -127,6 +127,26 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 
 Facet counts for each dimension apply every *other* active filter, so a user can switch
 between values without losing sight of the alternatives.
+
+### Environments
+
+Every service is `production`, `test`, `staging`, `development`, or `unknown`, and
+`environment_source` on each result says what decided it:
+
+1. **`metadata`:** a marker word in the entityID's host (`canvas-test.`, `shibstg.`,
+   `uat2.`) or path (`/staging/`, `/StarRezPortalXDev/`), or in the display or service
+   name ("(Test)", "Sandbox", "— Development"). The rules are narrow on purpose, since
+   they outrank Claude: "Test Prep Academy", `contest.example.org`, `devry.edu`, and
+   "Office of Development" are not test or development instances.
+2. **`generated`:** otherwise, the environment Claude read while writing the summary.
+3. **`metadata`** again, from the endpoint hosts, when there is no summary and every
+   `AssertionConsumerService` host carries the same marker.
+4. Otherwise `unknown`. Metadata never shows that something *is* live, so `production`
+   always comes from Claude's reading.
+
+`/v1/services/{id}` returns the reading with the marker that decided it. Search ranks
+test, staging, and development copies below the live service they mirror, and the
+`environment` filter and facet let people ask for them, or leave them out.
 
 ## Natural-language search
 
@@ -140,6 +160,8 @@ results so the user can check it or search the literal words instead.
 | UK federation services that need ORCID | `federation=UK-FEDERATION`, `attribute=eduPersonOrcid` |
 | German library services | `country=DE`, words `library` |
 | journals not in InCommon | `availability=edugain-only`, words `journals` |
+| test instances of Canvas | `environment=test`, words `canvas` |
+| only production services, no test instances | `environment=production` (or `production,unknown`) |
 | email marketing | words only (no "request" verb, so *email* is a subject, not an attribute) |
 
 Two readers do this work:
@@ -168,8 +190,8 @@ finds something. When the literal reading matches nothing it loosens one step at
 time, and returns a sentence saying what it loosened:
 
 1. every filter and every word, then most of the words, then any of them
-2. drop one filter at a time, softest first (requested attribute, country, seen-in,
-   federation, provider type, availability, category)
+2. drop one filter at a time, softest first (requested attribute, country, environment,
+   seen-in, federation, provider type, availability, category)
 3. the words alone, then the filters alone
 
 "journals not in InCommon" has no literal match (no journal is eduGAIN-only), so it

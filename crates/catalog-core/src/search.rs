@@ -14,6 +14,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::categories::{self, CategoryDef};
 use crate::curation::provider_name;
+use crate::environment::{self, EnvironmentReading};
 use crate::federations::normalize_reg_auth;
 use crate::model::{
     pick, Availability, Curated, Federation, Service, Snapshot, Source, SourceInfo,
@@ -36,6 +37,11 @@ pub struct ServiceQuery {
     pub federation: Option<String>,
     /// ISO 3166 country code of the registering federation.
     pub country: Option<String>,
+    /// `production`, `test`, `staging`, `development`, or `unknown`,
+    /// comma-separated or as repeated parameters; a service in any of them
+    /// matches. See `environment` on the results for how each was decided.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub environment: Option<String>,
     /// Comma-separated category keys; a service must carry all of them.
     pub category: Option<String>,
     /// One of the availability keys, e.g. `incommon-and-edugain`.
@@ -76,9 +82,13 @@ pub struct ServiceSummary {
     pub description: Option<String>,
     /// `metadata` or `generated`.
     pub description_source: Option<String>,
-    /// From the generated summary: `production`, `test`, `staging`,
-    /// `development`, or `unknown`.
+    /// `production`, `test`, `staging`, `development`, or `unknown`.
     pub environment: Option<String>,
+    /// What decided `environment`: `metadata` (a marker such as `test.` or
+    /// "(Staging)" in the entityID, the name, or every endpoint host) or `generated`
+    /// (Claude's reading in the summary). Absent when neither said, and the
+    /// environment is `unknown`.
+    pub environment_source: Option<String>,
     pub organization: Option<String>,
     pub provider_id: String,
     /// An `https:` or `data:image/` logo URL; plain `http:` logos are omitted.
@@ -137,6 +147,8 @@ pub struct ServiceDetail {
     pub federation: Option<Federation>,
     pub provider: ProviderRef,
     pub links: Links,
+    /// The service's environment, what decided it, and the marker found.
+    pub environment: EnvironmentReading,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -246,8 +258,8 @@ struct Entry {
     org_n: String,
     /// Generated search keywords, normalized, one per line-equivalent.
     keywords_n: String,
-    /// Generated summary marks this as a test, staging, or development instance.
-    non_production: bool,
+    /// Read from the metadata, else from the generated summary.
+    environment: EnvironmentReading,
     name: String,
     name_lc: String,
     org_lc: String,
@@ -367,9 +379,7 @@ impl Catalog {
                     .as_ref()
                     .map(|e| e.keywords.iter().map(|k| normalize(k)).collect::<String>())
                     .unwrap_or_default(),
-                non_production: s.enrichment.as_ref().is_some_and(|e| {
-                    matches!(e.environment.as_str(), "test" | "staging" | "development")
-                }),
+                environment: environment::classify(s),
                 org_n: normalize(&pkey),
                 name_lc: name.to_lowercase(),
                 name,
@@ -449,7 +459,8 @@ impl Catalog {
             name: display_name(s, lang),
             description: description(s, lang).map(|(d, _)| truncate(d, 300)),
             description_source: description(s, lang).map(|(_, src)| src.to_owned()),
-            environment: s.enrichment.as_ref().map(|e| e.environment.clone()),
+            environment: Some(e.environment.value.key().to_owned()),
+            environment_source: e.environment.source.clone(),
             organization: pick(&s.organization.display_names, lang)
                 .or_else(|| pick(&s.organization.names, lang))
                 .map(str::to_owned),
@@ -490,6 +501,7 @@ impl Catalog {
                 service_count: p.service_count,
             },
             links: links(s),
+            environment: self.entries[i].environment.clone(),
         }
     }
 
@@ -585,6 +597,10 @@ impl Catalog {
                         if let Some(a) = s.availability {
                             bump(a.key(), a.label());
                         }
+                    }
+                    Dim::Environment => {
+                        let env = self.entries[i].environment.value;
+                        bump(env.key(), env.label());
                     }
                     Dim::Attribute => {
                         for a in &s.requested_attributes {
@@ -848,17 +864,19 @@ enum Dim {
     Country,
     Category,
     Availability,
+    Environment,
     Attribute,
     Source,
     ProviderType,
 }
 
 impl Dim {
-    const ALL: [Dim; 7] = [
+    const ALL: [Dim; 8] = [
         Dim::Federation,
         Dim::Country,
         Dim::Category,
         Dim::Availability,
+        Dim::Environment,
         Dim::Attribute,
         Dim::Source,
         Dim::ProviderType,
@@ -870,6 +888,7 @@ impl Dim {
             Dim::Country => "country",
             Dim::Category => "category",
             Dim::Availability => "availability",
+            Dim::Environment => "environment",
             Dim::Attribute => "attribute",
             Dim::Source => "source",
             Dim::ProviderType => "provider_type",
@@ -893,6 +912,9 @@ struct Filters {
     categories: Vec<String>,
     /// `Some(None)` means an unrecognized availability key: match nothing.
     availability: Option<Option<Availability>>,
+    /// Environment keys, lowercase; a service must be in one. An unknown key adds
+    /// nothing, and on its own matches nothing.
+    environments: Vec<String>,
     attribute: Option<String>,
     provider: Option<String>,
     source: Option<String>,
@@ -925,6 +947,10 @@ impl Filters {
             country: nonempty(&q.country).map(|c| c.to_uppercase()),
             categories: split_list(q.category.as_deref()),
             availability: nonempty(&q.availability).map(|a| Availability::from_key(&a)),
+            environments: split_list(q.environment.as_deref())
+                .iter()
+                .map(|e| e.to_lowercase())
+                .collect(),
             attribute: nonempty(&q.attribute).map(|a| a.to_lowercase()),
             provider: nonempty(&q.provider),
             source: nonempty(&q.source).map(|s| s.to_lowercase()),
@@ -989,6 +1015,15 @@ impl Filters {
                     return false;
                 }
             }
+        }
+        if on(Dim::Environment)
+            && !self.environments.is_empty()
+            && !self
+                .environments
+                .iter()
+                .any(|k| k == e.environment.value.key())
+        {
+            return false;
         }
         if on(Dim::Attribute) {
             if let Some(a) = &self.attribute {
@@ -1057,7 +1092,7 @@ impl Filters {
             }
         }
         // Test and staging copies sit behind the live service they mirror.
-        if e.non_production {
+        if e.environment.value.non_production() {
             score = score / 3 + 1;
         }
         score
@@ -1389,5 +1424,170 @@ mod tests {
         assert_eq!(count("country", "DE"), None);
         assert_eq!(count("country", "US"), Some(1));
         assert_eq!(count("category", "Anonymous Access"), Some(1));
+    }
+
+    fn environments() -> Catalog {
+        use crate::model::Enrichment;
+        let svc = |id: &str, name: &str, generated: Option<&str>| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: crate::entity_hash(id),
+                enrichment: generated.map(|env| Enrichment {
+                    environment: env.into(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            s.display_names.insert("en".into(), name.into());
+            s
+        };
+        Catalog::new(Snapshot {
+            services: vec![
+                svc(
+                    "https://canvas.example.edu/sp",
+                    "Canvas",
+                    Some("production"),
+                ),
+                svc(
+                    "https://canvas-test.example.edu/sp",
+                    "Canvas",
+                    Some("production"),
+                ),
+                svc(
+                    "https://canvas.example.edu/stage",
+                    "Canvas Stage",
+                    Some("staging"),
+                ),
+                svc("https://wiki.example.edu/sp", "Wiki (Dev)", None),
+                svc("https://notes.example.edu/sp", "Notes", None),
+                svc(
+                    "https://quiz.example.edu/sp",
+                    "Test Prep Academy",
+                    Some("unknown"),
+                ),
+            ],
+            ..Default::default()
+        })
+    }
+
+    fn by_environment(c: &Catalog, env: &str) -> Vec<String> {
+        c.search(&ServiceQuery {
+            environment: Some(env.into()),
+            ..Default::default()
+        })
+        .items
+        .into_iter()
+        .map(|s| s.entity_id)
+        .collect()
+    }
+
+    #[test]
+    fn environment_filter_takes_several_values() {
+        let c = environments();
+        assert_eq!(
+            by_environment(&c, "production"),
+            ["https://canvas.example.edu/sp"]
+        );
+        assert_eq!(
+            by_environment(&c, "test,development"),
+            [
+                "https://canvas-test.example.edu/sp",
+                "https://wiki.example.edu/sp"
+            ]
+        );
+        // Case and spacing do not matter; an unknown value adds nothing, and on
+        // its own matches nothing.
+        assert_eq!(by_environment(&c, " Staging , prod").len(), 1);
+        assert_eq!(by_environment(&c, "prod").len(), 0);
+        // "Test Prep Academy" is not a test instance; with nothing else to go by
+        // it is unknown, like an entry with no summary.
+        assert_eq!(
+            by_environment(&c, "unknown"),
+            [
+                "https://notes.example.edu/sp",
+                "https://quiz.example.edu/sp"
+            ]
+        );
+        assert_eq!(by_environment(&c, ",").len(), 6);
+    }
+
+    #[test]
+    fn summaries_and_details_say_what_decided_the_environment() {
+        let c = environments();
+        let page = c.search(&ServiceQuery {
+            q: Some("canvas".into()),
+            ..Default::default()
+        });
+        let got: Vec<(&str, Option<&str>, Option<&str>)> = page
+            .items
+            .iter()
+            .map(|s| {
+                (
+                    s.entity_id.as_str(),
+                    s.environment.as_deref(),
+                    s.environment_source.as_deref(),
+                )
+            })
+            .collect();
+        // The live service ranks first; the test and staging copies behind it.
+        assert_eq!(
+            got,
+            [
+                (
+                    "https://canvas.example.edu/sp",
+                    Some("production"),
+                    Some("generated")
+                ),
+                (
+                    "https://canvas-test.example.edu/sp",
+                    Some("test"),
+                    Some("metadata")
+                ),
+                (
+                    "https://canvas.example.edu/stage",
+                    Some("staging"),
+                    Some("metadata")
+                ),
+            ]
+        );
+
+        let d = c
+            .service_by_entity_id("https://wiki.example.edu/sp")
+            .unwrap();
+        assert_eq!(
+            d.environment.value,
+            crate::environment::Environment::Development
+        );
+        assert_eq!(
+            d.environment.evidence.as_deref(),
+            Some("\"Dev\" in the display name")
+        );
+        let d = c
+            .service_by_entity_id("https://notes.example.edu/sp")
+            .unwrap();
+        assert_eq!(d.environment.source, None);
+    }
+
+    #[test]
+    fn environment_facet_ignores_its_own_selection() {
+        let c = environments();
+        let p = c.search(&ServiceQuery {
+            environment: Some("production".into()),
+            q: Some("canvas".into()),
+            ..Default::default()
+        });
+        assert_eq!(p.total, 1);
+        let facet: Vec<(&str, &str, usize)> = p.facets["environment"]
+            .iter()
+            .map(|v| (v.value.as_str(), v.label.as_str(), v.count))
+            .collect();
+        assert_eq!(
+            facet,
+            [
+                ("production", "Production", 1),
+                ("staging", "Staging", 1),
+                ("test", "Test", 1)
+            ]
+        );
     }
 }

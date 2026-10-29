@@ -40,6 +40,7 @@ pub struct AskResult {
 const SOFTEST_FIRST: &[(&str, &str)] = &[
     ("attribute", "Requests"),
     ("country", "Country"),
+    ("environment", "Environment"),
     ("source", "Seen in"),
     ("federation", "Registered by"),
     ("provider_type", "Provider type"),
@@ -141,6 +142,7 @@ impl Catalog {
             q: p.q.clone(),
             federation: p.federation.clone(),
             country: p.country.clone(),
+            environment: p.environment.clone(),
             category: p.category.clone(),
             availability: p.availability.clone(),
             attribute: p.attribute.clone(),
@@ -159,6 +161,7 @@ fn get<'a>(p: &'a InterpretedParams, field: &str) -> Option<&'a String> {
     match field {
         "federation" => p.federation.as_ref(),
         "country" => p.country.as_ref(),
+        "environment" => p.environment.as_ref(),
         "category" => p.category.as_ref(),
         "availability" => p.availability.as_ref(),
         "attribute" => p.attribute.as_ref(),
@@ -172,6 +175,7 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
     match field {
         "federation" => p.federation.take(),
         "country" => p.country.take(),
+        "environment" => p.environment.take(),
         "category" => p.category.take(),
         "availability" => p.availability.take(),
         "attribute" => p.attribute.take(),
@@ -181,14 +185,18 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
     }
 }
 
-/// Categories must all hold ("R&S + Sirtfi"); federations are alternatives
-/// ("SWAMID or DFN-AAI").
+/// Categories must all hold ("R&S + Sirtfi"); federations and environments are
+/// alternatives ("SWAMID or DFN-AAI", "Test or Staging").
 fn describe(c: &Catalog, field: &str, value: &str) -> String {
     value
         .split(',')
         .map(|v| c.vocab().label(field, v))
         .collect::<Vec<_>>()
-        .join(if field == "federation" { " or " } else { " + " })
+        .join(if field == "federation" || field == "environment" {
+            " or "
+        } else {
+            " + "
+        })
 }
 
 #[cfg(test)]
@@ -275,5 +283,23 @@ mod tests {
         let r = c.ask(reading(&c, "adobe"));
         assert_eq!(r.total, 0);
         assert!(r.relaxed.unwrap().contains("adobe"));
+    }
+
+    #[test]
+    fn drops_an_environment_that_finds_nothing() {
+        let c = catalog();
+        let r = c.ask(reading(&c, "test instances of the lab notebook"));
+        assert_eq!(r.reading.params.environment.as_deref(), Some("test"));
+        assert_eq!(r.params.environment, None);
+        assert_eq!(r.total, 1);
+        assert!(r.relaxed.unwrap().contains("Environment: Test"));
+
+        let mut r = reading(&c, "journal");
+        r.params.environment = Some("test,staging".into());
+        assert!(c
+            .ask(r)
+            .relaxed
+            .unwrap()
+            .contains("Environment: Test or Staging"));
     }
 }

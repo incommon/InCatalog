@@ -74,35 +74,6 @@ Americas", "anything from BRICS countries".
   phrasings, including false positives such as "European Molecular Biology Laboratory"
   as an organization name.
 
-## Make production vs test vs dev a first-class search concern
-
-Today an entry's environment (`production`, `test`, `staging`, `development`, `unknown`)
-exists only as a guess in Claude's generated summary (`enrichment.environment`). Search
-uses it just to rank non-production copies below the live service they mirror
-(`non_production` in `catalog-core/src/search.rs`), and the UI shows it as a badge. An
-entry with no summary is always `unknown`, and nobody can ask for, or leave out, test
-instances.
-
-- **Derive it from metadata first.** Read the environment deterministically from the
-  entityID, endpoint hosts, and display names (`test.`, `-dev`, `staging`, `sandbox`,
-  `qa`, …) in `catalog-core`, so it is set without a summary and is reproducible. Keep
-  Claude's reading as a fallback, and record which one decided it, as `description_source`
-  does for descriptions.
-- **Filter and facet.** Add `environment` to `ServiceQuery`, the API's query parameters,
-  the OpenAPI document, and the facet counts, so `environment=production` (or several
-  values) works like any other filter.
-- **Decide the default view.** Most people want live services. Consider showing
-  production (and `unknown`) by default, with a visible toggle to include test,
-  staging, and dev, and keeping the ranking demotion for the mixed view.
-- **Natural-language search.** Let the reading in `catalog-core/src/nl.rs` (and the
-  Claude reading in `catalog-api/src/nl.rs`) produce the filter: "test instances of
-  Canvas", "only production services".
-- **UI.** An environment facet in `web/app.js` next to the others, kept in the URL
-  state.
-- **Tests.** The classifier against known names and hosts (including false positives
-  such as "Test Prep Academy" or `contest.`), the filter and facet semantics, and the
-  NL reading.
-
 ## Rename the AWS resources from `catabasis` to `incatalog`
 
 The code and docs use `incatalog`, but the deployed AWS resources still carry the old
