@@ -101,7 +101,7 @@ pub fn for_each_entity<R: BufRead>(
         match event {
             Event::Start(ref e) | Event::Empty(ref e) => {
                 let is_empty = matches!(event, Event::Empty(_));
-                let local = String::from_utf8_lossy(e.local_name().as_ref()).into_owned();
+                let local = e.local_name().as_ref().to_owned();
                 if !seen_root {
                     seen_root = true;
                     if ns.as_deref() == Some(ns::MD) && local == "EntitiesDescriptor" {
@@ -139,20 +139,17 @@ pub fn for_each_entity<R: BufRead>(
             }
             Event::Text(ref t) => {
                 if let Some(top) = stack.last_mut() {
-                    match t.xml10_content() {
-                        Ok(s) => top.text.push_str(&s),
-                        Err(_) => top.text.push_str(&String::from_utf8_lossy(t.as_ref())),
-                    }
+                    top.text.push_str(&t.xml10_content());
                 }
             }
             // Text arrives split around `&…;` references; put each one back. An
             // unknown entity is kept as written rather than dropped.
             Event::GeneralRef(ref r) => {
                 if let Some(top) = stack.last_mut() {
-                    let name = String::from_utf8_lossy(r.as_ref());
+                    let name: &str = r.as_ref();
                     if let Ok(Some(c)) = r.resolve_char_ref() {
                         top.text.push(c);
-                    } else if let Some(s) = resolve_predefined_entity(&name) {
+                    } else if let Some(s) = resolve_predefined_entity(name) {
                         top.text.push_str(s);
                     } else {
                         top.text.push_str(&format!("&{name};"));
@@ -161,7 +158,7 @@ pub fn for_each_entity<R: BufRead>(
             }
             Event::CData(ref t) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&String::from_utf8_lossy(t.as_ref()));
+                    top.text.push_str(t.as_ref());
                 }
             }
             Event::Eof => break,
@@ -174,7 +171,7 @@ pub fn for_each_entity<R: BufRead>(
 
 fn owned_ns(r: ResolveResult) -> Option<String> {
     match r {
-        ResolveResult::Bound(Namespace(b)) => Some(String::from_utf8_lossy(b).into_owned()),
+        ResolveResult::Bound(Namespace(b)) => Some(b.to_owned()),
         _ => None,
     }
 }
@@ -184,14 +181,14 @@ fn element<R>(reader: &NsReader<R>, ns: Option<String>, name: String, e: &BytesS
     for a in e.attributes().with_checks(false).flatten() {
         let key = a.key;
         let raw = key.as_ref();
-        if raw == b"xmlns" || raw.starts_with(b"xmlns:") {
+        if raw == "xmlns" || raw.starts_with("xmlns:") {
             continue;
         }
         let (resolved, local) = reader.resolver().resolve_attribute(key);
-        let local = String::from_utf8_lossy(local.as_ref()).into_owned();
+        let local = local.as_ref().to_owned();
         // The `xml` prefix is bound by definition and never declared; handle it
         // explicitly rather than relying on resolver behavior.
-        let ans = if raw.starts_with(b"xml:") {
+        let ans = if raw.starts_with("xml:") {
             Some(ns::XML.to_owned())
         } else {
             owned_ns(resolved)
@@ -200,7 +197,7 @@ fn element<R>(reader: &NsReader<R>, ns: Option<String>, name: String, e: &BytesS
         // and LF read as spaces.
         let value = match a.normalized_value(XmlVersion::Implicit1_0) {
             Ok(v) => v.into_owned(),
-            Err(_) => String::from_utf8_lossy(&a.value).into_owned(),
+            Err(_) => a.value.to_string(),
         };
         attrs.push(Attr {
             ns: ans,
@@ -235,6 +232,16 @@ mod tests {
             ns::MD
         ));
         assert_eq!(e.text, "a & b \u{263A}A <x> &nbsp; c");
+    }
+
+    // quick-xml checks the input is UTF-8 as it reads. A malformed aggregate fails
+    // the whole read, as it fails xmlsec1's signature check, rather than being
+    // patched up field by field.
+    #[test]
+    fn input_that_is_not_utf8_is_an_error() {
+        let mut xml = format!(r#"<EntityDescriptor xmlns="{}">caf"#, ns::MD).into_bytes();
+        xml.extend_from_slice(b"\xe9</EntityDescriptor>");
+        assert!(for_each_entity(&xml[..], |_| {}).is_err());
     }
 
     #[test]
