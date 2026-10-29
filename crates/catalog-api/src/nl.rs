@@ -86,10 +86,11 @@ impl ClaudeReader {
         let served_by = answer.model;
 
         let mut notes = Vec::new();
+        let federations: Vec<String> = out.federations.into_iter().flatten().collect();
         let params = vocab.validate(
             InterpretedParams {
                 q: Some(out.keywords),
-                federation: out.federation,
+                federation: (!federations.is_empty()).then(|| federations.join(",")),
                 country: out.country,
                 category: (!out.categories.is_empty()).then(|| out.categories.join(",")),
                 availability: out.availability,
@@ -156,7 +157,8 @@ pub async fn interpret(
 #[derive(Deserialize)]
 struct ModelReading {
     keywords: String,
-    federation: Option<String>,
+    /// `null` items only when the catalog lists no federations (see [`enum_array`]).
+    federations: Vec<Option<String>>,
     country: Option<String>,
     categories: Vec<String>,
     availability: Option<String>,
@@ -177,7 +179,6 @@ fn matched_from(vocab: &Vocab, p: &InterpretedParams) -> Vec<MatchedTerm> {
         })
     };
     for (field, v) in [
-        ("federation", &p.federation),
         ("country", &p.country),
         ("availability", &p.availability),
         ("attribute", &p.attribute),
@@ -187,6 +188,9 @@ fn matched_from(vocab: &Vocab, p: &InterpretedParams) -> Vec<MatchedTerm> {
         if let Some(v) = v {
             push(field, v);
         }
+    }
+    for f in p.federation.iter().flat_map(|f| f.split(',')) {
+        push("federation", f);
     }
     for c in p.category.iter().flat_map(|c| c.split(',')) {
         push("category", c);
@@ -202,6 +206,17 @@ fn nullable_enum(values: Vec<String>) -> Value {
     }
 }
 
+/// Any number of `values`; an empty enum is not a valid schema, so with no
+/// values the only answer is an empty list (or nulls, which are ignored).
+fn enum_array(values: Vec<String>) -> Value {
+    let items = if values.is_empty() {
+        json!({ "type": "null" })
+    } else {
+        json!({ "type": "string", "enum": values })
+    };
+    json!({ "type": "array", "items": items })
+}
+
 fn attributes(vocab: &Vocab) -> impl Iterator<Item = &(String, Option<String>)> {
     vocab.attributes.iter().take(MAX_ATTRIBUTES)
 }
@@ -210,10 +225,10 @@ fn schema(vocab: &Vocab) -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["keywords", "federation", "country", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
+        "required": ["keywords", "federations", "country", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
         "properties": {
             "keywords": { "type": "string" },
-            "federation": nullable_enum(vocab.federations.keys().cloned().collect()),
+            "federations": enum_array(vocab.federations.keys().cloned().collect()),
             "country": nullable_enum(vocab.countries.keys().cloned().collect()),
             "categories": { "type": "array", "items": { "type": "string", "enum": CATEGORIES.iter().map(|c| c.key).collect::<Vec<_>>() } },
             "availability": nullable_enum(Availability::ALL.iter().map(|a| a.key().to_owned()).collect()),
@@ -233,7 +248,7 @@ The catalog lists SAML service providers from InCommon, the US research and educ
 
 Set a filter only when the search clearly asks for it, and leave it null otherwise. Most searches are just a name or a topic: return those as keywords with no filters. Put the words that describe what the service is or does (its subject, product, or vendor) in `keywords`, as a short space-separated list without filler words, and do not repeat words already used by a filter.
 
-- `federation`: the registering federation, when the search names one (\"SWAMID\", \"the UK federation\", \"registered by InCommon\").
+- `federations`: the registering federations, when the search names one or more (\"SWAMID\", \"the UK federation\", \"registered by InCommon\", \"SWAMID or DFN-AAI services\"). A service matches any of them, so list every federation the search names; leave the list empty when it names none.
 - `country`: the registering federation's country, when the search names a country or nationality rather than a federation.
 - `categories`: entity categories and certifications the service must carry, all of them.
 - `availability`: where the service can be used from. Use it only for searches about reach (\"not in InCommon\", \"exported to eduGAIN\"); do not combine it with `source`.
@@ -349,9 +364,17 @@ mod tests {
             countries: vec!["Sweden".into()],
             ..Default::default()
         };
+        let dfn = Federation {
+            code: "DFN-AAI".into(),
+            name: "DFN-AAI".into(),
+            registration_authority: "https://www.aai.dfn.de".into(),
+            country_codes: vec!["DE".into()],
+            countries: vec!["Germany".into()],
+            ..Default::default()
+        };
         Catalog::new(Snapshot {
             services: vec![s],
-            federations: vec![swamid],
+            federations: vec![swamid, dfn],
             ..Default::default()
         })
     }
@@ -368,7 +391,7 @@ mod tests {
     #[tokio::test]
     async fn claude_reading_is_requested_correctly_and_validated() {
         let answer = json!({
-            "keywords": "collaborative writing", "federation": "NOT-A-FED", "country": "SE",
+            "keywords": "collaborative writing", "federations": ["NOT-A-FED"], "country": "SE",
             "categories": ["research-and-scholarship"], "availability": null,
             "attribute": "urn:oid:0.9.2342.19200300.100.1.3", "source": null, "provider_type": null,
             "explanation": "Services for collaborative writing in Sweden that request email.",
@@ -407,9 +430,9 @@ mod tests {
         assert_eq!(body["output_config"]["format"]["type"], "json_schema");
         assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
         assert!(body.get("thinking").is_none() && body.get("temperature").is_none());
-        let fed_enum = &body["output_config"]["format"]["schema"]["properties"]["federation"]
-            ["anyOf"][0]["enum"];
-        assert_eq!(fed_enum, &json!(["SWAMID"]));
+        let fed_enum = &body["output_config"]["format"]["schema"]["properties"]["federations"]
+            ["items"]["enum"];
+        assert_eq!(fed_enum, &json!(["DFN-AAI", "SWAMID"]));
 
         // A repeat of the same query is served from the cache.
         interpret(
@@ -420,6 +443,41 @@ mod tests {
         )
         .await;
         assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn claude_can_name_several_federations() {
+        let answer = json!({
+            "keywords": "", "federations": ["SWAMID", "DFN-AAI", "NOPE"], "country": null,
+            "categories": [], "availability": null, "attribute": null, "source": null,
+            "provider_type": null, "explanation": "Services registered by SWAMID or DFN-AAI.",
+        });
+        let (base, _) = stub(message("end_turn", &answer.to_string())).await;
+        let i = interpret(
+            Some(&reader(base)),
+            &catalog(),
+            "services from SWAMID or the German federation",
+            "auto",
+        )
+        .await;
+        assert_eq!(i.params.federation.as_deref(), Some("SWAMID,DFN-AAI"));
+        let feds: Vec<&str> = i
+            .matched
+            .iter()
+            .filter(|m| m.field == "federation")
+            .map(|m| m.value.as_str())
+            .collect();
+        assert_eq!(feds, ["SWAMID", "DFN-AAI"]);
+        assert!(i.notes.iter().any(|n| n.contains("NOPE")));
+    }
+
+    #[test]
+    fn an_empty_vocabulary_still_makes_a_valid_list_schema() {
+        assert_eq!(
+            enum_array(vec![]),
+            json!({ "type": "array", "items": { "type": "null" } })
+        );
+        assert_eq!(enum_array(vec!["A".into()])["items"]["enum"], json!(["A"]));
     }
 
     #[tokio::test]

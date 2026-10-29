@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Path, Query, State};
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::extract::{Path, Query, RawQuery, State};
+use axum::http::{header, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -205,10 +205,39 @@ async fn read(
     .await
 }
 
-/// Search services with filters, paging, and facet counts.
+/// Search services with filters, paging, and facet counts. Filters combine with
+/// AND; several `federation` values combine with OR.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
-async fn services(State(s): St, Query(q): Query<ServiceQuery>) -> Json<ServicePage> {
-    Json(s.catalog().await.search(&q))
+async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
+    let query = join_repeated(raw.as_deref().unwrap_or(""), "federation");
+    // It came from a valid URI and only gained commas, so it parses again.
+    let Ok(uri) = format!("/?{query}").parse::<Uri>() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match Query::<ServiceQuery>::try_from_uri(&uri) {
+        Ok(Query(q)) => Json(s.catalog().await.search(&q)).into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
+/// `federation=A&federation=B` → `federation=A,B`. The query deserializer takes one
+/// value per field, and `ServiceQuery` reads a comma-separated list.
+fn join_repeated(query: &str, key: &str) -> String {
+    let (mine, rest): (Vec<&str>, Vec<&str>) = query
+        .split('&')
+        .filter(|p| !p.is_empty())
+        .partition(|p| p.split_once('=').map_or(*p, |(k, _)| k) == key);
+    if mine.len() < 2 {
+        return query.to_owned();
+    }
+    let values: Vec<&str> = mine
+        .iter()
+        .filter_map(|p| p.split_once('=').map(|(_, v)| v))
+        .collect();
+    let mut out = rest;
+    let joined = format!("{key}={}", values.join(","));
+    out.push(&joined);
+    out.join("&")
 }
 
 /// One service by catalog ID (the SHA-1 of its entityID; a `{sha1}` prefix is accepted).
@@ -293,7 +322,11 @@ mod tests {
     }
 
     async fn get_json(path: &str) -> (StatusCode, serde_json::Value) {
-        let resp = app()
+        get_json_from(app(), path).await
+    }
+
+    async fn get_json_from(app: Router, path: &str) -> (StatusCode, serde_json::Value) {
+        let resp = app
             .oneshot(Request::get(path).body(Body::empty()).unwrap())
             .await
             .unwrap();
@@ -338,5 +371,85 @@ mod tests {
         let (_, spec) = get_json("/openapi.json").await;
         assert!(spec["paths"]["/v1/ask"].is_object() && spec["paths"]["/v1/interpret"].is_object());
         assert!(spec["paths"]["/v1/services"].is_object());
+    }
+
+    fn two_federations() -> Router {
+        let svc = |id: &str, ra: &str, code: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: catalog_core::entity_hash(id),
+                federation: Some(code.into()),
+                ..Default::default()
+            };
+            s.registration.authority = Some(ra.into());
+            s
+        };
+        let catalog = Catalog::new(Snapshot {
+            services: vec![
+                svc("https://a/", "https://incommon.org", "INCOMMON"),
+                svc("https://b/", "http://www.swamid.se/", "SWAMID"),
+                svc("https://c/", "https://www.aai.dfn.de", "DFN-AAI"),
+            ],
+            ..Default::default()
+        });
+        router(AppState::from_catalog(catalog))
+    }
+
+    #[test]
+    fn join_repeated_merges_only_that_key() {
+        assert_eq!(join_repeated("", "federation"), "");
+        assert_eq!(
+            join_repeated("federation=A&q=x", "federation"),
+            "federation=A&q=x"
+        );
+        assert_eq!(
+            join_repeated(
+                "federation=A&q=x&federation=B%2FC&federation=",
+                "federation"
+            ),
+            "q=x&federation=A,B%2FC,"
+        );
+        assert_eq!(
+            join_repeated("federations=A&federations=B", "federation"),
+            "federations=A&federations=B"
+        );
+    }
+
+    #[tokio::test]
+    async fn services_accept_several_federations() {
+        let total = |path: &'static str| async move {
+            let (st, page) = get_json_from(two_federations(), path).await;
+            assert_eq!(st, StatusCode::OK, "{path}");
+            page["total"].as_u64().unwrap()
+        };
+        assert_eq!(total("/v1/services").await, 3);
+        assert_eq!(total("/v1/services?federation=SWAMID").await, 1);
+        assert_eq!(
+            total("/v1/services?federation=https%3A%2F%2Fincommon.org").await,
+            1
+        );
+        assert_eq!(total("/v1/services?federation=INCOMMON,SWAMID").await, 2);
+        assert_eq!(total("/v1/services?federation=INCOMMON%2CDFN-AAI").await, 2);
+        assert_eq!(
+            total("/v1/services?federation=INCOMMON&page=1&federation=SWAMID&federation=DFN-AAI")
+                .await,
+            3
+        );
+
+        let (st, _) = get_json_from(two_federations(), "/v1/services?page=abc").await;
+        assert_eq!(st, StatusCode::BAD_REQUEST);
+
+        let (_, spec) = get_json("/openapi.json").await;
+        let param = spec["paths"]["/v1/services"]["get"]["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "federation")
+            .unwrap()
+            .clone();
+        assert_eq!(param["schema"]["type"], "array");
+        assert_eq!(param["schema"]["items"]["type"], "string");
+        assert_eq!(param["style"], "form");
+        assert_eq!(param["explode"], true);
     }
 }

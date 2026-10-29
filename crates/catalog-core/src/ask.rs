@@ -181,12 +181,14 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
     }
 }
 
+/// Categories must all hold ("R&S + Sirtfi"); federations are alternatives
+/// ("SWAMID or DFN-AAI").
 fn describe(c: &Catalog, field: &str, value: &str) -> String {
     value
         .split(',')
         .map(|v| c.vocab().label(field, v))
         .collect::<Vec<_>>()
-        .join(" + ")
+        .join(if field == "federation" { " or " } else { " + " })
 }
 
 #[cfg(test)]
@@ -255,6 +257,16 @@ mod tests {
         assert_eq!(r.match_mode, "some");
         assert_eq!(r.total, 1);
         assert!(r.relaxed.is_some());
+    }
+
+    #[test]
+    fn several_federations_are_described_as_alternatives() {
+        let c = catalog();
+        let mut r = reading(&c, "journal");
+        r.params.federation = Some("X,Y".into());
+        let a = c.ask(r);
+        assert_eq!(a.total, 1);
+        assert!(a.relaxed.unwrap().contains("Registered by: X or Y"));
     }
 
     #[test]
