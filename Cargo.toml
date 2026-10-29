@@ -23,7 +23,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "sync", "time", "process", "io-util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-utoipa = { version = "5", features = ["axum_extras"] }
+utoipa = { version = "6", features = ["axum_extras"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
 flate2 = "1"
 sha1 = "0.11"
