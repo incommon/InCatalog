@@ -650,7 +650,7 @@ impl Catalog {
                     }
                     Dim::Region => {
                         for &r in &self.entries[i].regions {
-                            bump(REGIONS[r].key, REGIONS[r].label);
+                            bump(&REGIONS[r].key, &REGIONS[r].label);
                         }
                     }
                     Dim::Category => {

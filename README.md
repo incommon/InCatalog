@@ -131,18 +131,45 @@ between values without losing sight of the alternatives.
 
 ### Regions
 
-`region=` names a set of countries (`catalog-core/src/regions.rs`), and `regions` on the
-results lists each region with the countries it stood for, so a reader can see what
-"Europe" meant.
+`region=` names a set of countries, and `regions` on the results lists each region with
+the countries it stood for, its source, and when that was checked, so a reader can see
+what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
+`crates/catalog-core/data/regions.json`.
 
 - **Geographic regions** follow [UN M49](https://unstats.un.org/unsd/methodology/m49/)
   exactly: continents, subregions, and the intermediate regions of Africa and the
   Americas. So Cyprus and Turkey are in Western Asia, Mexico is in Latin America and
   not Northern America, and Greenland is in Northern America. Asia-Pacific is not an
   M49 region; here it is Eastern, South-eastern, and Southern Asia plus Oceania.
-- **Political groupings** (the EU, the EEA, BRICS) carry the date their listed
-  membership took effect. The EU is not Europe. BRICS lists the ten confirmed members
-  as of 2025-01-06; Saudi Arabia, invited in 2023, has not confirmed and is left out.
+- **Political, security, and economic groupings** carry the date their listed
+  membership took effect (`as_of`), and when recent members joined (`joined`):
+  - the EU, the EEA, Schengen, and the euro area
+  - the Nordic Council
+  - NATO and Five Eyes
+  - the OECD, the G7, the G20, ASEAN, APEC, Mercosur, and USMCA
+  - the African Union, the GCC, the Commonwealth of Nations, and BRICS
+
+  The EU is not Europe, and Schengen is not the EU: Norway and Switzerland are in it,
+  and Ireland and Cyprus are not.
+- **Research and education networks** stand for the countries of their member
+  networks: GÉANT (its 37 national members and the Nordic NRENs through NORDUnet),
+  RedCLARA, APAN, WACREN, UbuntuNet, and ASREN. Their names count as regions only with
+  a word like "countries" or "members", so a search for "RedCLARA communities" still
+  finds RedCLARA's own services.
+- **Choices are written down.** Where a list took a choice, its `note` says what was
+  chosen:
+  - the G20's EU and African Union seats are groupings, not countries
+  - the African Union's Sahrawi Republic has no ISO code, and Western Sahara is not
+    equated with it
+  - Mercosur's suspended Venezuela is left out
+  - so is Saudi Arabia, invited to BRICS in 2023 but not confirmed
+  - so is Kosovo, whose network is a GÉANT associate but which has no ISO code
+
+  Groupings whose membership is contested, or that label countries by a judgment
+  (sanctions lists, "developed countries"), are left out on purpose.
+- **Every list is rechecked yearly.** Each entry records the date it was checked
+  against its source. A test fails once any entry is more than a year old, as a prompt
+  to recheck it and update `checked`.
 - **Federations that list several countries** are in a region when any of their
   countries is, the same rule `country` applies. WAYF (Denmark, Iceland, Greenland) is
   in Europe, the EU, and Northern America. A federation that lists no country is in
@@ -186,6 +213,7 @@ results so the user can check it or search the literal words instead.
 | test instances of Canvas | `environment=test`, words `canvas` |
 | only production services, no test instances | `environment=production` (or `production,unknown`) |
 | R&S services in Europe | `category=research-and-scholarship`, `region=europe` |
+| services in Schengen countries or the GCC | `region=schengen,gcc` |
 | services in Sweden or the UK | `country=SE,GB` |
 | journals in America | `country=US`, words `journals`, and a note that "the Americas" names the region |
 | survey tools anyone in eduGAIN can use | `sharing=multilateral`, words `survey tools` |

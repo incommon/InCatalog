@@ -1,0 +1,1658 @@
+{
+ "about": "Regions a search can name, as sets of ISO 3166 alpha-2 codes (catalog-core/src/regions.rs). Each entry has its source and the date it was checked; political groupings also have the date their listed membership took effect (as_of) and, where it matters, when recent members joined. A test fails when an entry was checked more than a year ago. Groupings whose membership is contested, or that label countries by a judgment (sanctions lists, 'developed' or 'Global South'), are left out on purpose; add one only with a note on how its list was chosen.",
+ "regions": [
+  {
+   "key": "africa",
+   "label": "Africa",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "african",
+    "africa's"
+   ],
+   "regions": [
+    "northern-africa",
+    "sub-saharan-africa"
+   ]
+  },
+  {
+   "key": "northern-africa",
+   "label": "Northern Africa",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "north africa",
+    "north african"
+   ],
+   "countries": [
+    "DZ",
+    "EG",
+    "LY",
+    "MA",
+    "SD",
+    "TN",
+    "EH"
+   ]
+  },
+  {
+   "key": "sub-saharan-africa",
+   "label": "Sub-Saharan Africa",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "subsaharan africa",
+    "sub-saharan"
+   ],
+   "regions": [
+    "eastern-africa",
+    "middle-africa",
+    "southern-africa",
+    "western-africa"
+   ]
+  },
+  {
+   "key": "eastern-africa",
+   "label": "Eastern Africa",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "east africa",
+    "east african"
+   ],
+   "countries": [
+    "IO",
+    "BI",
+    "KM",
+    "DJ",
+    "ER",
+    "ET",
+    "TF",
+    "KE",
+    "MG",
+    "MW",
+    "MU",
+    "YT",
+    "MZ",
+    "RE",
+    "RW",
+    "SC",
+    "SO",
+    "SS",
+    "UG",
+    "TZ",
+    "ZM",
+    "ZW"
+   ]
+  },
+  {
+   "key": "middle-africa",
+   "label": "Middle Africa",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "central africa",
+    "central african"
+   ],
+   "countries": [
+    "AO",
+    "CM",
+    "CF",
+    "TD",
+    "CG",
+    "CD",
+    "GQ",
+    "GA",
+    "ST"
+   ]
+  },
+  {
+   "key": "southern-africa",
+   "label": "Southern Africa",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "countries": [
+    "BW",
+    "SZ",
+    "LS",
+    "NA",
+    "ZA"
+   ]
+  },
+  {
+   "key": "western-africa",
+   "label": "Western Africa",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "west africa",
+    "west african"
+   ],
+   "countries": [
+    "BJ",
+    "BF",
+    "CV",
+    "CI",
+    "GM",
+    "GH",
+    "GN",
+    "GW",
+    "LR",
+    "ML",
+    "MR",
+    "NE",
+    "NG",
+    "SH",
+    "SN",
+    "SL",
+    "TG"
+   ]
+  },
+  {
+   "key": "americas",
+   "label": "the Americas",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "the americas",
+    "americas"
+   ],
+   "regions": [
+    "latin-america",
+    "northern-america"
+   ]
+  },
+  {
+   "key": "northern-america",
+   "label": "Northern America",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "north america",
+    "north american"
+   ],
+   "reading_note": "North America was read as UN M49 Northern America: the United States, Canada, Bermuda, Greenland, and Saint Pierre and Miquelon. Mexico and Central America are in Latin America.",
+   "countries": [
+    "BM",
+    "CA",
+    "GL",
+    "PM",
+    "US"
+   ]
+  },
+  {
+   "key": "latin-america",
+   "label": "Latin America and the Caribbean",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "latin america",
+    "latin american",
+    "latam"
+   ],
+   "regions": [
+    "caribbean",
+    "central-america",
+    "south-america"
+   ]
+  },
+  {
+   "key": "caribbean",
+   "label": "the Caribbean",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "caribbean"
+   ],
+   "countries": [
+    "AI",
+    "AG",
+    "AW",
+    "BS",
+    "BB",
+    "BQ",
+    "VG",
+    "KY",
+    "CU",
+    "CW",
+    "DM",
+    "DO",
+    "GD",
+    "GP",
+    "HT",
+    "JM",
+    "MQ",
+    "MS",
+    "PR",
+    "BL",
+    "KN",
+    "LC",
+    "MF",
+    "VC",
+    "SX",
+    "TT",
+    "TC",
+    "VI"
+   ]
+  },
+  {
+   "key": "central-america",
+   "label": "Central America",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "central american"
+   ],
+   "countries": [
+    "BZ",
+    "CR",
+    "SV",
+    "GT",
+    "HN",
+    "MX",
+    "NI",
+    "PA"
+   ]
+  },
+  {
+   "key": "south-america",
+   "label": "South America",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "south american"
+   ],
+   "countries": [
+    "AR",
+    "BO",
+    "BV",
+    "BR",
+    "CL",
+    "CO",
+    "EC",
+    "FK",
+    "GF",
+    "GY",
+    "PY",
+    "PE",
+    "GS",
+    "SR",
+    "UY",
+    "VE"
+   ]
+  },
+  {
+   "key": "asia",
+   "label": "Asia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "asian"
+   ],
+   "regions": [
+    "central-asia",
+    "eastern-asia",
+    "south-eastern-asia",
+    "southern-asia",
+    "western-asia"
+   ]
+  },
+  {
+   "key": "central-asia",
+   "label": "Central Asia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "central asian"
+   ],
+   "countries": [
+    "KZ",
+    "KG",
+    "TJ",
+    "TM",
+    "UZ"
+   ]
+  },
+  {
+   "key": "eastern-asia",
+   "label": "Eastern Asia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "east asia",
+    "east asian"
+   ],
+   "countries": [
+    "CN",
+    "HK",
+    "MO",
+    "KP",
+    "JP",
+    "MN",
+    "KR"
+   ]
+  },
+  {
+   "key": "south-eastern-asia",
+   "label": "South-eastern Asia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "southeast asia",
+    "south-east asia",
+    "south east asia",
+    "southeast asian"
+   ],
+   "countries": [
+    "BN",
+    "KH",
+    "ID",
+    "LA",
+    "MY",
+    "MM",
+    "PH",
+    "SG",
+    "TH",
+    "TL",
+    "VN"
+   ]
+  },
+  {
+   "key": "southern-asia",
+   "label": "Southern Asia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "south asia",
+    "south asian"
+   ],
+   "countries": [
+    "AF",
+    "BD",
+    "BT",
+    "IN",
+    "IR",
+    "MV",
+    "NP",
+    "PK",
+    "LK"
+   ]
+  },
+  {
+   "key": "western-asia",
+   "label": "Western Asia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "west asia"
+   ],
+   "countries": [
+    "AM",
+    "AZ",
+    "BH",
+    "CY",
+    "GE",
+    "IQ",
+    "IL",
+    "JO",
+    "KW",
+    "LB",
+    "OM",
+    "QA",
+    "SA",
+    "PS",
+    "SY",
+    "TR",
+    "AE",
+    "YE"
+   ]
+  },
+  {
+   "key": "asia-pacific",
+   "label": "Asia-Pacific",
+   "kind": "geographic",
+   "source": "Not an M49 region: the union of M49 Eastern, South-eastern, and Southern Asia and Oceania",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "asia-pacific",
+    "asia pacific",
+    "apac"
+   ],
+   "reading_note": "Asia-Pacific has no standard definition; it was read as Eastern, South-eastern, and Southern Asia plus Oceania (UN M49).",
+   "regions": [
+    "eastern-asia",
+    "south-eastern-asia",
+    "southern-asia",
+    "oceania"
+   ]
+  },
+  {
+   "key": "europe",
+   "label": "Europe",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "european",
+    "europe's"
+   ],
+   "regions": [
+    "eastern-europe",
+    "northern-europe",
+    "southern-europe",
+    "western-europe"
+   ]
+  },
+  {
+   "key": "eastern-europe",
+   "label": "Eastern Europe",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "east europe",
+    "east european",
+    "eastern european"
+   ],
+   "countries": [
+    "BY",
+    "BG",
+    "CZ",
+    "HU",
+    "PL",
+    "MD",
+    "RO",
+    "RU",
+    "SK",
+    "UA"
+   ]
+  },
+  {
+   "key": "northern-europe",
+   "label": "Northern Europe",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "north europe",
+    "northern european"
+   ],
+   "countries": [
+    "AX",
+    "DK",
+    "EE",
+    "FO",
+    "FI",
+    "GG",
+    "IS",
+    "IE",
+    "IM",
+    "JE",
+    "LV",
+    "LT",
+    "NO",
+    "SJ",
+    "SE",
+    "GB"
+   ]
+  },
+  {
+   "key": "southern-europe",
+   "label": "Southern Europe",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "south europe",
+    "southern european"
+   ],
+   "countries": [
+    "AL",
+    "AD",
+    "BA",
+    "HR",
+    "GI",
+    "GR",
+    "VA",
+    "IT",
+    "MT",
+    "ME",
+    "MK",
+    "PT",
+    "SM",
+    "RS",
+    "SI",
+    "ES"
+   ]
+  },
+  {
+   "key": "western-europe",
+   "label": "Western Europe",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "west europe",
+    "western european"
+   ],
+   "countries": [
+    "AT",
+    "BE",
+    "FR",
+    "DE",
+    "LI",
+    "LU",
+    "MC",
+    "NL",
+    "CH"
+   ]
+  },
+  {
+   "key": "oceania",
+   "label": "Oceania",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "oceanian",
+    "pacific islands"
+   ],
+   "regions": [
+    "australia-and-new-zealand",
+    "melanesia",
+    "micronesia",
+    "polynesia"
+   ]
+  },
+  {
+   "key": "australia-and-new-zealand",
+   "label": "Australia and New Zealand",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "australasia",
+    "australia and new zealand"
+   ],
+   "countries": [
+    "AU",
+    "CX",
+    "CC",
+    "HM",
+    "NZ",
+    "NF"
+   ]
+  },
+  {
+   "key": "melanesia",
+   "label": "Melanesia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "countries": [
+    "FJ",
+    "NC",
+    "PG",
+    "SB",
+    "VU"
+   ]
+  },
+  {
+   "key": "micronesia",
+   "label": "Micronesia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "countries": [
+    "GU",
+    "KI",
+    "MH",
+    "FM",
+    "NR",
+    "MP",
+    "PW",
+    "UM"
+   ]
+  },
+  {
+   "key": "polynesia",
+   "label": "Polynesia",
+   "kind": "geographic",
+   "source": "UN M49",
+   "url": "https://unstats.un.org/unsd/methodology/m49/",
+   "checked": "2026-10-29",
+   "countries": [
+    "AS",
+    "CK",
+    "PF",
+    "NU",
+    "PN",
+    "WS",
+    "TK",
+    "TO",
+    "TV",
+    "WF"
+   ]
+  },
+  {
+   "key": "eu",
+   "label": "the European Union",
+   "kind": "political",
+   "source": "EU member states",
+   "url": "https://european-union.europa.eu/principles-countries-history/eu-countries_en",
+   "checked": "2026-10-29",
+   "as_of": "2020-02-01",
+   "aliases": [
+    "the eu",
+    "eu",
+    "european union",
+    "the european union",
+    "eu member states",
+    "eu countries"
+   ],
+   "note": "The United Kingdom left on 2020-02-01; no state has joined since.",
+   "countries": [
+    "AT",
+    "BE",
+    "BG",
+    "HR",
+    "CY",
+    "CZ",
+    "DK",
+    "EE",
+    "FI",
+    "FR",
+    "DE",
+    "GR",
+    "HU",
+    "IE",
+    "IT",
+    "LV",
+    "LT",
+    "LU",
+    "MT",
+    "NL",
+    "PL",
+    "PT",
+    "RO",
+    "SK",
+    "SI",
+    "ES",
+    "SE"
+   ],
+   "joined": {
+    "HR": "2013-07-01"
+   }
+  },
+  {
+   "key": "eea",
+   "label": "the European Economic Area",
+   "kind": "political",
+   "source": "The EU plus Iceland, Liechtenstein, and Norway",
+   "url": "https://www.efta.int/eea",
+   "checked": "2026-10-29",
+   "as_of": "2020-02-01",
+   "aliases": [
+    "the eea",
+    "eea",
+    "european economic area",
+    "the european economic area"
+   ],
+   "regions": [
+    "eu",
+    "eea-efta"
+   ]
+  },
+  {
+   "key": "eea-efta",
+   "label": "the EEA EFTA states",
+   "kind": "political",
+   "source": "EFTA members in the EEA",
+   "url": "https://www.efta.int/eea",
+   "checked": "2026-10-29",
+   "as_of": "1995-05-01",
+   "aliases": [
+    "eea efta"
+   ],
+   "countries": [
+    "IS",
+    "LI",
+    "NO"
+   ]
+  },
+  {
+   "key": "schengen",
+   "label": "the Schengen Area",
+   "kind": "political",
+   "source": "Schengen Area members",
+   "url": "https://home-affairs.ec.europa.eu/policies/schengen/schengen-area_en",
+   "checked": "2026-10-29",
+   "as_of": "2025-01-01",
+   "aliases": [
+    "schengen",
+    "the schengen area",
+    "schengen area",
+    "schengen countries",
+    "schengen states",
+    "schengen zone"
+   ],
+   "note": "Not the EU: Ireland and Cyprus are outside it, and Iceland, Liechtenstein, Norway, and Switzerland are in it.",
+   "countries": [
+    "AT",
+    "BE",
+    "BG",
+    "HR",
+    "CZ",
+    "DK",
+    "EE",
+    "FI",
+    "FR",
+    "DE",
+    "GR",
+    "HU",
+    "IT",
+    "LV",
+    "LT",
+    "LU",
+    "MT",
+    "NL",
+    "PL",
+    "PT",
+    "RO",
+    "SK",
+    "SI",
+    "ES",
+    "SE",
+    "IS",
+    "LI",
+    "NO",
+    "CH"
+   ],
+   "joined": {
+    "HR": "2023-01-01",
+    "BG": "2025-01-01",
+    "RO": "2025-01-01"
+   }
+  },
+  {
+   "key": "eurozone",
+   "label": "the euro area",
+   "kind": "political",
+   "source": "EU states that use the euro",
+   "url": "https://www.ecb.europa.eu/euro/intro/html/index.en.html",
+   "checked": "2026-10-29",
+   "as_of": "2026-01-01",
+   "aliases": [
+    "eurozone",
+    "the eurozone",
+    "euro zone",
+    "euro area",
+    "the euro area",
+    "eurozone countries"
+   ],
+   "countries": [
+    "AT",
+    "BE",
+    "BG",
+    "HR",
+    "CY",
+    "EE",
+    "FI",
+    "FR",
+    "DE",
+    "GR",
+    "IE",
+    "IT",
+    "LV",
+    "LT",
+    "LU",
+    "MT",
+    "NL",
+    "PT",
+    "SK",
+    "SI",
+    "ES"
+   ],
+   "joined": {
+    "HR": "2023-01-01",
+    "BG": "2026-01-01"
+   }
+  },
+  {
+   "key": "nordic-council",
+   "label": "the Nordic Council",
+   "kind": "political",
+   "source": "Nordic Council members and autonomous territories",
+   "url": "https://www.norden.org/en/information/about-nordic-council",
+   "checked": "2026-10-29",
+   "as_of": "1984-01-01",
+   "aliases": [
+    "nordic council",
+    "the nordic council",
+    "nordic countries",
+    "the nordic countries",
+    "the nordics",
+    "nordics"
+   ],
+   "note": "The five states and the Faroe Islands, Greenland, and Åland.",
+   "countries": [
+    "DK",
+    "FI",
+    "IS",
+    "NO",
+    "SE",
+    "FO",
+    "GL",
+    "AX"
+   ]
+  },
+  {
+   "key": "nato",
+   "label": "NATO",
+   "kind": "political",
+   "source": "NATO member countries",
+   "url": "https://www.nato.int/cps/en/natohq/nato_countries.htm",
+   "checked": "2026-10-29",
+   "as_of": "2024-03-07",
+   "aliases": [
+    "nato",
+    "nato members",
+    "nato countries",
+    "nato member states",
+    "nato allies"
+   ],
+   "countries": [
+    "AL",
+    "BE",
+    "BG",
+    "CA",
+    "HR",
+    "CZ",
+    "DK",
+    "EE",
+    "FI",
+    "FR",
+    "DE",
+    "GR",
+    "HU",
+    "IS",
+    "IT",
+    "LV",
+    "LT",
+    "LU",
+    "ME",
+    "NL",
+    "MK",
+    "NO",
+    "PL",
+    "PT",
+    "RO",
+    "SK",
+    "SI",
+    "ES",
+    "SE",
+    "TR",
+    "GB",
+    "US"
+   ],
+   "joined": {
+    "FI": "2023-04-04",
+    "SE": "2024-03-07"
+   }
+  },
+  {
+   "key": "five-eyes",
+   "label": "Five Eyes",
+   "kind": "political",
+   "source": "The UKUSA intelligence alliance",
+   "url": "https://www.dni.gov/index.php/ncsc-how-we-work/217-about/organization/icig-pages/2660-icig-fiorc",
+   "checked": "2026-10-29",
+   "as_of": "1956-01-01",
+   "aliases": [
+    "five eyes",
+    "five eyes countries",
+    "the five eyes",
+    "fvey"
+   ],
+   "countries": [
+    "AU",
+    "CA",
+    "NZ",
+    "GB",
+    "US"
+   ]
+  },
+  {
+   "key": "oecd",
+   "label": "the OECD",
+   "kind": "political",
+   "source": "OECD member countries",
+   "url": "https://www.oecd.org/en/about/members-partners.html",
+   "checked": "2026-10-29",
+   "as_of": "2021-05-25",
+   "aliases": [
+    "oecd",
+    "the oecd",
+    "oecd countries",
+    "oecd members",
+    "oecd member countries"
+   ],
+   "countries": [
+    "AU",
+    "AT",
+    "BE",
+    "CA",
+    "CL",
+    "CO",
+    "CR",
+    "CZ",
+    "DK",
+    "EE",
+    "FI",
+    "FR",
+    "DE",
+    "GR",
+    "HU",
+    "IS",
+    "IE",
+    "IL",
+    "IT",
+    "JP",
+    "KR",
+    "LV",
+    "LT",
+    "LU",
+    "MX",
+    "NL",
+    "NZ",
+    "NO",
+    "PL",
+    "PT",
+    "SK",
+    "SI",
+    "ES",
+    "SE",
+    "CH",
+    "TR",
+    "GB",
+    "US"
+   ],
+   "joined": {
+    "CR": "2021-05-25"
+   }
+  },
+  {
+   "key": "g7",
+   "label": "the G7",
+   "kind": "political",
+   "source": "Group of Seven member countries",
+   "url": "https://www.international.gc.ca/world-monde/international_relations-relations_internationales/g7/index.aspx?lang=eng",
+   "checked": "2026-10-29",
+   "as_of": "1997-06-20",
+   "aliases": [
+    "g7",
+    "the g7",
+    "g7 countries",
+    "group of seven"
+   ],
+   "note": "The seven countries; the EU takes part but is not counted as a member.",
+   "countries": [
+    "CA",
+    "FR",
+    "DE",
+    "IT",
+    "JP",
+    "GB",
+    "US"
+   ]
+  },
+  {
+   "key": "g20",
+   "label": "the G20",
+   "kind": "political",
+   "source": "G20 members",
+   "url": "https://g20.org/about-the-g20/",
+   "checked": "2026-10-29",
+   "as_of": "2023-09-09",
+   "aliases": [
+    "g20",
+    "the g20",
+    "g20 countries",
+    "group of twenty"
+   ],
+   "note": "The 19 member countries. The EU and the African Union are members too, but are groupings, not countries, and are not expanded here.",
+   "countries": [
+    "AR",
+    "AU",
+    "BR",
+    "CA",
+    "CN",
+    "FR",
+    "DE",
+    "IN",
+    "ID",
+    "IT",
+    "JP",
+    "KR",
+    "MX",
+    "RU",
+    "SA",
+    "ZA",
+    "TR",
+    "GB",
+    "US"
+   ]
+  },
+  {
+   "key": "asean",
+   "label": "ASEAN",
+   "kind": "political",
+   "source": "ASEAN member states",
+   "url": "https://asean.org/member-states/",
+   "checked": "2026-10-29",
+   "as_of": "2025-10-26",
+   "aliases": [
+    "asean",
+    "asean countries",
+    "asean members",
+    "asean member states"
+   ],
+   "countries": [
+    "BN",
+    "KH",
+    "ID",
+    "LA",
+    "MY",
+    "MM",
+    "PH",
+    "SG",
+    "TH",
+    "VN",
+    "TL"
+   ],
+   "joined": {
+    "TL": "2025-10-26"
+   }
+  },
+  {
+   "key": "apec",
+   "label": "APEC",
+   "kind": "political",
+   "source": "APEC member economies",
+   "url": "https://www.apec.org/who-we-are/member-economies",
+   "checked": "2026-10-29",
+   "as_of": "1998-11-14",
+   "aliases": [
+    "apec",
+    "apec economies",
+    "apec countries",
+    "apec members"
+   ],
+   "note": "APEC's 21 member economies as APEC lists them, including Hong Kong, China and Chinese Taipei.",
+   "countries": [
+    "AU",
+    "BN",
+    "CA",
+    "CL",
+    "CN",
+    "HK",
+    "ID",
+    "JP",
+    "KR",
+    "MY",
+    "MX",
+    "NZ",
+    "PG",
+    "PE",
+    "PH",
+    "RU",
+    "SG",
+    "TW",
+    "TH",
+    "US",
+    "VN"
+   ]
+  },
+  {
+   "key": "mercosur",
+   "label": "Mercosur",
+   "kind": "political",
+   "source": "Mercosur states parties",
+   "url": "https://www.mercosur.int/en/about-mercosur/mercosur-countries/",
+   "checked": "2026-10-29",
+   "as_of": "2024-07-08",
+   "aliases": [
+    "mercosur",
+    "mercosul",
+    "mercosur countries",
+    "mercosur members"
+   ],
+   "note": "Full members. Venezuela has been suspended since 2016 and is not listed.",
+   "countries": [
+    "AR",
+    "BR",
+    "PY",
+    "UY",
+    "BO"
+   ],
+   "joined": {
+    "BO": "2024-07-08"
+   }
+  },
+  {
+   "key": "usmca",
+   "label": "USMCA",
+   "kind": "political",
+   "source": "United States–Mexico–Canada Agreement parties",
+   "url": "https://ustr.gov/trade-agreements/free-trade-agreements/united-states-mexico-canada-agreement",
+   "checked": "2026-10-29",
+   "as_of": "2020-07-01",
+   "aliases": [
+    "usmca",
+    "cusma",
+    "t-mec",
+    "usmca countries"
+   ],
+   "countries": [
+    "CA",
+    "MX",
+    "US"
+   ]
+  },
+  {
+   "key": "african-union",
+   "label": "the African Union",
+   "kind": "political",
+   "source": "African Union member states",
+   "url": "https://au.int/en/member_states/countryprofiles2",
+   "checked": "2026-10-29",
+   "as_of": "2017-01-30",
+   "aliases": [
+    "african union",
+    "the african union",
+    "african union members",
+    "african union countries",
+    "au member states"
+   ],
+   "note": "The 54 UN member states in Africa. The AU also counts the Sahrawi Arab Democratic Republic, which has no ISO 3166 code of its own; Western Sahara (EH) is not equated with it. Suspended members are still members.",
+   "countries": [
+    "AO",
+    "BF",
+    "BI",
+    "BJ",
+    "BW",
+    "CD",
+    "CF",
+    "CG",
+    "CI",
+    "CM",
+    "CV",
+    "DJ",
+    "DZ",
+    "EG",
+    "ER",
+    "ET",
+    "GA",
+    "GH",
+    "GM",
+    "GN",
+    "GQ",
+    "GW",
+    "KE",
+    "KM",
+    "LR",
+    "LS",
+    "LY",
+    "MA",
+    "MG",
+    "ML",
+    "MR",
+    "MU",
+    "MW",
+    "MZ",
+    "NA",
+    "NE",
+    "NG",
+    "RW",
+    "SC",
+    "SD",
+    "SL",
+    "SN",
+    "SO",
+    "SS",
+    "ST",
+    "SZ",
+    "TD",
+    "TG",
+    "TN",
+    "TZ",
+    "UG",
+    "ZA",
+    "ZM",
+    "ZW"
+   ]
+  },
+  {
+   "key": "gcc",
+   "label": "the Gulf Cooperation Council",
+   "kind": "political",
+   "source": "GCC member states",
+   "url": "https://www.gcc-sg.org/en/",
+   "checked": "2026-10-29",
+   "as_of": "1981-05-25",
+   "aliases": [
+    "gcc",
+    "the gcc",
+    "gulf cooperation council",
+    "the gulf cooperation council",
+    "gcc countries",
+    "gulf states"
+   ],
+   "countries": [
+    "BH",
+    "KW",
+    "OM",
+    "QA",
+    "SA",
+    "AE"
+   ]
+  },
+  {
+   "key": "commonwealth",
+   "label": "the Commonwealth of Nations",
+   "kind": "political",
+   "source": "Commonwealth member countries",
+   "url": "https://thecommonwealth.org/our-member-countries",
+   "checked": "2026-10-29",
+   "as_of": "2022-06-29",
+   "aliases": [
+    "the commonwealth",
+    "commonwealth countries",
+    "commonwealth of nations",
+    "commonwealth nations",
+    "commonwealth members"
+   ],
+   "countries": [
+    "AG",
+    "AU",
+    "BS",
+    "BD",
+    "BB",
+    "BZ",
+    "BW",
+    "BN",
+    "CM",
+    "CA",
+    "CY",
+    "DM",
+    "SZ",
+    "FJ",
+    "GA",
+    "GM",
+    "GH",
+    "GD",
+    "GY",
+    "IN",
+    "JM",
+    "KE",
+    "KI",
+    "LS",
+    "MW",
+    "MY",
+    "MV",
+    "MT",
+    "MU",
+    "MZ",
+    "NA",
+    "NR",
+    "NZ",
+    "NG",
+    "PK",
+    "PG",
+    "RW",
+    "KN",
+    "LC",
+    "VC",
+    "WS",
+    "SC",
+    "SL",
+    "SG",
+    "SB",
+    "ZA",
+    "LK",
+    "TZ",
+    "TG",
+    "TO",
+    "TT",
+    "TV",
+    "UG",
+    "GB",
+    "VU",
+    "ZM"
+   ],
+   "joined": {
+    "GA": "2022-06-29",
+    "TG": "2022-06-29"
+   }
+  },
+  {
+   "key": "brics",
+   "label": "BRICS",
+   "kind": "political",
+   "source": "BRICS full members",
+   "url": "https://en.wikipedia.org/wiki/Member_states_of_BRICS",
+   "checked": "2026-10-29",
+   "as_of": "2025-01-06",
+   "aliases": [
+    "brics",
+    "brics countries",
+    "brics nations",
+    "brics members"
+   ],
+   "note": "Saudi Arabia was invited in 2023 and has not confirmed membership, so it is not listed.",
+   "countries": [
+    "BR",
+    "RU",
+    "IN",
+    "CN",
+    "ZA",
+    "EG",
+    "ET",
+    "IR",
+    "AE",
+    "ID"
+   ],
+   "joined": {
+    "EG": "2024-01-01",
+    "ET": "2024-01-01",
+    "IR": "2024-01-01",
+    "AE": "2024-01-01",
+    "ID": "2025-01-06"
+   }
+  },
+  {
+   "key": "geant",
+   "label": "the GÉANT NRENs' countries",
+   "kind": "network",
+   "source": "GÉANT Association national members, plus the Nordic NRENs through NORDUnet",
+   "url": "https://geant.org/about-geant/membership/",
+   "checked": "2026-10-29",
+   "as_of": "2026-10-29",
+   "aliases": [
+    "geant countries",
+    "geant members",
+    "geant member countries",
+    "geant nrens",
+    "geant region",
+    "géant countries",
+    "géant members",
+    "géant member countries",
+    "géant nrens",
+    "géant region"
+   ],
+   "note": "37 national members and the five Nordic countries (NORDUnet). KREN (Kosovo) is an associate, and Kosovo has no ISO 3166 code; CERN and ESA are not countries.",
+   "countries": [
+    "AL",
+    "AM",
+    "AT",
+    "AZ",
+    "BE",
+    "BG",
+    "HR",
+    "CY",
+    "CZ",
+    "EE",
+    "FR",
+    "GE",
+    "DE",
+    "GR",
+    "HU",
+    "IE",
+    "IL",
+    "IT",
+    "LV",
+    "LT",
+    "LU",
+    "MT",
+    "MD",
+    "ME",
+    "PL",
+    "PT",
+    "MK",
+    "RO",
+    "RS",
+    "SK",
+    "SI",
+    "ES",
+    "CH",
+    "NL",
+    "TR",
+    "UA",
+    "GB",
+    "DK",
+    "FI",
+    "IS",
+    "NO",
+    "SE"
+   ]
+  },
+  {
+   "key": "redclara",
+   "label": "the RedCLARA NRENs' countries",
+   "kind": "network",
+   "source": "RedCLARA member NRENs",
+   "url": "https://www.redclara.net/index.php/en/somos/integrarse-a-redclara/tipos-de-asociacion",
+   "checked": "2026-10-29",
+   "as_of": "2026-10-29",
+   "aliases": [
+    "redclara countries",
+    "redclara members",
+    "redclara member countries",
+    "redclara nrens",
+    "redclara region",
+    "red clara countries",
+    "red clara members",
+    "red clara member countries",
+    "red clara nrens",
+    "red clara region"
+   ],
+   "countries": [
+    "BR",
+    "CO",
+    "CR",
+    "CL",
+    "EC",
+    "MX",
+    "UY"
+   ]
+  },
+  {
+   "key": "apan",
+   "label": "the APAN NRENs' economies",
+   "kind": "network",
+   "source": "APAN primary members",
+   "url": "https://apan.net/membership/current-members/",
+   "checked": "2026-10-29",
+   "as_of": "2026-10-29",
+   "aliases": [
+    "apan countries",
+    "apan members",
+    "apan member countries",
+    "apan nrens",
+    "apan region"
+   ],
+   "note": "APAN's 20 primary members, by economy as APAN lists them.",
+   "countries": [
+    "AU",
+    "BD",
+    "CN",
+    "HK",
+    "ID",
+    "IN",
+    "JP",
+    "KR",
+    "LA",
+    "LK",
+    "MN",
+    "MY",
+    "NP",
+    "NZ",
+    "PH",
+    "PK",
+    "SG",
+    "TH",
+    "TW",
+    "VN"
+   ]
+  },
+  {
+   "key": "wacren",
+   "label": "the WACREN NRENs' countries",
+   "kind": "network",
+   "source": "WACREN NREN members",
+   "url": "https://wacren.net/en/community/members/",
+   "checked": "2026-10-29",
+   "as_of": "2026-10-29",
+   "aliases": [
+    "wacren countries",
+    "wacren members",
+    "wacren member countries",
+    "wacren nrens",
+    "wacren region"
+   ],
+   "countries": [
+    "BJ",
+    "BF",
+    "CM",
+    "TD",
+    "CI",
+    "GW",
+    "GH",
+    "GN",
+    "LR",
+    "ML",
+    "NG",
+    "NE",
+    "SL",
+    "TG",
+    "MR",
+    "SN",
+    "GM",
+    "GA"
+   ]
+  },
+  {
+   "key": "ubuntunet",
+   "label": "the UbuntuNet NRENs' countries",
+   "kind": "network",
+   "source": "UbuntuNet Alliance member NRENs",
+   "url": "https://ubuntunet.net/",
+   "checked": "2026-10-29",
+   "as_of": "2026-10-29",
+   "aliases": [
+    "ubuntunet countries",
+    "ubuntunet members",
+    "ubuntunet member countries",
+    "ubuntunet nrens",
+    "ubuntunet region"
+   ],
+   "countries": [
+    "BI",
+    "BW",
+    "ET",
+    "KE",
+    "MG",
+    "LS",
+    "MW",
+    "MZ",
+    "RW",
+    "SO",
+    "SD",
+    "ZA",
+    "TZ",
+    "UG",
+    "ZM",
+    "ZW"
+   ]
+  },
+  {
+   "key": "asren",
+   "label": "the ASREN NRENs' countries",
+   "kind": "network",
+   "source": "ASREN's Arab NRENs",
+   "url": "https://asren.net/index.php/page/arab-nrens",
+   "checked": "2026-10-29",
+   "as_of": "2026-10-29",
+   "aliases": [
+    "asren countries",
+    "asren members",
+    "asren member countries",
+    "asren nrens",
+    "asren region"
+   ],
+   "note": "The NRENs ASREN names. Mauritania and Palestine are listed as to be announced and are not included.",
+   "countries": [
+    "DZ",
+    "DJ",
+    "EG",
+    "JO",
+    "LB",
+    "MA",
+    "OM",
+    "QA",
+    "SA",
+    "SO",
+    "SD",
+    "TN",
+    "AE"
+   ]
+  }
+ ]
+}

@@ -576,6 +576,15 @@ mod tests {
             .unwrap();
         assert_eq!(eu["service_count"], 2);
         assert_eq!(eu["as_of"], "2020-02-01");
+        let nato = regions
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["key"] == "nato")
+            .unwrap();
+        assert_eq!(nato["kind"], "political");
+        assert_eq!(nato["joined"]["SE"], "2024-03-07");
+        assert!(nato["checked"].is_string() && nato["url"].is_string());
 
         let (_, spec) = get_json("/openapi.json").await;
         assert!(spec["paths"]["/v1/regions"].is_object());
