@@ -35,7 +35,8 @@ jobs:
       #   - crates/**/tests/fixtures — the pipeline test parses them
       #   - .coverage-threshold      — the coverage gate reads it
       #   - this workflow            — a CI change must prove itself
-      # Everything else (web/, infra/, the top-level markdown) is covered by the
+      #   - CHANGELOG.md             — the API embeds it, and a test parses it
+      # Everything else (web/, infra/, the other markdown) is covered by the
       # other jobs or by review.
       - id: filter
         run: |
@@ -50,9 +51,9 @@ jobs:
           changed="$(git diff --name-only "$base"...HEAD)"
           echo "Changed files:"; echo "$changed" | awk '{ print "  " $0 }'
           # Markdown is prose wherever it lives: a README inside a crate
-          # directory is not code, and no test reads a .md file.
-          changed="$(echo "$changed" | grep -v '\.md$' || true)"
-          code_re='^crates/|^Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^\.coverage-threshold$|^\.github/workflows/ci\.yml$'
+          # directory is not code. The one exception is CHANGELOG.md.
+          changed="$(echo "$changed" | awk '!/\.md$/ || $0 == "CHANGELOG.md"')"
+          code_re='^crates/|^Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^\.coverage-threshold$|^\.github/workflows/ci\.yml$|^CHANGELOG\.md$'
           if echo "$changed" | grep -Eq "$code_re"; then
             echo "code=true" >> "$GITHUB_OUTPUT"
             {
@@ -186,6 +187,38 @@ jobs:
             exit 1
           fi
           echo "Rust suite passed."
+
+  # A release into `main` must carry its notes: CHANGELOG.md needs a dated
+  # section for the Cargo.toml version, and that version must not be tagged
+  # yet (CONTRIBUTING.md § Versioning). It runs on every event and checks only
+  # pull requests into `main`, so as a required check it always reports.
+  release-notes:
+    name: release notes / version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: CHANGELOG.md has a section for the Cargo.toml version
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
+          [ -n "$version" ] || { echo "::error::No workspace version in Cargo.toml."; exit 1; }
+          if [ "$BASE" != "main" ]; then
+            echo "Not a pull request into main; nothing to check (version $version)."
+            exit 0
+          fi
+          heading="## [$version] - "
+          if ! grep -F -- "$heading" CHANGELOG.md | grep -Eq '^## \[[^]]+\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+            echo "::error file=CHANGELOG.md::No '## [$version] - YYYY-MM-DD' section. Move Unreleased into one before releasing $version."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "::error file=Cargo.toml::v$version is already tagged. Bump the version in Cargo.toml for this release."
+            exit 1
+          fi
+          echo "Release $version has notes and is not tagged yet." >> "$GITHUB_STEP_SUMMARY"
 
   # Also a required check on `main`, by this name.
   terraform:

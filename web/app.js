@@ -1182,6 +1182,134 @@ async function aboutView() {
   );
 }
 
+// ---------- release notes ----------
+
+// The API serves CHANGELOG.md per release as Markdown. Like everything else here it is
+// rendered as DOM nodes, never as HTML: headings, paragraphs, "-" lists (nested by
+// indent), and inline `code`, **bold**, and [links](url).
+function markdown(text) {
+  const out = [];
+  const lists = []; // open lists, outermost first: { el, indent, li }
+  let para = null;
+  const closeLists = (indent = -1) => {
+    while (lists.length && lists[lists.length - 1].indent > indent) lists.pop();
+  };
+  for (const line of text.split("\n")) {
+    const indent = line.length - line.trimStart().length;
+    const t = line.trim();
+    const heading = /^(#{3,4}) (.*)$/.exec(t);
+    const item = /^[-*] (.*)$/.exec(t);
+    if (!t) {
+      para = null;
+      continue;
+    }
+    if (heading) {
+      para = null;
+      closeLists();
+      out.push(h(heading[1].length === 3 ? "h3" : "h4", {}, inline(heading[2])));
+    } else if (item) {
+      para = null;
+      closeLists(indent);
+      let list = lists[lists.length - 1];
+      if (!list || list.indent < indent) {
+        const el = h("ul", {});
+        if (list) list.li.append(el);
+        else out.push(el);
+        list = { el, indent };
+        lists.push(list);
+      }
+      list.li = h("li", {}, inline(item[1]));
+      list.el.append(list.li);
+    } else if (lists.length && indent > 0) {
+      // A continuation line of the last item.
+      lists[lists.length - 1].li.append(" ", ...inline(t));
+    } else {
+      closeLists();
+      if (para) para.append(" ", ...inline(t));
+      else out.push((para = h("p", {}, inline(t))));
+    }
+  }
+  return out;
+}
+
+function inline(text) {
+  const nodes = [];
+  const re = /`([^`]+)`|\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let at = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > at) nodes.push(text.slice(at, m.index));
+    if (m[1] != null) nodes.push(h("code", {}, m[1]));
+    else if (m[2] != null) nodes.push(h("strong", {}, m[2]));
+    else nodes.push(safeUrl(m[4]) ? h("a", { href: m[4], target: "_blank", rel: "noopener noreferrer" }, m[3]) : m[3]);
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) nodes.push(text.slice(at));
+  return nodes;
+}
+
+const releaseTitle = (r) => (r.version === "Unreleased" ? "Unreleased" : `v${r.version}`);
+
+async function releasesView(wanted) {
+  setNav("");
+  render(loading());
+  let m, all;
+  try {
+    [m, all] = await Promise.all([meta(), api("/v1/releases")]);
+  } catch (e) {
+    return render(failure(e));
+  }
+  const version = (wanted || m.version).replace(/^v/, "");
+  const r = all.find((x) => x.version.toLowerCase() === version.toLowerCase());
+  const released = all.filter((x) => x.version !== "Unreleased");
+  const since = released[0] ? ` since v${released[0].version}` : "";
+  document.title = `${r ? releaseTitle(r) : version} release notes · InCatalog`;
+  render(
+    h("h1", { class: "page-title" }, "Release notes"),
+    h("p", { class: "lede" }, `This site is running InCatalog v${m.version}.`),
+    h(
+      "div",
+      { class: "release-cols" },
+      r
+        ? h(
+            "article",
+            { class: "panel release", "aria-labelledby": "release-title" },
+            h(
+              "header",
+              { class: "release-head" },
+              h("h2", { id: "release-title" }, releaseTitle(r)),
+              r.date && h("time", { datetime: r.date }, r.date),
+              r.current && h("span", { class: "badge cur" }, "running"),
+            ),
+            r.version === "Unreleased" && h("p", { class: "release-note" }, `Changes in this build${since} that are not yet in a release.`),
+            r.notes ? markdown(r.notes) : h("p", { class: "release-note" }, "No notes for this release."),
+          )
+        : h("div", { class: "panel release" }, h("p", {}, `There are no release notes for ${version}.`)),
+      h(
+        "nav",
+        { class: "panel release-list", "aria-label": "Releases" },
+        h("h2", {}, "All releases"),
+        h(
+          "ul",
+          { class: "linklist" },
+          all.map((x) =>
+            h(
+              "li",
+              {},
+              h(
+                "a",
+                { href: `#/releases/${encodeURIComponent(x.version.toLowerCase())}`, "aria-current": x === r ? "page" : null },
+                releaseTitle(x),
+              ),
+              x.date && h("span", { class: "release-date" }, ` ${x.date}`),
+              x.current && h("span", { class: "badge cur" }, "running"),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 // ---------- router ----------
 
 async function route() {
@@ -1201,6 +1329,7 @@ async function route() {
   if (head === "providers") return id ? providerView(id) : providersView(params);
   if (head === "federations") return federationsView(params);
   if (head === "about") return aboutView();
+  if (head === "releases") return releasesView(id && decodeURIComponent(id));
   render(h("div", { class: "empty" }, "Lost in the underworld. ", h("a", { href: "#/" }, "Return to the surface.")));
 }
 
@@ -1212,6 +1341,11 @@ meta()
     const lm = m.sources.map((s) => s.last_modified).filter(Boolean);
     document.getElementById("provenance").textContent =
       `Built from federation metadata · snapshot ${m.generated_at.replace("T", " ").replace("Z", " UTC")}` + (lm.length ? ` · aggregates published ${lm[0]}` : "");
+    const v = document.getElementById("version");
+    v.textContent = `v${m.version}`;
+    v.setAttribute("href", `#/releases/${encodeURIComponent(m.version)}`);
+    v.setAttribute("aria-label", `InCatalog v${m.version}: release notes`);
+    v.hidden = false;
   })
   .catch(() => {
     document.getElementById("provenance").textContent = "Catalog API unreachable";

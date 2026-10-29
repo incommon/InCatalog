@@ -20,6 +20,11 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     cargo install --locked --features cli cargo-about@0.9.1
 WORKDIR /src
 COPY . .
+# The release version, from Cargo.toml (`make image` and build-images.yml pass it). It
+# labels the image, so a build without it, or with another version, stops here.
+ARG VERSION
+RUN grep -qx "version = \"${VERSION:?pass --build-arg VERSION=<the Cargo.toml version>}\"" Cargo.toml \
+    || { echo "VERSION=$VERSION is not the workspace version in Cargo.toml" >&2; exit 1; }
 # --offline reads only the crates' own files, so the notices are reproducible (see
 # about.toml); `cargo fetch` first brings in the crates for every target it lists.
 RUN --mount=type=cache,target=/root/.cargo/registry \
@@ -31,6 +36,10 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     && cargo about generate --offline --locked --fail about.hbs -o /out/doc/THIRD-PARTY-LICENSES.html
 
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal
+ARG VERSION
+LABEL org.opencontainers.image.title="InCatalog" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.licenses="Apache-2.0"
 # xmlsec1 checks the federations' signatures on each aggregate during ingest.
 RUN microdnf install -y --setopt=install_weak_deps=0 xmlsec1 xmlsec1-openssl ca-certificates \
     && microdnf clean all

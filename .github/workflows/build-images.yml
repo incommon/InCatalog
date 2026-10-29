@@ -8,7 +8,13 @@ name: Build image
 #
 # TAGGING and PROMOTION:
 #   - push to develop  -> builds, tests and pushes :<sha>. Nothing deploys.
-#   - workflow_dispatch -> the same, and also moves :latest to that image.
+#   - push of a v<semver> release tag (CONTRIBUTING.md § Versioning) -> the
+#     same, and also pushes :v<semver>. The tag must name the Cargo.toml
+#     version, or the build fails. Nothing deploys.
+#   - workflow_dispatch -> builds, tests and pushes :<sha>, and also moves
+#     :latest to that image.
+# Every image carries the Cargo.toml version as its
+# org.opencontainers.image.version label.
 # Terraform deploys whatever :latest points at (var.image_tag, pinned by
 # digest), so `terraform apply` after a dispatch ships it. Promotion is a
 # deliberate act, as in `make deploy`; a merge never changes what is live.
@@ -25,12 +31,15 @@ name: Build image
 on:
   push:
     branches: [develop]
+    # GitHub does not apply the paths filter below to tag pushes.
+    tags: ["v*"]
     paths:
       - "crates/**"
       - "web/**"
       - "certs/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "CHANGELOG.md"
       - "rust-toolchain.toml"
       - "Dockerfile"
       - "LICENSE"
@@ -64,6 +73,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The one version: the workspace version in Cargo.toml. A release tag
+      # must match it, so :v<semver> never names a build of another version.
+      - name: Read the version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
+          [ -n "$version" ] || { echo "::error::No workspace version in Cargo.toml."; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the Cargo.toml version $version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v4
 
       # Loaded into the runner's Docker, not pushed, so the smoke test runs on
@@ -76,6 +99,7 @@ jobs:
           provenance: false
           load: true
           tags: ${{ env.IMAGE }}
+          build-args: VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -114,10 +138,16 @@ jobs:
         env:
           REPO: ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}
           PROMOTE: ${{ github.event_name == 'workflow_dispatch' }}
+          RELEASE: ${{ github.ref_type == 'tag' && format('v{0}', steps.version.outputs.version) || '' }}
         run: |
           set -euo pipefail
           docker tag "$IMAGE" "$REPO:$GITHUB_SHA"
           docker push -q "$REPO:$GITHUB_SHA"
+          if [ -n "$RELEASE" ]; then
+            docker tag "$IMAGE" "$REPO:$RELEASE"
+            docker push -q "$REPO:$RELEASE"
+            echo "Pushed release :$RELEASE." >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ "$PROMOTE" = "true" ]; then
             docker tag "$IMAGE" "$REPO:latest"
             docker push -q "$REPO:latest"

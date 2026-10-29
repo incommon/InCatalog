@@ -296,6 +296,10 @@ pub struct Counts {
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Meta {
+    /// The running InCatalog version (SemVer; its notes are at
+    /// `/v1/releases/{version}`). `generator` names the ingest that wrote the snapshot.
+    #[schema(example = "0.1.0")]
+    pub version: String,
     pub schema_version: u32,
     pub generated_at: String,
     pub generator: String,
@@ -950,6 +954,7 @@ impl Catalog {
             caveats.push("Aggregates were fetched over TLS from the federation operators, but their XML signatures were not verified for this snapshot. Do not use this catalog as a trust source for SAML configuration; consume signed metadata directly.".to_owned());
         }
         Meta {
+            version: env!("CARGO_PKG_VERSION").to_owned(),
             schema_version: self.snapshot.schema_version,
             generated_at: self.snapshot.generated_at.clone(),
             generator: self.snapshot.generator.clone(),
