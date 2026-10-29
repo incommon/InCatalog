@@ -28,6 +28,9 @@ run() { docker run --rm --platform linux/arm64 "$@"; }
 run --entrypoint /usr/local/bin/catalog-ingest "$IMAGE" --help >/dev/null || fail "catalog-ingest does not run"
 run --entrypoint xmlsec1 "$IMAGE" --version >/dev/null || fail "xmlsec1 is missing"
 ok "both programs and xmlsec1 run"
+run --entrypoint sh "$IMAGE" -c 'grep -q "<h2 id=\"MIT\"" /usr/share/doc/incatalog/THIRD-PARTY-LICENSES.html && test -s /usr/share/doc/incatalog/NOTICE && test -s /usr/share/doc/incatalog/LICENSE' ||
+  fail "the license notices are missing from the image"
+ok "LICENSE, NOTICE and the third-party notices are in the image"
 fingerprint() {
   run --entrypoint sh "$IMAGE" -c "openssl x509 -in /etc/incatalog/certs/$1 -noout -fingerprint -sha256 2>/dev/null || cat /etc/incatalog/certs/$1" |
     sed -n 's/.*Fingerprint=//p'

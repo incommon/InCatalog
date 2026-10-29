@@ -66,7 +66,7 @@ and on every push to `develop` and `main`. **A red build blocks merge — no exc
 |---|---|---|
 | `fmt / clippy / test / coverage` | `cargo fmt --check`, `clippy -D warnings`, `cargo test`, coverage gates | Rust-relevant changes; reports on every PR |
 | `terraform fmt / validate` | `fmt -check`, `validate` with `-lockfile=readonly`, at `.terraform-version` | Always |
-| `license policy / third-party notices` | `cargo deny check licenses`; `THIRD-PARTY-LICENSES.html` is current | Always |
+| `license policy / third-party notices` | `cargo deny check licenses`; the third-party notices generate | Always |
 
 The first two are **required** by `main`'s branch protection, by those exact names.
 
@@ -90,8 +90,11 @@ Two rules for anyone editing `ci.yml`:
 - **License policy** (`deny.toml`): permissive licenses only. MPL-2.0 is allowed for
   four named crates of Servo's CSS engine (via `scraper`), not tree-wide; a new
   dependency outside the list fails CI until it is reviewed.
-- **Third-party notices:** after anything changes `Cargo.lock`, run `make notices` and
-  commit `THIRD-PARTY-LICENSES.html`. CI fails if it is stale. It ships in the image.
+- **Third-party notices:** the image build writes `THIRD-PARTY-LICENSES.html` from the
+  `Cargo.lock` it builds and ships it in `/usr/share/doc/incatalog/`, so it is never
+  committed and a dependency bump needs no follow-up. CI checks that it generates (every
+  license accepted in `about.toml`, every clarification still matching) and attaches it
+  to the run. `make notices` writes it locally.
 - **Security audit** (`.github/workflows/security-audit.yml`): a weekly RustSec scan
   (`cargo deny check advisories sources`), not a PR gate. An advisory with no upstream
   fix is ignored in `deny.toml` by ID, with a rationale and a re-review date.

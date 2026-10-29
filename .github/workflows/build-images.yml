@@ -35,7 +35,8 @@ on:
       - "Dockerfile"
       - "LICENSE"
       - "NOTICE"
-      - "THIRD-PARTY-LICENSES.html"
+      - "about.toml"
+      - "about.hbs"
       - "infra/test-image.sh"
       - ".github/workflows/build-images.yml"
   workflow_dispatch:

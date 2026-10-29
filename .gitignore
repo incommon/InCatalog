@@ -4,4 +4,6 @@
 .terraform/
 *.tfstate*
 web/config.local.js
+# Generated from Cargo.lock by `make notices` and by the image build; not committed.
+/THIRD-PARTY-LICENSES.html
 .DS_Store
