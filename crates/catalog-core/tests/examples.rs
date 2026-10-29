@@ -32,6 +32,7 @@ fn fed(code: &str, ra: &str, cc: &str, country: &str) -> Federation {
 struct Svc {
     id: &'static str,
     name: &'static str,
+    org: &'static str,
     fed: (&'static str, &'static str),
     availability: Availability,
     categories: &'static [&'static str],
@@ -69,6 +70,9 @@ fn service(s: &Svc) -> Service {
         ..Default::default()
     };
     out.registration.authority = Some(s.fed.1.into());
+    out.organization
+        .display_names
+        .insert("en".into(), s.org.into());
     out.display_names.insert("en".into(), s.name.into());
     out
 }
@@ -83,6 +87,7 @@ fn catalog() -> Catalog {
         Svc {
             id: "https://wiki.example.se/sp",
             name: "Research Wiki",
+            org: "Example Organization",
             fed: swamid,
             availability: Availability::EdugainImportedByIncommon,
             categories: &["research-and-scholarship"],
@@ -92,6 +97,7 @@ fn catalog() -> Catalog {
         Svc {
             id: "https://data.example.de/sp",
             name: "Data Repository",
+            org: "Example Organization",
             fed: dfn,
             availability: Availability::EdugainImportedByIncommon,
             categories: &["research-and-scholarship"],
@@ -101,6 +107,7 @@ fn catalog() -> Catalog {
         Svc {
             id: "https://orcid-tools.example.ac.uk/sp",
             name: "ORCID Linker",
+            org: "Example Organization",
             fed: uk,
             availability: Availability::EdugainImportedByIncommon,
             categories: &[],
@@ -110,6 +117,7 @@ fn catalog() -> Catalog {
         Svc {
             id: "https://journals.example.ac.uk/sp",
             name: "Journal of Examples",
+            org: "Example Organization",
             fed: uk,
             availability: Availability::EdugainOnly,
             categories: &[],
@@ -119,6 +127,7 @@ fn catalog() -> Catalog {
         Svc {
             id: "https://anon.example.edu/sp",
             name: "Anonymous Survey",
+            org: "Example Organization",
             fed: incommon,
             availability: Availability::IncommonAndEdugain,
             categories: &["anonymous"],
@@ -126,8 +135,19 @@ fn catalog() -> Catalog {
             environment: "production",
         },
         Svc {
+            id: "https://tools.example.de/sp",
+            name: "Lab Scheduling",
+            org: "Example Software GmbH",
+            fed: dfn,
+            availability: Availability::EdugainImportedByIncommon,
+            categories: &[],
+            attributes: &[],
+            environment: "production",
+        },
+        Svc {
             id: "https://canvas-test.example.edu/sp",
             name: "Canvas (Test)",
+            org: "Example Organization",
             fed: incommon,
             availability: Availability::IncommonOnly,
             categories: &[],
@@ -201,6 +221,7 @@ fn every_behavior_has_an_example() {
         "attribute",
         "environment",
         "sharing",
+        "sector",
     ] {
         assert!(fields.contains(&f), "no example shows {f}");
     }

@@ -24,6 +24,7 @@ pub mod nl;
 pub mod ns;
 pub mod regions;
 pub mod search;
+pub mod sector;
 pub mod sharing;
 pub mod xml;
 

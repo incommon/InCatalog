@@ -86,6 +86,11 @@ pub const EXAMPLES: &[Example] = &[
         reads_as: &[("region", "schengen")],
     },
     Example {
+        query: "commercial vendors in Europe",
+        shows: "who runs a service",
+        reads_as: &[("sector", "commercial"), ("region", "europe")],
+    },
+    Example {
         query: "services anyone in eduGAIN can use",
         shows: "services open to any institution",
         reads_as: &[("sharing", "multilateral")],

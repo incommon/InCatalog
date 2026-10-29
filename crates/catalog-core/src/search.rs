@@ -21,6 +21,7 @@ use crate::model::{
 };
 use crate::nl::{Interpretation, Vocab};
 use crate::regions::{self, RegionExpansion, REGIONS};
+use crate::sector::{self, Sector, SectorReading};
 use crate::sharing::{self, Sharing, SharingReading};
 use crate::INCOMMON_REGISTRAR;
 
@@ -60,6 +61,13 @@ pub struct ServiceQuery {
     /// parameters. See `sharing` on the results for how each was decided.
     #[param(value_type = Option<Vec<String>>, style = Form, explode)]
     pub sharing: Option<String>,
+    /// Who runs the service: the sector of the organization that registered it,
+    /// not of its users. `academia`, `research`, `commercial`, `libraries`,
+    /// `museums`, `government`, `healthcare`, `k12`, `publishers`, `nonprofit`,
+    /// `nren`, or `unknown`, comma-separated or as repeated parameters; a service in
+    /// any of them matches. See `sector` on the results for how each was decided.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub sector: Option<String>,
     /// Comma-separated category keys; a service must carry all of them.
     pub category: Option<String>,
     /// One of the availability keys, e.g. `incommon-and-edugain`.
@@ -113,6 +121,12 @@ pub struct ServiceSummary {
     /// What decided `sharing`: `metadata` (a rule over the signals) or `generated`
     /// (Claude's reading). Absent when `sharing` is `unknown`.
     pub sharing_source: Option<String>,
+    /// The sectors of the organization that runs it (see `sector` on
+    /// `/v1/services`); empty when unknown.
+    pub sectors: Vec<Sector>,
+    /// What decided `sectors`: `curated`, `metadata` (the organization's name or
+    /// domain), or `generated` (Claude's reading). Absent when unknown.
+    pub sector_source: Option<String>,
     pub organization: Option<String>,
     pub provider_id: String,
     /// An `https:` or `data:image/` logo URL; plain `http:` logos are omitted.
@@ -178,6 +192,8 @@ pub struct ServiceDetail {
     pub environment: EnvironmentReading,
     /// Whether it is open to any institution, why, and the signals behind it.
     pub sharing: SharingReading,
+    /// Who runs it, and what decided that.
+    pub sector: SectorReading,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -298,6 +314,7 @@ struct Entry {
     /// Read from the metadata, else from the generated summary.
     environment: EnvironmentReading,
     sharing: SharingReading,
+    sector: SectorReading,
     name: String,
     name_lc: String,
     org_lc: String,
@@ -334,6 +351,7 @@ impl Catalog {
         let mut provider_by_key: HashMap<String, usize> = HashMap::new();
         let mut entries = Vec::with_capacity(snapshot.services.len());
         let clusters = sharing::clusters(&snapshot.services);
+        let fed_hosts = sector::federation_hosts(&snapshot.federations);
         let region_sets: Vec<HashSet<&str>> = REGIONS
             .iter()
             .map(|r| r.countries().into_iter().collect())
@@ -426,6 +444,7 @@ impl Catalog {
                     .unwrap_or_default(),
                 environment: environment::classify(s),
                 sharing: sharing::classify(s, clusters.get(&s.entity_id)),
+                sector: sector::classify(s, &fed_hosts),
                 org_n: normalize(&pkey),
                 name_lc: name.to_lowercase(),
                 name,
@@ -519,6 +538,8 @@ impl Catalog {
             environment_source: e.environment.source.clone(),
             sharing: e.sharing.value.key().to_owned(),
             sharing_source: e.sharing.source.clone(),
+            sectors: e.sector.sectors.clone(),
+            sector_source: e.sector.source.clone(),
             organization: pick(&s.organization.display_names, lang)
                 .or_else(|| pick(&s.organization.names, lang))
                 .map(str::to_owned),
@@ -561,6 +582,7 @@ impl Catalog {
             links: links(s),
             environment: self.entries[i].environment.clone(),
             sharing: self.entries[i].sharing.clone(),
+            sector: self.entries[i].sector.clone(),
         }
     }
 
@@ -670,6 +692,15 @@ impl Catalog {
                     Dim::Sharing => {
                         let v = self.entries[i].sharing.value;
                         bump(v.key(), v.label());
+                    }
+                    Dim::Sector => {
+                        let sectors = &self.entries[i].sector.sectors;
+                        if sectors.is_empty() {
+                            bump("unknown", "Unknown");
+                        }
+                        for v in sectors {
+                            bump(v.key(), v.label());
+                        }
                     }
                     Dim::Attribute => {
                         for a in &s.requested_attributes {
@@ -953,13 +984,14 @@ enum Dim {
     Availability,
     Environment,
     Sharing,
+    Sector,
     Attribute,
     Source,
     ProviderType,
 }
 
 impl Dim {
-    const ALL: [Dim; 10] = [
+    const ALL: [Dim; 11] = [
         Dim::Federation,
         Dim::Country,
         Dim::Region,
@@ -967,6 +999,7 @@ impl Dim {
         Dim::Availability,
         Dim::Environment,
         Dim::Sharing,
+        Dim::Sector,
         Dim::Attribute,
         Dim::Source,
         Dim::ProviderType,
@@ -981,6 +1014,7 @@ impl Dim {
             Dim::Availability => "availability",
             Dim::Environment => "environment",
             Dim::Sharing => "sharing",
+            Dim::Sector => "sector",
             Dim::Attribute => "attribute",
             Dim::Source => "source",
             Dim::ProviderType => "provider_type",
@@ -1015,6 +1049,8 @@ struct Filters {
     environments: Vec<String>,
     /// Sharing keys, lowercase; like `environments`.
     sharing: Vec<String>,
+    /// Sector keys, lowercase; `unknown` matches a service with none.
+    sectors: Vec<String>,
     attribute: Option<String>,
     provider: Option<String>,
     source: Option<String>,
@@ -1072,6 +1108,10 @@ impl Filters {
                 .map(|e| e.to_lowercase())
                 .collect(),
             sharing: split_list(q.sharing.as_deref())
+                .iter()
+                .map(|v| v.to_lowercase())
+                .collect(),
+            sectors: split_list(q.sector.as_deref())
                 .iter()
                 .map(|v| v.to_lowercase())
                 .collect(),
@@ -1154,6 +1194,16 @@ impl Filters {
             && !self.sharing.iter().any(|k| k == e.sharing.value.key())
         {
             return false;
+        }
+        if on(Dim::Sector) && !self.sectors.is_empty() {
+            let have = &e.sector.sectors;
+            let any = self
+                .sectors
+                .iter()
+                .any(|k| (k == "unknown" && have.is_empty()) || have.iter().any(|s| s.key() == k));
+            if !any {
+                return false;
+            }
         }
         if on(Dim::Attribute) {
             if let Some(a) = &self.attribute {
@@ -1941,5 +1991,76 @@ mod tests {
             (d.sharing.value, d.sharing.source),
             (Sharing::Unknown, None)
         );
+    }
+
+    #[test]
+    fn sector_filter_and_facet() {
+        let svc = |id: &str, org: &str, url: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: crate::entity_hash(id),
+                ..Default::default()
+            };
+            s.display_names.insert("en".into(), id.into());
+            s.organization.display_names.insert("en".into(), org.into());
+            s.organization.urls.insert("en".into(), url.into());
+            s
+        };
+        let c = Catalog::new(Snapshot {
+            services: vec![
+                svc("https://a/", "Yale University", "https://www.yale.edu/"),
+                svc(
+                    "https://b/",
+                    "University of Nebraska Medical Center",
+                    "https://unmc.edu/",
+                ),
+                svc(
+                    "https://c/",
+                    "Hogrefe Publishing GmbH",
+                    "https://hogrefe.de/",
+                ),
+                svc(
+                    "https://d/",
+                    "Zoom Video Communications, Inc.",
+                    "https://zoom.us/",
+                ),
+            ],
+            ..Default::default()
+        });
+        let total = |v: &str| {
+            c.search(&ServiceQuery {
+                sector: Some(v.into()),
+                ..Default::default()
+            })
+            .total
+        };
+        assert_eq!(total("academia"), 2);
+        assert_eq!(total("healthcare,publishers"), 2);
+        assert_eq!(total("Unknown"), 1);
+        assert_eq!(total("academia,unknown"), 3);
+        assert_eq!(total("nope"), 0);
+
+        let p = c.search(&ServiceQuery {
+            sector: Some("commercial".into()),
+            ..Default::default()
+        });
+        assert_eq!(p.items[0].sectors, [Sector::Commercial, Sector::Publishers]);
+        assert_eq!(p.items[0].sector_source.as_deref(), Some("metadata"));
+        let facet: Vec<(&str, usize)> = p.facets["sector"]
+            .iter()
+            .map(|v| (v.value.as_str(), v.count))
+            .collect();
+        assert_eq!(
+            facet,
+            [
+                ("academia", 2),
+                ("commercial", 1),
+                ("healthcare", 1),
+                ("publishers", 1),
+                ("unknown", 1)
+            ]
+        );
+        let d = c.service_by_entity_id("https://b/").unwrap();
+        assert!(d.sector.reason.unwrap().contains("medical center"));
     }
 }

@@ -1,0 +1,495 @@
+{
+ "about": "Hand-labeled organizations for checking the sector rules (catalog-core/src/sector.rs) and prompt (catalog-ingest/src/sector.rs). Labels by Claude from public knowledge of each organization, for review. Names and hosts as in the 2026-10-28 snapshot, plus a few false-positive cases.",
+ "samples": [
+  {
+   "name": "Yale University",
+   "host": "yale.edu",
+   "sectors": [
+    "academia"
+   ],
+   "why": "University."
+  },
+  {
+   "name": "Albert-Ludwigs-Universität Freiburg",
+   "host": "uni-freiburg.de",
+   "sectors": [
+    "academia"
+   ],
+   "why": "University (German name)."
+  },
+  {
+   "name": "Université de Caen Normandie",
+   "host": "unicaen.fr",
+   "sectors": [
+    "academia"
+   ],
+   "why": "University (French name)."
+  },
+  {
+   "name": "Politecnico di Milano",
+   "host": "polimi.it",
+   "sectors": [
+    "academia"
+   ],
+   "why": "Technical university."
+  },
+  {
+   "name": "Estonian Academy of Arts",
+   "host": "artun.ee",
+   "sectors": [
+    "academia"
+   ],
+   "why": "Art university."
+  },
+  {
+   "name": "Haute Ecole Leonard de Vinci",
+   "host": "vinci.be",
+   "sectors": [
+    "academia"
+   ],
+   "why": "Belgian university college."
+  },
+  {
+   "name": "Rensselaer Polytechnic Institute",
+   "host": "rpi.edu",
+   "sectors": [
+    "academia"
+   ],
+   "why": "University."
+  },
+  {
+   "name": "Johns Hopkins",
+   "host": "jhu.edu",
+   "sectors": [
+    "academia"
+   ],
+   "why": "University, named without the word."
+  },
+  {
+   "name": "TU Wien",
+   "host": "tuwien.ac.at",
+   "sectors": [
+    "academia"
+   ],
+   "why": "Technical university, abbreviated."
+  },
+  {
+   "name": "University of Nebraska Medical Center",
+   "host": "unmc.edu",
+   "sectors": [
+    "academia",
+    "healthcare"
+   ],
+   "why": "Academic medical center."
+  },
+  {
+   "name": "Children's Hospital of Philadelphia",
+   "host": "chop.edu",
+   "sectors": [
+    "healthcare"
+   ],
+   "why": "Hospital on an .edu domain."
+  },
+  {
+   "name": "Ann & Robert H. Lurie Children's Hospital of Chicago",
+   "host": "luriechildrens.org",
+   "sectors": [
+    "healthcare"
+   ],
+   "why": "Hospital."
+  },
+  {
+   "name": "CERN",
+   "host": "cern.ch",
+   "sectors": [
+    "research"
+   ],
+   "why": "Research laboratory."
+  },
+  {
+   "name": "CLARIN ERIC",
+   "host": "clarin.eu",
+   "sectors": [
+    "research"
+   ],
+   "why": "European research infrastructure."
+  },
+  {
+   "name": "Lawrence Berkeley National Laboratory",
+   "host": "lbl.gov",
+   "sectors": [
+    "research",
+    "government"
+   ],
+   "why": "US national laboratory on a .gov domain."
+  },
+  {
+   "name": "LIGO Scientific Collaboration",
+   "host": "ligo.caltech.edu",
+   "sectors": [
+    "research"
+   ],
+   "why": "Scientific collaboration."
+  },
+  {
+   "name": "Wigner Research Centre for Physics",
+   "host": "wigner.hu",
+   "sectors": [
+    "research"
+   ],
+   "why": "Research centre."
+  },
+  {
+   "name": "Diamond Light Source Ltd",
+   "host": "diamond.ac.uk",
+   "sectors": [
+    "research"
+   ],
+   "why": "National synchrotron facility, a company limited by guarantee."
+  },
+  {
+   "name": "Austrian Academy of Sciences",
+   "host": "oeaw.ac.at",
+   "sectors": [
+    "research"
+   ],
+   "why": "Learned society and research organization."
+  },
+  {
+   "name": "National Institutes of Health",
+   "host": "nih.gov",
+   "sectors": [
+    "government",
+    "research"
+   ],
+   "why": "US government agency."
+  },
+  {
+   "name": "National Science Foundation",
+   "host": "nsf.gov",
+   "sectors": [
+    "government"
+   ],
+   "why": "US government agency."
+  },
+  {
+   "name": "Norfolk County Council",
+   "host": "norfolk.gov.uk",
+   "sectors": [
+    "government"
+   ],
+   "why": "Local government."
+  },
+  {
+   "name": "Austrian Federal Ministry of Women, Science and Research",
+   "host": "bmfwf.gv.at",
+   "sectors": [
+    "government"
+   ],
+   "why": "Ministry."
+  },
+  {
+   "name": "Research Library in Olomouc",
+   "host": "vkol.cz",
+   "sectors": [
+    "libraries"
+   ],
+   "why": "Research library."
+  },
+  {
+   "name": "This is a Shibboleth SP for National Library of Wales",
+   "host": "exlibrisgroup.com",
+   "sectors": [
+    "libraries"
+   ],
+   "why": "National library, on a vendor's host."
+  },
+  {
+   "name": "Center for Research Libraries",
+   "host": "crl.edu",
+   "sectors": [
+    "libraries"
+   ],
+   "why": "Consortium of research libraries."
+  },
+  {
+   "name": "Bayerische Staatsbibliothek",
+   "host": "bsb-muenchen.de",
+   "sectors": [
+    "libraries"
+   ],
+   "why": "State library (German compound)."
+  },
+  {
+   "name": "Africamuseum IdP",
+   "host": "africamuseum.be",
+   "sectors": [
+    "museums"
+   ],
+   "why": "Museum."
+  },
+  {
+   "name": "Secondary School Ermesinde",
+   "host": "lem.lu",
+   "sectors": [
+    "k12"
+   ],
+   "why": "Secondary school."
+  },
+  {
+   "name": "Swedish Academic Identity Federation (SWAMID)",
+   "host": "swamid.se",
+   "sectors": [
+    "nren"
+   ],
+   "why": "Identity federation."
+  },
+  {
+   "name": "German National Research and Education Network, DFN",
+   "host": "dfn.de",
+   "sectors": [
+    "nren"
+   ],
+   "why": "NREN."
+  },
+  {
+   "name": "Internet2",
+   "host": "internet2.edu",
+   "sectors": [
+    "nren"
+   ],
+   "why": "US research and education network."
+  },
+  {
+   "name": "Jisc",
+   "host": "jisc.ac.uk",
+   "sectors": [
+    "nren"
+   ],
+   "why": "UK NREN, on an .ac.uk domain."
+  },
+  {
+   "name": "Australian Access Federation",
+   "host": "aaf.edu.au",
+   "sectors": [
+    "nren"
+   ],
+   "why": "Identity federation."
+  },
+  {
+   "name": "Research and Education Network for Uganda (RENU)",
+   "host": "renu.ac.ug",
+   "sectors": [
+    "nren"
+   ],
+   "why": "NREN."
+  },
+  {
+   "name": "Cambridge University Press",
+   "host": "cambridge.org",
+   "sectors": [
+    "publishers"
+   ],
+   "why": "A university press is a publisher."
+  },
+  {
+   "name": "Tsinghua University Press Limited",
+   "host": "tup.com.cn",
+   "sectors": [
+    "publishers"
+   ],
+   "why": "A university press is a publisher."
+  },
+  {
+   "name": "Bloomsbury Publishing Plc",
+   "host": "bloomsbury.com",
+   "sectors": [
+    "publishers",
+    "commercial"
+   ],
+   "why": "Publishing company."
+  },
+  {
+   "name": "Hogrefe Publishing GmbH",
+   "host": "hogrefe.de",
+   "sectors": [
+    "publishers",
+    "commercial"
+   ],
+   "why": "Publishing company."
+  },
+  {
+   "name": "Walter de Gruyter Verlag",
+   "host": "degruyter.com",
+   "sectors": [
+    "publishers",
+    "commercial"
+   ],
+   "why": "Publishing company."
+  },
+  {
+   "name": "HighWire Press",
+   "host": "highwire.stanford.edu",
+   "sectors": [
+    "publishers",
+    "commercial"
+   ],
+   "why": "Publishing-services company that hosts journals for publishers, on a university host."
+  },
+  {
+   "name": "American Chemical Society",
+   "host": "acs.org",
+   "sectors": [
+    "nonprofit",
+    "publishers"
+   ],
+   "why": "Scientific society and publisher."
+  },
+  {
+   "name": "The Royal Society of Chemistry",
+   "host": "rsc.org",
+   "sectors": [
+    "nonprofit",
+    "publishers"
+   ],
+   "why": "Scientific society and publisher."
+  },
+  {
+   "name": "EDUCAUSE",
+   "host": "educause.edu",
+   "sectors": [
+    "nonprofit"
+   ],
+   "why": "Nonprofit association, on an .edu domain."
+  },
+  {
+   "name": "Center for Open Science, Inc.",
+   "host": "cos.io",
+   "sectors": [
+    "nonprofit"
+   ],
+   "why": "Nonprofit with an Inc."
+  },
+  {
+   "name": "Online Computer Library Center Inc.",
+   "host": "oclc.org",
+   "sectors": [
+    "nonprofit"
+   ],
+   "why": "Library cooperative and vendor, not a library."
+  },
+  {
+   "name": "Zoom Video Communications, Inc.",
+   "host": "zoom.us",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Company."
+  },
+  {
+   "name": "Instructure, Inc",
+   "host": "instructure.com",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Company."
+  },
+  {
+   "name": "Amberscript B.V.",
+   "host": "amberscript.com",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Company."
+  },
+  {
+   "name": "JobTeaser SA",
+   "host": "jobteaser.com",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Company."
+  },
+  {
+   "name": "Libnova SL",
+   "host": "libnova.com",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Company that sells to libraries and archives."
+  },
+  {
+   "name": "Munzinger-Archiv GmbH",
+   "host": "munzinger.de",
+   "sectors": [
+    "commercial",
+    "publishers"
+   ],
+   "why": "Company publishing an archive database, not an archive."
+  },
+  {
+   "name": "MA Healthcare Limited",
+   "host": "markallengroup.com",
+   "sectors": [
+    "commercial",
+    "publishers"
+   ],
+   "why": "Publishing company named for healthcare."
+  },
+  {
+   "name": "Copyright Licensing Agency Limited (The)",
+   "host": "cla.co.uk",
+   "sectors": [
+    "nonprofit"
+   ],
+   "why": "Licensing body, not a government agency."
+  },
+  {
+   "name": "Ebook Library - EBL",
+   "host": "ebookscorporation.com",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Ebook platform, not a library."
+  },
+  {
+   "name": "Central and Eastern European Online Library",
+   "host": "ceeol.com",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Online platform, not a library."
+  },
+  {
+   "name": "Library Genesis",
+   "host": "libgen.is",
+   "sectors": [],
+   "why": "Shadow library; not a library sector."
+  },
+  {
+   "name": "UniversityTickets",
+   "host": "universitytickets.com",
+   "sectors": [
+    "commercial"
+   ],
+   "why": "Ticketing company named for universities."
+  },
+  {
+   "name": "British Broadcasting Corporation",
+   "host": "bbc.co.uk",
+   "sectors": [
+    "government"
+   ],
+   "why": "Public broadcaster."
+  },
+  {
+   "name": "Royal College of Nursing Publishing",
+   "host": "rcni.com",
+   "sectors": [
+    "publishers",
+    "nonprofit"
+   ],
+   "why": "Professional body's publisher, not a college."
+  }
+ ]
+}

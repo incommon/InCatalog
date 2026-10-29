@@ -78,6 +78,9 @@ type St = State<Arc<AppState>>;
         catalog_core::sharing::Signals,
         catalog_core::sharing::Cluster,
         catalog_core::model::SharingLabel,
+        catalog_core::model::SectorLabel,
+        catalog_core::sector::Sector,
+        catalog_core::sector::SectorReading,
         catalog_core::examples::Example,
         RegionView,
     ))
@@ -222,14 +225,21 @@ async fn read(
 
 /// Search services with filters, paging, and facet counts. Filters combine with
 /// AND; several values of `federation`, `country`, `region`, `environment`, or
-/// `sharing` combine with OR, and `country` and `region` together are one set of
+/// `sharing` or `sector` combine with OR, and `country` and `region` together are one set of
 /// places. `sharing=multilateral` means open to users of any identity provider in
 /// principle: access still depends on the user's identity provider releasing the
 /// attributes the service needs, and on any subscription it requires.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
 async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
     let mut query = raw.unwrap_or_default();
-    for key in ["federation", "country", "region", "environment", "sharing"] {
+    for key in [
+        "federation",
+        "country",
+        "region",
+        "environment",
+        "sharing",
+        "sector",
+    ] {
         query = join_repeated(&query, key);
     }
     // It came from a valid URI and only gained commas, so it parses again.
@@ -709,5 +719,41 @@ mod tests {
             doc.contains("releasing the"),
             "the docs do not promise access"
         );
+    }
+
+    #[tokio::test]
+    async fn services_filter_by_sector() {
+        let svc = |id: &str, org: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: catalog_core::entity_hash(id),
+                ..Default::default()
+            };
+            s.organization.display_names.insert("en".into(), org.into());
+            s
+        };
+        let app = || {
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services: vec![
+                    svc("https://a/", "Yale University"),
+                    svc("https://b/", "Hogrefe Publishing GmbH"),
+                    svc("https://c/", "Somebody"),
+                ],
+                ..Default::default()
+            })))
+        };
+        let (_, page) = get_json_from(app(), "/v1/services?sector=academia&sector=unknown").await;
+        assert_eq!(page["total"], 2);
+        let (_, page) = get_json_from(app(), "/v1/services?sector=publishers").await;
+        assert_eq!(
+            page["items"][0]["sectors"],
+            serde_json::json!(["commercial", "publishers"])
+        );
+        assert_eq!(page["items"][0]["sector_source"], "metadata");
+        let id = catalog_core::entity_hash("https://b/");
+        let (_, d) = get_json_from(app(), &format!("/v1/services/{id}")).await;
+        assert!(d["sector"]["reason"].as_str().unwrap().contains("gmbh"));
+        let (_, spec) = get_json("/openapi.json").await;
+        assert!(spec["components"]["schemas"]["SectorReading"].is_object());
     }
 }

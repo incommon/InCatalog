@@ -20,6 +20,7 @@ use crate::environment::Environment;
 use crate::model::{Availability, Federation, Service};
 use crate::regions::{self, REGIONS};
 use crate::search::split_list;
+use crate::sector::Sector;
 use crate::sharing::Sharing;
 
 /// The filters a query was read as. Field names and values match `/v1/services`.
@@ -37,6 +38,8 @@ pub struct InterpretedParams {
     pub environment: Option<String>,
     /// Comma-separated sharing labels (`multilateral`, `bilateral`, `unknown`).
     pub sharing: Option<String>,
+    /// Comma-separated sectors of the organization that runs the service.
+    pub sector: Option<String>,
     /// Comma-separated category keys.
     pub category: Option<String>,
     pub availability: Option<String>,
@@ -77,6 +80,7 @@ impl Interpretation {
             &p.region,
             &p.environment,
             &p.sharing,
+            &p.sector,
             &p.category,
             &p.availability,
             &p.attribute,
@@ -123,6 +127,7 @@ enum Field {
     Source,
     Environment,
     Sharing,
+    Sector,
     Category,
     Federation,
     Region,
@@ -138,6 +143,7 @@ impl Field {
             Field::Source => "source",
             Field::Environment => "environment",
             Field::Sharing => "sharing",
+            Field::Sector => "sector",
             Field::Category => "category",
             Field::Federation => "federation",
             Field::Country => "country",
@@ -729,6 +735,128 @@ const SHARING_ALIASES: &[(&str, &[&str])] = &[
     ),
 ];
 
+/// Who runs a service. A sector needs a word that makes it about the organization:
+/// "library" is a subject ("library management system", "R&S library services"),
+/// "libraries" and "run by libraries" are who runs it.
+const NOT_COMMERCIAL: &str =
+    "academia,research,libraries,museums,government,healthcare,k12,nonprofit,nren";
+const SECTOR_ALIASES: &[(&str, &[&str])] = &[
+    (
+        "academia",
+        &[
+            "universities",
+            "colleges and universities",
+            "academic institutions",
+            "higher education institutions",
+            "run by universities",
+            "academia",
+        ],
+    ),
+    (
+        "research",
+        &[
+            "research institutes",
+            "research institutions",
+            "research labs",
+            "research laboratories",
+            "national labs",
+            "national laboratories",
+            "research centers",
+            "research centres",
+            "research infrastructures",
+        ],
+    ),
+    (
+        "commercial",
+        &[
+            "commercial",
+            "commercial vendors",
+            "commercial services",
+            "commercial providers",
+            "vendors",
+            "vendor",
+            "companies",
+            "for-profit",
+        ],
+    ),
+    (
+        "nonprofit",
+        &[
+            "nonprofits",
+            "non-profits",
+            "nonprofit organizations",
+            "charities",
+            "foundations",
+        ],
+    ),
+    (
+        NOT_COMMERCIAL,
+        &[
+            "non-commercial",
+            "noncommercial",
+            "not commercial",
+            "nonprofit",
+            "non-profit",
+        ],
+    ),
+    ("libraries", &["libraries", "run by libraries"]),
+    (
+        "museums",
+        &[
+            "museums",
+            "run by museums",
+            "archives",
+            "galleries",
+            "glam",
+            "cultural heritage institutions",
+        ],
+    ),
+    (
+        "government",
+        &[
+            "government",
+            "government agencies",
+            "government services",
+            "public sector",
+            "public bodies",
+        ],
+    ),
+    (
+        "healthcare",
+        &[
+            "hospitals",
+            "health systems",
+            "medical centers",
+            "healthcare providers",
+        ],
+    ),
+    ("k12", &["k-12", "k12", "schools", "school districts"]),
+    (
+        "publishers",
+        &["publishers", "journal publishers", "publisher services"],
+    ),
+    (
+        "nren",
+        &[
+            "nrens",
+            "research and education networks",
+            "federation operators",
+            "network operators",
+        ],
+    ),
+];
+
+fn sector_label(value: &str) -> String {
+    if value == NOT_COMMERCIAL {
+        return "Anything but companies".into();
+    }
+    value
+        .split(',')
+        .map(|k| Sector::from_key(k).map(|s| s.label()).unwrap_or(k))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 fn sharing_label(value: &str) -> String {
     value
         .split(',')
@@ -854,6 +982,11 @@ impl Vocab {
         for (env, names) in ENVIRONMENT_ALIASES {
             for n in *names {
                 v.add(n, Field::Environment, env, &environment_label(env), false);
+            }
+        }
+        for (value, names) in SECTOR_ALIASES {
+            for n in *names {
+                v.add(n, Field::Sector, value, &sector_label(value), false);
             }
         }
         for (value, names) in SHARING_ALIASES {
@@ -1125,6 +1258,7 @@ impl Vocab {
         let mut feds: Vec<&str> = Vec::new();
         let mut envs: Vec<&str> = Vec::new();
         let mut sharing: Vec<&str> = Vec::new();
+        let mut sectors: Vec<&str> = Vec::new();
         let mut countries: Vec<&str> = Vec::new();
         let mut regions: Vec<&str> = Vec::new();
         for m in matched {
@@ -1146,6 +1280,12 @@ impl Vocab {
                 "sharing" => {
                     for v in m.value.split(',') {
                         add(&mut sharing, v);
+                    }
+                    continue;
+                }
+                "sector" => {
+                    for v in m.value.split(',') {
+                        add(&mut sectors, v);
                     }
                     continue;
                 }
@@ -1184,6 +1324,9 @@ impl Vocab {
         }
         if !sharing.is_empty() {
             p.sharing = Some(sharing.join(","));
+        }
+        if !sectors.is_empty() {
+            p.sector = Some(sectors.join(","));
         }
         if !countries.is_empty() {
             p.country = Some(countries.join(","));
@@ -1241,8 +1384,17 @@ impl Vocab {
             .into_iter()
             .filter_map(|v| keep("sharing", Some(v), &|v| Sharing::from_key(v).is_some()))
             .collect();
+        let sectors: Vec<String> = split_list(p.sector.map(|v| v.to_lowercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| {
+                keep("sector", Some(v), &|v| {
+                    v == "unknown" || Sector::from_key(v).is_some()
+                })
+            })
+            .collect();
         InterpretedParams {
             q: p.q.map(|q| q.trim().to_owned()).filter(|q| !q.is_empty()),
+            sector: (!sectors.is_empty()).then(|| sectors.join(",")),
             sharing: (!sharing.is_empty()).then(|| sharing.join(",")),
             country: (!countries.is_empty()).then(|| countries.join(",")),
             region: (!regions.is_empty()).then(|| regions.join(",")),
@@ -1277,6 +1429,7 @@ impl Vocab {
             "availability" => Availability::from_key(value).map(|a| a.label().to_owned()),
             "environment" => Some(environment_label(value)),
             "sharing" => Some(sharing_label(value)),
+            "sector" => Some(sector_label(value)),
             "attribute" => self
                 .attributes
                 .iter()
@@ -1519,15 +1672,54 @@ mod tests {
     }
 
     #[test]
-    fn commercial_without_curation_is_explained() {
+    fn commercial_reads_as_a_sector() {
         let i = vocab().interpret("commercial british services that need eppn");
         assert_eq!(i.params.country.as_deref(), Some("GB"));
         assert_eq!(
             i.params.attribute.as_deref(),
             Some("urn:oid:1.3.6.1.4.1.5923.1.1.1.6")
         );
-        assert!(i.notes.iter().any(|n| n.contains("commercial")));
+        assert_eq!(i.params.sector.as_deref(), Some("commercial"));
+        assert!(i.notes.is_empty(), "{:?}", i.notes);
         assert_eq!(i.params.q, None);
+    }
+
+    #[test]
+    fn sectors_by_name() {
+        let v = vocab();
+        let i = v.interpret("services from libraries");
+        assert_eq!(i.params.sector.as_deref(), Some("libraries"));
+        assert_eq!(i.params.q, None);
+        let i = v.interpret("SPs run by museums");
+        assert_eq!(i.params.sector.as_deref(), Some("museums"));
+        let i = v.interpret("commercial vendors in Europe");
+        assert_eq!(i.params.sector.as_deref(), Some("commercial"));
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+        let i = v.interpret("non-commercial research tools");
+        assert_eq!(i.params.sector.as_deref(), Some(NOT_COMMERCIAL));
+        assert_eq!(i.params.q.as_deref(), Some("research tools"));
+        assert_eq!(i.matched[0].label, "Anything but companies");
+        let i = v.interpret("government agencies or hospitals");
+        assert_eq!(i.params.sector.as_deref(), Some("government,healthcare"));
+        // A subject is not who runs it.
+        for q in [
+            "library management system",
+            "library services",
+            "museum SPs",
+            "research data",
+        ] {
+            assert_eq!(v.interpret(q).params.sector, None, "{q}");
+        }
+        let mut notes = Vec::new();
+        let p = v.validate(
+            InterpretedParams {
+                sector: Some("Academia,banks,unknown".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.sector.as_deref(), Some("academia,unknown"));
+        assert_eq!(notes.len(), 1);
     }
 
     #[test]
