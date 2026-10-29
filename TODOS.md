@@ -21,7 +21,6 @@ working name. These must change together, as a planned migration:
   wherever it is attached, before the first deploy under the new names, or deploys lose
   permission.
 
-
 ## Show the new search behaviors on the main page and document them in About
 
 The landing page's "try:" row (`web/app.js`, near the search box) still offers the three
