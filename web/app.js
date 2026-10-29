@@ -90,7 +90,7 @@ const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().repla
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
 // a service must carry every category, and may be registered by any of the federations,
 // in any of the countries or regions, or be in any of the environments.
-const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any" };
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any" };
 // Region names read "the European Union" in a sentence and "European Union" in a list.
 const bare = (label) => label.replace(/^the /, "");
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -140,6 +140,26 @@ const AVAILABILITY_HELP = {
 const ENVIRONMENT = { production: "Production", test: "Test", staging: "Staging", development: "Development", unknown: "Unknown" };
 const NON_PRODUCTION = { test: "test", staging: "staging", development: "dev" };
 const SHARING = { multilateral: "Open to any institution", bilateral: "For one institution", unknown: "Unknown" };
+// Who runs a service: the sector of the organization that registered it.
+const SECTOR = {
+  academia: "Universities and colleges",
+  research: "Research institutions",
+  commercial: "Companies",
+  libraries: "Libraries",
+  museums: "Museums, archives, and galleries",
+  government: "Government",
+  healthcare: "Healthcare",
+  k12: "Schools (K-12)",
+  publishers: "Publishers",
+  nonprofit: "Nonprofits",
+  nren: "Federations and networks",
+  unknown: "Unknown",
+};
+const SECTOR_SOURCE = {
+  curated: "from the catalog's curation",
+  metadata: "from the organization's name or domain",
+  generated: "as Claude read the organization",
+};
 const SHARING_BADGE = { multilateral: "any institution", bilateral: "one institution" };
 // What "open to any institution" does and does not promise, wherever it is shown.
 const SHARING_CAVEAT =
@@ -270,6 +290,7 @@ const FIELD_LABELS = {
   availability: "Availability",
   environment: "Environment",
   sharing: "Open to",
+  sector: "Run by",
   attribute: "Requests",
   source: "Seen in",
   provider_type: "Provider type",
@@ -384,6 +405,7 @@ const FACET_ORDER = [
   ["availability", "Availability"],
   ["environment", "Environment"],
   ["sharing", "Open to"],
+  ["sector", "Run by"],
   ["category", "Category"],
   ["federation", "Registered by"],
   ["region", "Region"],
@@ -489,8 +511,8 @@ async function search(params) {
   const chipLabel = (k, v) =>
     k === "availability"
       ? AVAILABILITY[v] || v
-      : k === "environment" || k === "sharing"
-        ? (k === "environment" ? ENVIRONMENT : SHARING)[v] || v
+      : k === "environment" || k === "sharing" || k === "sector"
+        ? ({ environment: ENVIRONMENT, sharing: SHARING, sector: SECTOR }[k])[v] || v
         : k === "category"
           ? CATEGORY_LABELS[v] || v
           : (k === "federation" && feds?.get(v.toLowerCase())?.name) ||
@@ -572,6 +594,18 @@ function environmentNote(env) {
   if (env.source === "metadata") return `${label}, from ${env.evidence}`;
   if (env.source === "generated") return [h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "), `${label}, as Claude read this service's metadata`];
   return "Unknown: nothing in the metadata marks it, and there is no summary to go by";
+}
+
+// The organization's sectors and what decided them; a generated reading is marked.
+function sectorNote(sec) {
+  if (!sec || !sec.sectors.length) return "Unknown: the organization's name does not say, and Claude has not read it yet";
+  return [
+    sec.source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "\u2726 "),
+    h("b", {}, sec.sectors.map((k) => SECTOR[k] || k).join(", ")),
+    `, ${SECTOR_SOURCE[sec.source] || ""}`,
+    sec.reason ? `. ${sec.reason.replace(/\.$/, "")}.` : ".",
+    sec.source === "generated" && h("span", { class: "gen-note" }, ` (${sec.model}, ${(sec.generated_at || "").slice(0, 10)}; may be wrong.)`),
+  ];
 }
 
 // The label, why, and who decided it; a generated reading is marked and dated, and
@@ -703,6 +737,8 @@ async function serviceView(id) {
             h("dd", {}, s.sources.map((x) => (x === "incommon" ? "InCommon aggregate" : "eduGAIN aggregate")).join(", ")),
             h("dt", {}, "Environment"),
             h("dd", {}, environmentNote(d.environment)),
+            h("dt", {}, "Run by"),
+            h("dd", {}, sectorNote(d.sector)),
             h("dt", {}, "Open to"),
             h("dd", {}, sharingNote(d.sharing)),
             s.also_registered_by?.length > 0 && [h("dt", {}, "Also registered by"), h("dd", {}, s.also_registered_by.join(", "))],
@@ -969,6 +1005,7 @@ const FILTER_HELP = [
   ["Availability", "Where the service can be used from: InCommon only, exported to eduGAIN, or registered elsewhere and imported."],
   ["Environment", "Production, test, staging, or development. It is read from markers in the entityID or the name (test., -dev, \u201c(Staging)\u201d), or else from Claude\u2019s reading of the metadata (marked \u2726). Every environment is shown unless you pick some; test and staging copies rank below the live service they mirror."],
   ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],
+  ["Run by", "The kind of organization that registered the service: a university, a research institution, a company, a library, a museum or archive, government, a hospital, a school, a publisher, a nonprofit, or a federation or network. It describes who runs the service, not who it is for. It comes from the catalog\u2019s curation, else from the organization\u2019s name (\u201cUniversity\u201d, \u201cBibliothek\u201d, \u201cMinistry\u201d, \u201cGmbH\u201d) or a government domain, else from Claude\u2019s reading of the organization (marked \u2726). Say \u201clibraries\u201d or \u201crun by museums\u201d for this; \u201clibrary services\u201d searches the words."],
   ["Requests", "A user attribute the service asks identity providers for, such as email or ORCID."],
   ["Seen in", "Which aggregate the service appears in: InCommon\u2019s or eduGAIN\u2019s."],
 ];
@@ -999,7 +1036,7 @@ function howToSearch(regions, exs) {
     h(
       "p",
       { class: "gen-note" },
-      "\u2726 marks text Claude generated from a service\u2019s metadata: summaries, some environments, and most \u201copen to\u201d labels. Each says which model wrote it and when, and it may be wrong.",
+      "\u2726 marks text Claude generated from a service\u2019s metadata: summaries, some environments, most \u201copen to\u201d labels, and some \u201crun by\u201d sectors. Each says which model wrote it and when, and it may be wrong.",
     ),
     regions.length > 0 &&
       h(

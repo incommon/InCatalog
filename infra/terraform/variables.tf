@@ -82,6 +82,12 @@ variable "sharing_max_per_run" {
   default     = 400
 }
 
+variable "sector_max_per_run" {
+  description = "Most organizations to ask Claude for a sector per ingest run (the rules decide most universities, publishers, and agencies without asking). Results are cached per organization."
+  type        = number
+  default     = 400
+}
+
 variable "github_oidc_provider_arn" {
   description = "ARN of this account's IAM OIDC provider for token.actions.githubusercontent.com. Set it to create the role .github/workflows/build-images.yml assumes to push images; empty creates nothing."
   type        = string

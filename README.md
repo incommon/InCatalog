@@ -117,7 +117,7 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/ask?q=` | Read a plain-language search and find results, loosening it when it matches nothing (see Natural-language search) |
 | `/v1/interpret?q=` | Only the reading: the filters a plain-language search maps to |
 | `/v1/meta` | Snapshot provenance (URLs, `Last-Modified`, SHA-256, `validUntil`, signature status), counts, caveats |
-| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, and `sharing` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
+| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, `sharing`, and `sector` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
 | `/v1/services/{id}` | One service. `id` is the lowercase hex SHA-1 of the entityID, which is the same identifier MDQ uses, so `{sha1}` is accepted as a prefix |
 | `/v1/lookup?entity_id=` | One service, by entityID |
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
@@ -458,6 +458,66 @@ cargo test -p catalog-ingest sharing::tests::eval -- --ignored --nocapture
 | `CATALOG_SHARING_MAX` | 400 | most requests per run (a cluster is one); `0` turns them off |
 | `CATALOG_SHARING_MODEL` | `claude-opus-5-5` | at `CATALOG_SHARING_EFFORT`, default `low`; Terraform sets `claude_model` |
 | `CATALOG_SHARING_CACHE` | `sharing-cache.json` beside the snapshot | |
+
+## Who runs a service
+
+`sector` says what kind of organization registered a service. It describes who runs
+the service, not who uses it. There are 11 sectors:
+- `academia`, `research`, `commercial`, `libraries`
+- `museums` (with archives and galleries)
+- `government`, `healthcare`, `k12`, `publishers`, `nonprofit`
+- `nren` (federations and networks)
+
+An organization can have several: a university medical center is `academia` and
+`healthcare`, and a publishing company is `publishers` and `commercial`.
+`sector_source` on each result says what decided it, in this order:
+
+1. **`curated`:** a curation overlay's `provider_type`, mapped onto the sectors.
+2. **`metadata`:** rules over the organization's name and domain
+   (`catalog-core/src/sector.rs`). Names decide in several languages:
+   - "University", "Universität", "Université", "Hochschule", "Politecnico" →
+     `academia`
+   - "National Library", "Staatsbibliothek" → `libraries`
+   - "Museo", "Rijksmuseum" → `museums`
+   - "Ministry", "Bundesamt" → `government`
+   - "Hospital", "Medical Center" → `healthcare`
+   - "Press", "Publishing", "Verlag" → `publishers`
+   - "Foundation", "Society", "e. V." → `nonprofit`
+   - "GmbH", "LLC", "B.V.", "Co., Ltd" → `commercial`
+
+   So do domains: `.gov`, `.gouv.*`, `.gob.*` and `.govt.*` → `government`, and a
+   federation's own domain → `nren`. The rules are narrow, because they outrank
+   Claude:
+   - "Cambridge University Press" is a publisher, not a university.
+   - An "Online Library" or "Ebook Library" is a product, not a library.
+   - A company is not a museum, a hospital or an agency because of a word in its name.
+   - "Inc.", "Ltd", "Corporation" and `.edu` or `.ac.*` domains are only hints, since
+     nonprofits, public bodies and networks use them too.
+3. **`generated`:** Claude reads the rest during ingest, once per organization, from
+   its name, website, a sample of its services and the rules' hints. The answer is
+   kept in `service.sector` with the model and date, cached in `sector-cache.json`,
+   and capped per run (`CATALOG_SECTOR_MAX`, default 400; Terraform
+   `sector_max_per_run`). The rules decide 719 of the 1,414 organizations in the
+   2026-10-28 snapshot, so about 700 are left for Claude.
+
+Publicly funded institutions are labeled by what they are: a public university is
+`academia`, a public library `libraries`, a national laboratory `research` (and
+`government` when it runs on a `.gov` domain). A vendor that sells to governments is
+`commercial`.
+
+In plain language:
+- "libraries", "run by museums", "universities" and "government agencies" filter on
+  sector
+- "commercial", "vendors" and "companies" → `commercial`
+- "non-commercial" → every sector except `commercial` and `publishers`
+- "library services" and "museum SPs" stay words, since "R&S library services" means
+  library-related services
+
+`crates/catalog-core/tests/fixtures/sector-sample.json` is a hand-labeled sample of 60
+organizations, including the false positives above. `cargo test` checks the rules'
+precision per sector against it, and
+`cargo test -p catalog-ingest sector::tests::eval -- --ignored --nocapture` runs the
+prompt over the organizations the rules leave undecided.
 
 ## Curation overlay
 

@@ -305,6 +305,9 @@ resource "aws_lambda_function" "ingest" {
         # Multilateral/bilateral labels, capped the same way, with their own cache.
         CATALOG_SHARING_MODEL = var.claude_model
         CATALOG_SHARING_MAX   = tostring(var.sharing_max_per_run)
+        # Sectors, one request per organization, with their own cache.
+        CATALOG_SECTOR_MODEL = var.claude_model
+        CATALOG_SECTOR_MAX   = tostring(var.sector_max_per_run)
       },
     )
   }

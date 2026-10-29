@@ -77,7 +77,7 @@ deploy: push
 # any that already exist in the bucket, or that were never made locally.
 seed:
 	bucket=$$($(TF) output -raw data_bucket) && \
-	for f in summary-cache.json logo-cache.json sharing-cache.json; do \
+	for f in summary-cache.json logo-cache.json sharing-cache.json sector-cache.json; do \
 	  if [ ! -f data/$$f ]; then echo "no data/$$f to copy"; \
 	  elif aws s3api head-object --bucket $$bucket --key snapshots/$$f >/dev/null 2>&1; then echo "$$f already in s3://$$bucket"; \
 	  else aws s3 cp data/$$f s3://$$bucket/snapshots/$$f; fi; done

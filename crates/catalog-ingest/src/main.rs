@@ -10,6 +10,7 @@
 mod enrich;
 mod fetch;
 mod logos;
+mod sector;
 mod sharing;
 
 use std::io::BufReader;
@@ -109,6 +110,14 @@ struct Args {
     /// Where sharing labels are kept (default: `sharing-cache.json` beside `--out`).
     #[arg(long, env = "CATALOG_SHARING_CACHE")]
     sharing_cache: Option<String>,
+
+    /// Most organizations to ask Claude for a sector per run; 0 turns it off.
+    #[arg(long, env = "CATALOG_SECTOR_MAX", default_value_t = 400)]
+    sector_max: usize,
+
+    /// Where sector labels are kept (default: `sector-cache.json` beside `--out`).
+    #[arg(long, env = "CATALOG_SECTOR_CACHE")]
+    sector_cache: Option<String>,
 }
 
 #[tokio::main]
@@ -286,6 +295,39 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         Some(report)
     };
 
+    let sector_report = if args.sector_max == 0 {
+        None
+    } else {
+        let cache = args
+            .sector_cache
+            .clone()
+            .unwrap_or_else(|| sibling(&args.out, "sector-cache.json"));
+        let claude = catalog_claude::Claude::from_env(
+            "CATALOG_SECTOR_MODEL",
+            "CATALOG_SECTOR_EFFORT",
+            std::time::Duration::from_secs(60),
+        )
+        .await?;
+        let report = sector::classify(
+            &mut services,
+            &federations,
+            sector::Options {
+                cache: Location::parse(&cache)?,
+                claude,
+                max: args.sector_max,
+            },
+        )
+        .await?;
+        tracing::info!(?report, "sectors");
+        if let Some(why) = &report.skipped_reason {
+            warnings.push(format!(
+                "{} organizations are waiting for a sector: {why}",
+                report.waiting
+            ));
+        }
+        Some(report)
+    };
+
     let logo_report = if args.skip_logos {
         None
     } else {
@@ -353,6 +395,7 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         "logos": logo_report,
         "summaries": enrich_report,
         "sharing": sharing_report,
+        "sectors": sector_report,
     }))
 }
 

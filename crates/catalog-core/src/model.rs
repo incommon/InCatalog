@@ -134,6 +134,20 @@ pub struct SharingLabel {
     pub generated_at: String,
 }
 
+/// The sectors of a service's organization, as Claude read them during ingest from
+/// the organization's name, website, and services. Generated, like
+/// [`Enrichment`]: stored apart and always shown as generated. See
+/// [`crate::sector`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct SectorLabel {
+    /// Keys from [`crate::sector::Sector`]; empty when Claude could not tell.
+    pub sectors: Vec<String>,
+    /// One sentence on why.
+    pub reason: String,
+    pub model: String,
+    pub generated_at: String,
+}
+
 /// A logo found on the organization's website because the metadata had no working
 /// one. Not part of the metadata; recorded separately with where it came from.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
@@ -261,6 +275,10 @@ pub struct Service {
     /// Generated multilateral/bilateral label. See [`SharingLabel`].
     #[serde(default)]
     pub sharing: Option<SharingLabel>,
+
+    /// Generated sector of the organization. See [`SectorLabel`].
+    #[serde(default)]
+    pub sector: Option<SectorLabel>,
 }
 
 impl Service {
