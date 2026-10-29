@@ -116,6 +116,38 @@ pub struct Enrichment {
     pub generated_at: String,
 }
 
+/// Whether a service is open to users from any institution, as Claude read it
+/// during ingest from the metadata and the signals in [`crate::sharing`].
+/// Generated, like [`Enrichment`]: stored apart and always shown as generated.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct SharingLabel {
+    /// `multilateral`, `bilateral`, or `unknown`.
+    pub label: String,
+    /// One sentence on why.
+    pub reason: String,
+    /// Which of the facts it was given it relied on (see [`crate::sharing::FACTS`]).
+    pub relied_on: Vec<String>,
+    /// Classified once for a whole tenant cluster, by its pattern.
+    #[serde(default)]
+    pub cluster: Option<String>,
+    pub model: String,
+    pub generated_at: String,
+}
+
+/// The sectors of a service's organization, as Claude read them during ingest from
+/// the organization's name, website, and services. Generated, like
+/// [`Enrichment`]: stored apart and always shown as generated. See
+/// [`crate::sector`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct SectorLabel {
+    /// Keys from [`crate::sector::Sector`]; empty when Claude could not tell.
+    pub sectors: Vec<String>,
+    /// One sentence on why.
+    pub reason: String,
+    pub model: String,
+    pub generated_at: String,
+}
+
 /// A logo found on the organization's website because the metadata had no working
 /// one. Not part of the metadata; recorded separately with where it came from.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
@@ -214,6 +246,12 @@ pub struct Service {
     pub has_signing_key: bool,
     pub has_encryption_key: bool,
     pub supports_discovery_response: bool,
+    /// An `init:RequestInitiator` endpoint, where any IdP's user can start a login.
+    #[serde(default)]
+    pub supports_request_initiator: bool,
+    /// Hosts of the `AssertionConsumerService` locations, lowercase, without repeats.
+    #[serde(default)]
+    pub endpoint_hosts: Vec<String>,
 
     pub sources: Vec<Source>,
     /// Other registration authorities publishing this same entityID (a clash).
@@ -233,6 +271,14 @@ pub struct Service {
     /// Generated summary and keywords. See [`Enrichment`].
     #[serde(default)]
     pub enrichment: Option<Enrichment>,
+
+    /// Generated multilateral/bilateral label. See [`SharingLabel`].
+    #[serde(default)]
+    pub sharing: Option<SharingLabel>,
+
+    /// Generated sector of the organization. See [`SectorLabel`].
+    #[serde(default)]
+    pub sector: Option<SectorLabel>,
 }
 
 impl Service {

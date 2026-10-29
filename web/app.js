@@ -65,19 +65,43 @@ async function meta() {
   return (metaCache ??= api("/v1/meta"));
 }
 
-// Federation code or registration authority → name, for labeling filters.
-let fedNamesCache = null;
-async function fedNames() {
-  fedNamesCache ??= api("/v1/federations")
-    .then((feds) => new Map(feds.flatMap((f) => [[f.code.toLowerCase(), f.name], [f.registration_authority.toLowerCase(), f.name]])))
-    .catch(() => ((fedNamesCache = null), new Map()));
-  return fedNamesCache;
+// Example searches (/v1/examples), each tested to read as the filters it shows.
+let examplesCache = null;
+async function examples() {
+  examplesCache ??= api("/v1/examples").catch(() => ((examplesCache = null), []));
+  return examplesCache;
 }
+
+// Federation code or registration authority (lowercase) → { name, ra }, for labeling
+// filters and for telling that a code in a link and a registrar in a facet are one federation.
+let fedIndexCache = null;
+async function fedIndex() {
+  fedIndexCache ??= api("/v1/federations")
+    .then((feds) =>
+      new Map(feds.flatMap((f) => [f.code, f.registration_authority].filter(Boolean).map((k) => [k.toLowerCase(), { name: f.name, ra: f.registration_authority }]))),
+    )
+    .catch(() => ((fedIndexCache = null), new Map()));
+  return fedIndexCache;
+}
+
+// The same comparison the API makes: by registrar, ignoring case and a trailing slash.
+const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().replace(/\/+$/, "").toLowerCase();
+
+// Filters that take several values, kept comma-separated in the URL as the API reads them:
+// a service must carry every category, and may be registered by any of the federations,
+// in any of the countries or regions, or be in any of the environments.
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any" };
+// Region names read "the European Union" in a sentence and "European Union" in a list.
+const bare = (label) => label.replace(/^the /, "");
+const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
 
 function parseHash() {
   const raw = location.hash.replace(/^#/, "") || "/";
   const [path, query] = raw.split("?");
-  return { parts: path.split("/").filter(Boolean), params: Object.fromEntries(new URLSearchParams(query || "")) };
+  // A hand-written link may repeat a multi-value key (federation=A&federation=B).
+  const params = {};
+  for (const [k, v] of new URLSearchParams(query || "")) params[k] = k in MULTI && params[k] ? `${params[k]},${v}` : v;
+  return { parts: path.split("/").filter(Boolean), params };
 }
 
 function go(path, params) {
@@ -113,7 +137,42 @@ const AVAILABILITY_HELP = {
 };
 // Sirtfi is near-universal and the InCommon tag is implied by the registrar, so
 // cards leave them off to keep the meaningful tags visible.
+const ENVIRONMENT = { production: "Production", test: "Test", staging: "Staging", development: "Development", unknown: "Unknown" };
 const NON_PRODUCTION = { test: "test", staging: "staging", development: "dev" };
+const SHARING = { multilateral: "Open to any institution", bilateral: "For one institution", unknown: "Unknown" };
+// Who runs a service: the sector of the organization that registered it.
+const SECTOR = {
+  academia: "Universities and colleges",
+  research: "Research institutions",
+  commercial: "Companies",
+  libraries: "Libraries",
+  museums: "Museums, archives, and galleries",
+  government: "Government",
+  healthcare: "Healthcare",
+  k12: "Schools (K-12)",
+  publishers: "Publishers",
+  nonprofit: "Nonprofits",
+  nren: "Federations and networks",
+  unknown: "Unknown",
+};
+const SECTOR_SOURCE = {
+  curated: "from the catalog's curation",
+  metadata: "from the organization's name or domain",
+  generated: "as Claude read the organization",
+};
+const SHARING_BADGE = { multilateral: "any institution", bilateral: "one institution" };
+// What "open to any institution" does and does not promise, wherever it is shown.
+const SHARING_CAVEAT =
+  "Open to users of any institution's identity provider in principle. Whether you get in still depends on your identity provider releasing the attributes the service needs, and on any subscription it requires.";
+const SHARING_SOURCE = {
+  metadata: "Decided from the metadata",
+  generated: "Claude's reading of this service's metadata",
+};
+// What decided a service's environment (`environment_source` on results).
+const ENVIRONMENT_SOURCE = {
+  metadata: "Read from a marker in the entityID, the name, or the endpoint hosts",
+  generated: "Claude's reading of this service's metadata",
+};
 const BASIS_NOTES = {
   metadata: "Based only on this service's metadata.",
   metadata_and_general_knowledge: "Based on this service's metadata plus general knowledge about the product it names.",
@@ -153,7 +212,17 @@ function serviceCard(s) {
     h(
       "div",
       { class: "badges" },
-      NON_PRODUCTION[s.environment] && h("span", { class: "badge env" }, NON_PRODUCTION[s.environment]),
+      NON_PRODUCTION[s.environment] && h("span", { class: "badge env", title: ENVIRONMENT_SOURCE[s.environment_source] }, NON_PRODUCTION[s.environment]),
+      SHARING_BADGE[s.sharing] &&
+        h(
+          "span",
+          {
+            class: `badge sharing ${s.sharing}`,
+            title: [SHARING_SOURCE[s.sharing_source], s.sharing === "multilateral" ? SHARING_CAVEAT : null].filter(Boolean).join(". "),
+          },
+          s.sharing_source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "),
+          SHARING_BADGE[s.sharing],
+        ),
       s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
       cats.map((c) => h("span", { class: "badge cat" }, CATEGORY_LABELS[c] || c)),
       s.federation_name && h("span", { class: "badge" }, `${flag(s.countries[0])} ${s.federation_name}`.trim()),
@@ -216,8 +285,12 @@ async function interpretAndGo(text, form) {
 const FIELD_LABELS = {
   federation: "Registered by",
   country: "Country",
+  region: "Region",
   category: "Category",
   availability: "Availability",
+  environment: "Environment",
+  sharing: "Open to",
+  sector: "Run by",
   attribute: "Requests",
   source: "Seen in",
   provider_type: "Provider type",
@@ -252,6 +325,20 @@ function readingBanner(params, a) {
 
 async function landing() {
   document.body.classList.add("landing");
+  // Three examples, different on each visit, so every kind of search gets shown
+  // without crowding the box. The first three stand in until the list arrives.
+  const tryLink = (ex) => h("a", { href: "#", onclick: (e) => (e.preventDefault(), (input.value = ex), interpretAndGo(ex, form)) }, ex);
+  const tryRow = h(
+    "div",
+    { class: "quick try" },
+    h("span", {}, "try:"),
+    ["journals not in InCommon", "test instances of Canvas", "services anyone in eduGAIN can use"].map(tryLink),
+  );
+  examples().then((list) => {
+    if (list.length < 3) return;
+    const picks = [...list].sort(() => Math.random() - 0.5).slice(0, 3);
+    fill(tryRow, h("span", {}, "try:"), picks.map((ex) => tryLink(ex.query)));
+  });
   const canvas = h("canvas", { "aria-hidden": "true" });
   const input = h("input", {
     type: "search",
@@ -288,18 +375,7 @@ async function landing() {
           h("a", { href: "#/search?availability=edugain-only" }, "Beyond InCommon"),
           h("a", { href: "#/providers" }, "By provider"),
         ),
-        h(
-          "div",
-          { class: "quick try" },
-          h("span", {}, "try:"),
-          [
-            "journals not in InCommon",
-            "UK federation services that need ORCID",
-            "anonymous access services exported to eduGAIN",
-          ].map((ex) =>
-            h("a", { href: "#", onclick: (e) => (e.preventDefault(), (input.value = ex), interpretAndGo(ex, form)) }, ex),
-          ),
-        ),
+        tryRow,
       ),
     ),
   );
@@ -327,8 +403,12 @@ async function landing() {
 
 const FACET_ORDER = [
   ["availability", "Availability"],
+  ["environment", "Environment"],
+  ["sharing", "Open to"],
+  ["sector", "Run by"],
   ["category", "Category"],
   ["federation", "Registered by"],
+  ["region", "Region"],
   ["country", "Country"],
   ["attribute", "Requested attribute"],
   ["source", "Seen in"],
@@ -370,7 +450,7 @@ async function search(params) {
     const { nl, ...query } = params;
     [page, feds] = await Promise.all([
       api("/v1/services", { ...query, per_page: 24 }),
-      params.federation ? fedNames() : null,
+      params.federation ? fedIndex() : null,
       nl &&
         answer(nl)
           .then((r) => banner.replaceWith(readingBanner(params, r)))
@@ -386,10 +466,12 @@ async function search(params) {
     const values = page.facets[key] || [];
     if (!values.length) continue;
     const active = params[key];
+    const selected = listOf(active);
+    const same = key === "federation" ? (a, b) => fedKey(feds, a) === fedKey(feds, b) : (a, b) => a === b;
     const list = h("div", {});
     const limit = 8;
     values.forEach((v, i) => {
-      const on = key === "category" ? (active || "").split(",").includes(v.value) : active === v.value;
+      const on = key in MULTI ? selected.some((a) => same(a, v.value)) : active === v.value;
       const btn = h(
         "button",
         {
@@ -398,15 +480,11 @@ async function search(params) {
           hidden: i >= limit && !on,
           onclick: () => {
             let next = on ? "" : v.value;
-            if (key === "category") {
-              const set = new Set((active || "").split(",").filter(Boolean));
-              on ? set.delete(v.value) : set.add(v.value);
-              next = [...set].join(",");
-            }
+            if (key in MULTI) next = (on ? selected.filter((a) => !same(a, v.value)) : [...selected, v.value]).join(",");
             refine({ [key]: next });
           },
         },
-        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
+        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : key === "region" ? bare(v.label) : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
         h("span", { class: "n" }, fmt(v.count)),
       );
       list.append(btn);
@@ -425,33 +503,54 @@ async function search(params) {
         },
         `+ ${values.length - limit} more`,
       );
-    facetsEl.append(h("div", { class: "facet" }, h("h3", {}, label), list, more));
+    const mode = key in MULTI && selected.length > 1 && h("span", { class: "mode" }, `matching ${MULTI[key]}`);
+    facetsEl.append(h("div", { class: "facet" }, h("h3", {}, label, mode), list, more));
   }
 
   // Active filters as removable chips, labeled the way the facets label them.
   const chipLabel = (k, v) =>
     k === "availability"
       ? AVAILABILITY[v] || v
-      : k === "category"
-        ? CATEGORY_LABELS[v] || v
-        : (k === "federation" && feds?.get(v.toLowerCase())) ||
-          (page.facets[k] || []).find((f) => f.value.toLowerCase() === v.toLowerCase())?.label ||
-          v;
-  const chips =FACET_ORDER.filter(([k]) => params[k]).flatMap(([k, label]) =>
-    (k === "category" ? params[k].split(",") : [params[k]]).map((v) =>
-      h(
-        "button",
-        {
-          class: "chip",
-          type: "button",
-          onclick: () => {
-            const rest = k === "category" ? params[k].split(",").filter((x) => x !== v).join(",") : "";
-            refine({ [k]: rest });
-          },
-        },
-        `${label}: ${chipLabel(k, v)} ×`,
-      ),
-    ),
+      : k === "environment" || k === "sharing" || k === "sector"
+        ? ({ environment: ENVIRONMENT, sharing: SHARING, sector: SECTOR }[k])[v] || v
+        : k === "category"
+          ? CATEGORY_LABELS[v] || v
+          : (k === "federation" && feds?.get(v.toLowerCase())?.name) ||
+            (page.facets[k] || []).find((f) => f.value.toLowerCase() === v.toLowerCase())?.label ||
+            v;
+  const remove = (k, v) => () => refine({ [k]: k in MULTI ? listOf(params[k]).filter((x) => x !== v).join(",") : "" });
+  const chips = FACET_ORDER.filter(([k]) => params[k]).flatMap(([k, label]) =>
+    (k in MULTI ? listOf(params[k]) : [params[k]]).map((v) => {
+      const region = k === "region" && (page.regions || []).find((r) => r.key === v.toLowerCase());
+      if (!region) return h("button", { class: "chip", type: "button", onclick: remove(k, v) }, `${label}: ${chipLabel(k, v)} ×`);
+      // A region is one chip that opens to the countries it stood for, and where that list comes from.
+      return h(
+        "span",
+        { class: "chip region-chip" },
+        h(
+          "details",
+          {},
+          h("summary", {}, `${label}: ${bare(region.label)} · ${region.countries.length} countries`),
+          h(
+            "div",
+            { class: "region-list" },
+            region.countries.map((c) => h("span", { title: c }, `${flag(c)} ${c}`)),
+            h(
+              "p",
+              { class: "region-source" },
+              region.as_of && region.kind !== "geographic" ? `Membership as of ${region.as_of}. ` : "",
+              region.note ? `${region.note} ` : "",
+              Object.keys(region.left || {}).length
+                ? `Former members: ${Object.entries(region.left).map(([cc, d]) => `${flag(cc)} ${cc} (left ${d})`).join(", ")}. `
+                : "",
+              h("a", { href: region.url, target: "_blank", rel: "noopener noreferrer" }, region.source),
+              `, checked ${region.checked}.`,
+            ),
+          ),
+        ),
+        h("button", { class: "chip-x", type: "button", "aria-label": `Remove ${label}: ${bare(region.label)}`, onclick: remove(k, v) }, "×"),
+      );
+    }),
   );
   if (params.provider) chips.push(h("button", { class: "chip", type: "button", onclick: () => refine({ provider: "" }) }, "Provider filter ×"));
 
@@ -485,6 +584,43 @@ async function search(params) {
         h("button", { class: "btn", disabled: page.page >= pages, onclick: () => go("/search", { ...params, page: page.page + 1 }) }, "Next →"),
       ),
   );
+}
+
+// "Test, from "test" in the entityID's host", "Production, as Claude read it": the
+// value with what decided it, so a generated reading is never shown as published.
+function environmentNote(env) {
+  if (!env) return "unknown";
+  const label = ENVIRONMENT[env.value] || env.value;
+  if (env.source === "metadata") return `${label}, from ${env.evidence}`;
+  if (env.source === "generated") return [h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "), `${label}, as Claude read this service's metadata`];
+  return "Unknown: nothing in the metadata marks it, and there is no summary to go by";
+}
+
+// The organization's sectors and what decided them; a generated reading is marked.
+function sectorNote(sec) {
+  if (!sec || !sec.sectors.length) return "Unknown: the organization's name does not say, and Claude has not read it yet";
+  return [
+    sec.source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "\u2726 "),
+    h("b", {}, sec.sectors.map((k) => SECTOR[k] || k).join(", ")),
+    `, ${SECTOR_SOURCE[sec.source] || ""}`,
+    sec.reason ? `. ${sec.reason.replace(/\.$/, "")}.` : ".",
+    sec.source === "generated" && h("span", { class: "gen-note" }, ` (${sec.model}, ${(sec.generated_at || "").slice(0, 10)}; may be wrong.)`),
+  ];
+}
+
+// The label, why, and who decided it; a generated reading is marked and dated, and
+// "any institution" always comes with what it does not promise.
+function sharingNote(sh) {
+  if (!sh || sh.value === "unknown") return "Unknown: the metadata does not say, and Claude has not read it yet";
+  const cluster = sh.signals?.tenant_cluster;
+  return [
+    sh.source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "),
+    h("b", {}, SHARING[sh.value]),
+    sh.reason ? `. ${sh.reason.replace(/\.$/, "")}.` : ".",
+    sh.source === "generated" && h("span", { class: "gen-note" }, ` Claude's reading (${sh.model}, ${(sh.generated_at || "").slice(0, 10)}); may be wrong.`),
+    cluster && sh.source === "generated" && h("div", { class: "mono", style: "color:var(--muted)" }, `One of ${fmt(cluster.size)} registrations at ${cluster.pattern}`),
+    sh.value === "multilateral" && h("div", { style: "color:var(--muted);font-size:12px;margin-top:4px" }, SHARING_CAVEAT),
+  ];
 }
 
 function langList(map) {
@@ -583,7 +719,6 @@ async function serviceView(id) {
               "p",
               { class: "gen-note" },
               BASIS_NOTES[s.enrichment.basis] || "",
-              NON_PRODUCTION[s.enrichment.environment] ? ` Looks like a ${s.enrichment.environment} instance.` : "",
               ` Generated ${s.enrichment.generated_at.slice(0, 10)} by ${s.enrichment.model}; may be wrong.`,
             ),
           ),
@@ -600,6 +735,12 @@ async function serviceView(id) {
             s.registration.instant && [h("dt", {}, "Registered"), h("dd", {}, s.registration.instant.slice(0, 10))],
             h("dt", {}, "Seen in"),
             h("dd", {}, s.sources.map((x) => (x === "incommon" ? "InCommon aggregate" : "eduGAIN aggregate")).join(", ")),
+            h("dt", {}, "Environment"),
+            h("dd", {}, environmentNote(d.environment)),
+            h("dt", {}, "Run by"),
+            h("dd", {}, sectorNote(d.sector)),
+            h("dt", {}, "Open to"),
+            h("dd", {}, sharingNote(d.sharing)),
             s.also_registered_by?.length > 0 && [h("dt", {}, "Also registered by"), h("dd", {}, s.also_registered_by.join(", "))],
           ),
         ),
@@ -856,12 +997,92 @@ async function federationsView(params) {
   );
 }
 
+// What each filter matches and how they combine, for people rather than API clients.
+const FILTER_HELP = [
+  ["Registered by", "The federation that registered the service. Pick several and a service registered by any of them matches."],
+  ["Country and region", "The registering federation's country. A region or grouping stands for its countries, and countries and regions together are one set of places: a service in any of them matches. A federation that lists several countries is in a region when any of them is."],
+  ["Category", "Entity categories and certifications, such as Research & Scholarship or Sirtfi. A service must carry every one you pick."],
+  ["Availability", "Where the service can be used from: InCommon only, exported to eduGAIN, or registered elsewhere and imported."],
+  ["Environment", "Production, test, staging, or development. It is read from markers in the entityID or the name (test., -dev, \u201c(Staging)\u201d), or else from Claude\u2019s reading of the metadata (marked \u2726). Every environment is shown unless you pick some; test and staging copies rank below the live service they mirror."],
+  ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],
+  ["Run by", "The kind of organization that registered the service: a university, a research institution, a company, a library, a museum or archive, government, a hospital, a school, a publisher, a nonprofit, or a federation or network. It describes who runs the service, not who it is for. It comes from the catalog\u2019s curation, else from the organization\u2019s name (\u201cUniversity\u201d, \u201cBibliothek\u201d, \u201cMinistry\u201d, \u201cGmbH\u201d) or a government domain, else from Claude\u2019s reading of the organization (marked \u2726). \u201cLibrary services\u201d, \u201cmuseum SPs\u201d, and \u201crun by libraries\u201d filter by it; \u201clibrary management system\u201d searches the words."],
+  ["Requests", "A user attribute the service asks identity providers for, such as email or ORCID."],
+  ["Seen in", "Which aggregate the service appears in: InCommon\u2019s or eduGAIN\u2019s."],
+];
+
+function howToSearch(regions, exs) {
+  const kinds = { geographic: "UN M49 region", political: "Grouping", network: "Research network" };
+  return h(
+    "section",
+    { class: "panel" },
+    h("h2", {}, "How to search"),
+    h(
+      "p",
+      {},
+      "Type a service\u2019s name, or ask in plain words. Above the results, the page shows how it read your search, and you can search the exact words instead. Different filters combine: a service must match all of them.",
+    ),
+    h("dl", { class: "kv" }, FILTER_HELP.map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])),
+    exs.length > 0 &&
+      h(
+        "div",
+        {},
+        h("h3", {}, "Searches it understands"),
+        h(
+          "ul",
+          { class: "linklist" },
+          exs.map((ex) => h("li", {}, h("a", { href: "#", onclick: (e) => (e.preventDefault(), interpretAndGo(ex.query)) }, ex.query), h("span", { style: "color:var(--muted)" }, ` \u2014 ${ex.shows}`))),
+        ),
+      ),
+    h(
+      "p",
+      { class: "gen-note" },
+      "\u2726 marks text Claude generated from a service\u2019s metadata: summaries, some environments, most \u201copen to\u201d labels, and some \u201crun by\u201d sectors. Each says which model wrote it and when, and it may be wrong.",
+    ),
+    regions.length > 0 &&
+      h(
+        "details",
+        {},
+        h("summary", {}, `Regions and groupings (${regions.length})`),
+        h(
+          "p",
+          {},
+          "Each stands for a list of countries with its source. Geographic regions follow UN M49. Groupings say when their membership took effect, and every list says when it was last checked against its source. Contested lists are left out on purpose.",
+        ),
+        h(
+          "div",
+          { class: "table-wrap" },
+          h(
+            "table",
+            {},
+            h("thead", {}, h("tr", {}, h("th", {}, "Region"), h("th", {}, "Kind"), h("th", { class: "num" }, "Countries"), h("th", {}, "Source"), h("th", {}, "Membership as of"), h("th", {}, "Checked"))),
+            h(
+              "tbody",
+              {},
+              regions.map((r) =>
+                h(
+                  "tr",
+                  {},
+                  h("td", {}, h("a", { href: `#/search?region=${encodeURIComponent(r.key)}` }, bare(r.label)), r.note && h("div", { style: "color:var(--muted);font-size:12px" }, r.note)),
+                  h("td", {}, kinds[r.kind] || r.kind),
+                  h("td", { class: "num" }, fmt(r.countries.length)),
+                  h("td", {}, h("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, r.source)),
+                  h("td", {}, r.kind === "geographic" ? "\u2014" : r.as_of || "\u2014"),
+                  h("td", {}, r.checked),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+  );
+}
+
 async function aboutView() {
   setNav("about");
   render(loading());
-  let m, cats;
+  let m, cats, regions, exs;
   try {
-    [m, cats] = await Promise.all([meta(), api("/v1/categories")]);
+    [m, cats, regions, exs] = await Promise.all([meta(), api("/v1/categories"), api("/v1/regions").catch(() => []), examples()]);
   } catch (e) {
     return render(failure(e));
   }
@@ -872,6 +1093,7 @@ async function aboutView() {
       { class: "lede" },
       "InCatalog lists the SAML service providers published in the InCommon and eduGAIN metadata aggregates. Everything except fields marked curated is derived from that metadata; the federation list comes from the eduGAIN database.",
     ),
+    howToSearch(regions || [], exs || []),
     h(
       "section",
       { class: "panel" },
@@ -960,6 +1182,134 @@ async function aboutView() {
   );
 }
 
+// ---------- release notes ----------
+
+// The API serves CHANGELOG.md per release as Markdown. Like everything else here it is
+// rendered as DOM nodes, never as HTML: headings, paragraphs, "-" lists (nested by
+// indent), and inline `code`, **bold**, and [links](url).
+function markdown(text) {
+  const out = [];
+  const lists = []; // open lists, outermost first: { el, indent, li }
+  let para = null;
+  const closeLists = (indent = -1) => {
+    while (lists.length && lists[lists.length - 1].indent > indent) lists.pop();
+  };
+  for (const line of text.split("\n")) {
+    const indent = line.length - line.trimStart().length;
+    const t = line.trim();
+    const heading = /^(#{3,4}) (.*)$/.exec(t);
+    const item = /^[-*] (.*)$/.exec(t);
+    if (!t) {
+      para = null;
+      continue;
+    }
+    if (heading) {
+      para = null;
+      closeLists();
+      out.push(h(heading[1].length === 3 ? "h3" : "h4", {}, inline(heading[2])));
+    } else if (item) {
+      para = null;
+      closeLists(indent);
+      let list = lists[lists.length - 1];
+      if (!list || list.indent < indent) {
+        const el = h("ul", {});
+        if (list) list.li.append(el);
+        else out.push(el);
+        list = { el, indent };
+        lists.push(list);
+      }
+      list.li = h("li", {}, inline(item[1]));
+      list.el.append(list.li);
+    } else if (lists.length && indent > 0) {
+      // A continuation line of the last item.
+      lists[lists.length - 1].li.append(" ", ...inline(t));
+    } else {
+      closeLists();
+      if (para) para.append(" ", ...inline(t));
+      else out.push((para = h("p", {}, inline(t))));
+    }
+  }
+  return out;
+}
+
+function inline(text) {
+  const nodes = [];
+  const re = /`([^`]+)`|\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let at = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > at) nodes.push(text.slice(at, m.index));
+    if (m[1] != null) nodes.push(h("code", {}, m[1]));
+    else if (m[2] != null) nodes.push(h("strong", {}, m[2]));
+    else nodes.push(safeUrl(m[4]) ? h("a", { href: m[4], target: "_blank", rel: "noopener noreferrer" }, m[3]) : m[3]);
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) nodes.push(text.slice(at));
+  return nodes;
+}
+
+const releaseTitle = (r) => (r.version === "Unreleased" ? "Unreleased" : `v${r.version}`);
+
+async function releasesView(wanted) {
+  setNav("");
+  render(loading());
+  let m, all;
+  try {
+    [m, all] = await Promise.all([meta(), api("/v1/releases")]);
+  } catch (e) {
+    return render(failure(e));
+  }
+  const version = (wanted || m.version).replace(/^v/, "");
+  const r = all.find((x) => x.version.toLowerCase() === version.toLowerCase());
+  const released = all.filter((x) => x.version !== "Unreleased");
+  const since = released[0] ? ` since v${released[0].version}` : "";
+  document.title = `${r ? releaseTitle(r) : version} release notes · InCatalog`;
+  render(
+    h("h1", { class: "page-title" }, "Release notes"),
+    h("p", { class: "lede" }, `This site is running InCatalog v${m.version}.`),
+    h(
+      "div",
+      { class: "release-cols" },
+      r
+        ? h(
+            "article",
+            { class: "panel release", "aria-labelledby": "release-title" },
+            h(
+              "header",
+              { class: "release-head" },
+              h("h2", { id: "release-title" }, releaseTitle(r)),
+              r.date && h("time", { datetime: r.date }, r.date),
+              r.current && h("span", { class: "badge cur" }, "running"),
+            ),
+            r.version === "Unreleased" && h("p", { class: "release-note" }, `Changes in this build${since} that are not yet in a release.`),
+            r.notes ? markdown(r.notes) : h("p", { class: "release-note" }, "No notes for this release."),
+          )
+        : h("div", { class: "panel release" }, h("p", {}, `There are no release notes for ${version}.`)),
+      h(
+        "nav",
+        { class: "panel release-list", "aria-label": "Releases" },
+        h("h2", {}, "All releases"),
+        h(
+          "ul",
+          { class: "linklist" },
+          all.map((x) =>
+            h(
+              "li",
+              {},
+              h(
+                "a",
+                { href: `#/releases/${encodeURIComponent(x.version.toLowerCase())}`, "aria-current": x === r ? "page" : null },
+                releaseTitle(x),
+              ),
+              x.date && h("span", { class: "release-date" }, ` ${x.date}`),
+              x.current && h("span", { class: "badge cur" }, "running"),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 // ---------- router ----------
 
 async function route() {
@@ -979,6 +1329,7 @@ async function route() {
   if (head === "providers") return id ? providerView(id) : providersView(params);
   if (head === "federations") return federationsView(params);
   if (head === "about") return aboutView();
+  if (head === "releases") return releasesView(id && decodeURIComponent(id));
   render(h("div", { class: "empty" }, "Lost in the underworld. ", h("a", { href: "#/" }, "Return to the surface.")));
 }
 
@@ -990,6 +1341,11 @@ meta()
     const lm = m.sources.map((s) => s.last_modified).filter(Boolean);
     document.getElementById("provenance").textContent =
       `Built from federation metadata · snapshot ${m.generated_at.replace("T", " ").replace("Z", " UTC")}` + (lm.length ? ` · aggregates published ${lm[0]}` : "");
+    const v = document.getElementById("version");
+    v.textContent = `v${m.version}`;
+    v.setAttribute("href", `#/releases/${encodeURIComponent(m.version)}`);
+    v.setAttribute("aria-label", `InCatalog v${m.version}: release notes`);
+    v.hidden = false;
   })
   .catch(() => {
     document.getElementById("provenance").textContent = "Catalog API unreachable";

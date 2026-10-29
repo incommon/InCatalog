@@ -10,6 +10,8 @@
 mod enrich;
 mod fetch;
 mod logos;
+mod sector;
+mod sharing;
 
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -79,7 +81,7 @@ struct Args {
     logo_max_checks: usize,
 
     /// Most websites to look up per run (each is one page fetch and one Claude call).
-    #[arg(long, env = "CATALOG_LOGO_MAX_LOOKUPS", default_value_t = 150)]
+    #[arg(long, env = "CATALOG_LOGO_MAX_LOOKUPS", default_value_t = 300)]
     logo_max_lookups: usize,
 
     /// Generated summaries and keywords: `auto` (batch, or at once when 25 or fewer
@@ -99,6 +101,23 @@ struct Args {
     /// whose submit reached the API but whose reply never came back.
     #[arg(long, env = "CATALOG_ENRICH_ADOPT_BATCH")]
     enrich_adopt_batch: Option<String>,
+
+    /// Most multilateral/bilateral requests to send to Claude per run (a tenant
+    /// cluster is one); 0 turns them off.
+    #[arg(long, env = "CATALOG_SHARING_MAX", default_value_t = 400)]
+    sharing_max: usize,
+
+    /// Where sharing labels are kept (default: `sharing-cache.json` beside `--out`).
+    #[arg(long, env = "CATALOG_SHARING_CACHE")]
+    sharing_cache: Option<String>,
+
+    /// Most organizations to ask Claude for a sector per run; 0 turns it off.
+    #[arg(long, env = "CATALOG_SECTOR_MAX", default_value_t = 400)]
+    sector_max: usize,
+
+    /// Where sector labels are kept (default: `sector-cache.json` beside `--out`).
+    #[arg(long, env = "CATALOG_SECTOR_CACHE")]
+    sector_cache: Option<String>,
 }
 
 #[tokio::main]
@@ -243,6 +262,72 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         Some(report)
     };
 
+    let sharing_report = if args.sharing_max == 0 {
+        None
+    } else {
+        let cache = args
+            .sharing_cache
+            .clone()
+            .unwrap_or_else(|| sibling(&args.out, "sharing-cache.json"));
+        let claude = catalog_claude::Claude::from_env(
+            "CATALOG_SHARING_MODEL",
+            "CATALOG_SHARING_EFFORT",
+            std::time::Duration::from_secs(60),
+        )
+        .await?;
+        let report = sharing::classify(
+            &mut services,
+            &federations,
+            sharing::Options {
+                cache: Location::parse(&cache)?,
+                claude,
+                max: args.sharing_max,
+            },
+        )
+        .await?;
+        tracing::info!(?report, "sharing");
+        if let Some(why) = &report.skipped_reason {
+            warnings.push(format!(
+                "{} multilateral/bilateral requests are waiting: {why}",
+                report.waiting
+            ));
+        }
+        Some(report)
+    };
+
+    let sector_report = if args.sector_max == 0 {
+        None
+    } else {
+        let cache = args
+            .sector_cache
+            .clone()
+            .unwrap_or_else(|| sibling(&args.out, "sector-cache.json"));
+        let claude = catalog_claude::Claude::from_env(
+            "CATALOG_SECTOR_MODEL",
+            "CATALOG_SECTOR_EFFORT",
+            std::time::Duration::from_secs(60),
+        )
+        .await?;
+        let report = sector::classify(
+            &mut services,
+            &federations,
+            sector::Options {
+                cache: Location::parse(&cache)?,
+                claude,
+                max: args.sector_max,
+            },
+        )
+        .await?;
+        tracing::info!(?report, "sectors");
+        if let Some(why) = &report.skipped_reason {
+            warnings.push(format!(
+                "{} organizations are waiting for a sector: {why}",
+                report.waiting
+            ));
+        }
+        Some(report)
+    };
+
     let logo_report = if args.skip_logos {
         None
     } else {
@@ -268,6 +353,12 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         )
         .await?;
         tracing::info!(?report, "logos");
+        if report.sites_skipped_network_down > 0 {
+            warnings.push(format!(
+                "website logo lookups stopped after repeated connection failures; {} sites wait for the next run",
+                report.sites_skipped_network_down
+            ));
+        }
         if let Some(why) = &report.lookup_skipped_reason {
             warnings.push(format!(
                 "{} services have no working logo; website lookup skipped: {why}",
@@ -303,6 +394,8 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         "warnings": snapshot.warnings,
         "logos": logo_report,
         "summaries": enrich_report,
+        "sharing": sharing_report,
+        "sectors": sector_report,
     }))
 }
 

@@ -1,0 +1,70 @@
+# cargo-about — third-party attribution generation.
+#   make notices   (cargo about generate --offline --locked --fail ...)
+# The image build runs the same command (Dockerfile); the output is not committed.
+# --offline keeps it reproducible: online, cargo-about also consults
+# clearlydefined.io and the crates' git repositories, which answer differently
+# from run to run.
+# Produces the aggregated dependency license/copyright notices shipped in the
+# container image (Apache-2.0 §4 + the MIT/BSD/ISC attribution clauses).
+# The accepted set mirrors deny.toml's allow-list.
+
+# Pin to the Linux deployment targets so the generated file is host-independent
+# (identical whether generated on a dev macOS box or the Linux CI runner) and
+# reflects exactly what ships in the linux/arm64 image.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+]
+# Dev-dependencies aren't distributed in the binaries/image.
+ignore-dev-dependencies = true
+
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unlicense",
+    "CDLA-Permissive-2.0",
+]
+
+# The per-crate MPL-2.0 exceptions in deny.toml (Servo's CSS engine, via scraper).
+[cssparser]
+accepted = ["MPL-2.0"]
+
+[cssparser-macros]
+accepted = ["MPL-2.0"]
+
+[dtoa-short]
+accepted = ["MPL-2.0"]
+
+[selectors]
+accepted = ["MPL-2.0"]
+
+# miniz_oxide ships its MIT text twice, as LICENSE and LICENSE-MIT.md, which
+# differ by one blank line. Unpinned, cargo-about takes whichever the
+# filesystem lists first, so macOS and the Linux CI runner disagree and the
+# drift check fails. Pin the file. If a new release changes it, the checksum
+# no longer matches and cargo-about warns that the clarification failed.
+[miniz_oxide.clarify]
+license = "MIT OR Zlib OR Apache-2.0"
+
+[[miniz_oxide.clarify.files]]
+path = "LICENSE-MIT.md"
+license = "MIT"
+checksum = "799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d"
+
+[[miniz_oxide.clarify.files]]
+path = "LICENSE-ZLIB.md"
+license = "Zlib"
+checksum = "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39"
+
+[[miniz_oxide.clarify.files]]
+path = "LICENSE-APACHE.md"
+license = "Apache-2.0"
+checksum = "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"

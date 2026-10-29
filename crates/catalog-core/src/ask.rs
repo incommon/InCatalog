@@ -40,6 +40,10 @@ pub struct AskResult {
 const SOFTEST_FIRST: &[(&str, &str)] = &[
     ("attribute", "Requests"),
     ("country", "Country"),
+    ("region", "Region"),
+    ("environment", "Environment"),
+    ("sharing", "Sharing"),
+    ("sector", "Run by"),
     ("source", "Seen in"),
     ("federation", "Registered by"),
     ("provider_type", "Provider type"),
@@ -141,6 +145,10 @@ impl Catalog {
             q: p.q.clone(),
             federation: p.federation.clone(),
             country: p.country.clone(),
+            region: p.region.clone(),
+            environment: p.environment.clone(),
+            sharing: p.sharing.clone(),
+            sector: p.sector.clone(),
             category: p.category.clone(),
             availability: p.availability.clone(),
             attribute: p.attribute.clone(),
@@ -159,6 +167,10 @@ fn get<'a>(p: &'a InterpretedParams, field: &str) -> Option<&'a String> {
     match field {
         "federation" => p.federation.as_ref(),
         "country" => p.country.as_ref(),
+        "region" => p.region.as_ref(),
+        "environment" => p.environment.as_ref(),
+        "sharing" => p.sharing.as_ref(),
+        "sector" => p.sector.as_ref(),
         "category" => p.category.as_ref(),
         "availability" => p.availability.as_ref(),
         "attribute" => p.attribute.as_ref(),
@@ -172,6 +184,10 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
     match field {
         "federation" => p.federation.take(),
         "country" => p.country.take(),
+        "region" => p.region.take(),
+        "environment" => p.environment.take(),
+        "sharing" => p.sharing.take(),
+        "sector" => p.sector.take(),
         "category" => p.category.take(),
         "availability" => p.availability.take(),
         "attribute" => p.attribute.take(),
@@ -181,12 +197,14 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
     }
 }
 
+/// Categories must all hold ("R&S + Sirtfi"); the rest are alternatives
+/// ("SWAMID or DFN-AAI", "Sweden or Norway", "Test or Staging").
 fn describe(c: &Catalog, field: &str, value: &str) -> String {
     value
         .split(',')
         .map(|v| c.vocab().label(field, v))
         .collect::<Vec<_>>()
-        .join(" + ")
+        .join(if field == "category" { " + " } else { " or " })
 }
 
 #[cfg(test)]
@@ -258,10 +276,52 @@ mod tests {
     }
 
     #[test]
+    fn several_federations_are_described_as_alternatives() {
+        let c = catalog();
+        let mut r = reading(&c, "journal");
+        r.params.federation = Some("X,Y".into());
+        let a = c.ask(r);
+        assert_eq!(a.total, 1);
+        assert!(a.relaxed.unwrap().contains("Registered by: X or Y"));
+    }
+
+    #[test]
     fn says_when_nothing_matches_at_all() {
         let c = catalog();
         let r = c.ask(reading(&c, "adobe"));
         assert_eq!(r.total, 0);
         assert!(r.relaxed.unwrap().contains("adobe"));
+    }
+
+    #[test]
+    fn drops_an_environment_that_finds_nothing() {
+        let c = catalog();
+        let r = c.ask(reading(&c, "test instances of the lab notebook"));
+        assert_eq!(r.reading.params.environment.as_deref(), Some("test"));
+        assert_eq!(r.params.environment, None);
+        assert_eq!(r.total, 1);
+        assert!(r.relaxed.unwrap().contains("Environment: Test"));
+
+        let mut r = reading(&c, "journal");
+        r.params.environment = Some("test,staging".into());
+        assert!(c
+            .ask(r)
+            .relaxed
+            .unwrap()
+            .contains("Environment: Test or Staging"));
+    }
+
+    #[test]
+    fn drops_a_region_that_finds_nothing() {
+        let c = catalog();
+        let mut r = reading(&c, "journal");
+        r.params.region = Some("brics,eu".into());
+        let a = c.ask(r);
+        assert_eq!(a.params.region, None);
+        assert_eq!(a.total, 1);
+        assert!(a
+            .relaxed
+            .unwrap()
+            .contains("Region: BRICS or the European Union"));
     }
 }

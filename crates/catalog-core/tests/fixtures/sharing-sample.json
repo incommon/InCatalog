@@ -1,0 +1,4139 @@
+{
+ "about": "Hand-labeled services for checking the sharing classifier (catalog-core/src/sharing.rs) and its prompt (catalog-ingest/src/sharing.rs). Labels by Claude from public knowledge of each service, for review. Taken from the 2026-10-28 snapshot; `cluster` is the tenant cluster each was in across that whole snapshot.",
+ "samples": [
+  {
+   "label": "bilateral",
+   "why": "Per-campus Zoom tenant.",
+   "cluster": {
+    "pattern": "https://*.zoom.us",
+    "size": 226,
+    "registrant": "Zoom Video Communications, Inc."
+   },
+   "service": {
+    "id": "428a9e452226e5a8fa8ab54e4b915675269a6655",
+    "entity_id": "https://alaska.zoom.us",
+    "display_names": {
+     "en": "Zoom - University of Alaska Statewide System"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Zoom - University of Alaska Statewide System"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://zoom.us"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "display_names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "urls": {
+      "en": "http://www.zoom.us"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Internet2's own Zoom tenant, not its IAM platform.",
+   "cluster": {
+    "pattern": "https://*.zoom.us",
+    "size": 226,
+    "registrant": "Zoom Video Communications, Inc."
+   },
+   "service": {
+    "id": "567ff42a416a9bd33b9a30c8bfa5df4d5437fddf",
+    "entity_id": "https://internet2.zoom.us",
+    "display_names": {
+     "en": "Zoom - Internet2"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Zoom - Internet2"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://zoom.us"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "display_names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "urls": {
+      "en": "http://www.zoom.us"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "GÉANT staff Zoom tenant.",
+   "cluster": {
+    "pattern": "https://*.zoom.us",
+    "size": 226,
+    "registrant": "Zoom Video Communications, Inc."
+   },
+   "service": {
+    "id": "11c6f0e3858c2436d050cfb815e8c9eff7d51138",
+    "entity_id": "https://geant.zoom.us",
+    "display_names": {
+     "en": "Zoom - GÉANT Staff Identity Provider"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Zoom - GÉANT Staff Identity Provider"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://zoom.us"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "display_names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "urls": {
+      "en": "http://www.zoom.us"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus ZoomGov tenant.",
+   "cluster": {
+    "pattern": "https://*.zoomgov.com",
+    "size": 6,
+    "registrant": "Zoom Video Communications, Inc."
+   },
+   "service": {
+    "id": "27c9b9625748670f55d6a888b3a205c3d7017fcc",
+    "entity_id": "https://arizona-secure-edu.zoomgov.com",
+    "display_names": {
+     "en": "Zoom - The University of Arizona"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Zoom - The University of Arizona"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://zoomgov.com"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "display_names": {
+      "en": "Zoom Video Communications, Inc."
+     },
+     "urls": {
+      "en": "http://www.zoom.us"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus Canvas tenant.",
+   "cluster": {
+    "pattern": "http://*.instructure.com/saml2",
+    "size": 182,
+    "registrant": "Instructure, Inc"
+   },
+   "service": {
+    "id": "f0de5d15f69fa96242cb29f3709b80acfa0160fa",
+    "entity_id": "http://4cd.instructure.com/saml2",
+    "display_names": {
+     "en": "Contra Costa Community College District (Canvas)"
+    },
+    "descriptions": {
+     "en": "Contra Costa Community College District (Canvas)"
+    },
+    "service_names": {
+     "en": "Contra Costa Community College District (Canvas)"
+    },
+    "service_descriptions": {
+     "en": "Contra Costa Community College District (Canvas)"
+    },
+    "information_urls": {
+     "en": "https://canvaslms.com"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Instructure, Inc"
+     },
+     "display_names": {
+      "en": "Instructure, Inc"
+     },
+     "urls": {
+      "en": "http://www.instructure.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus Canvas tenant.",
+   "cluster": {
+    "pattern": "http://*.instructure.com/saml2",
+    "size": 182,
+    "registrant": "Instructure, Inc"
+   },
+   "service": {
+    "id": "4c4f700bb67fc4170a369ba43ea27ddc2a08b416",
+    "entity_id": "http://baylorcatalog.instructure.com/saml2",
+    "display_names": {
+     "en": "Baylor CE (Canvas)"
+    },
+    "descriptions": {
+     "en": "Baylor CE (Canvas)"
+    },
+    "service_names": {
+     "en": "Baylor CE (Canvas)"
+    },
+    "service_descriptions": {
+     "en": "Baylor CE (Canvas)"
+    },
+    "information_urls": {
+     "en": "https://www.instructure.com/canvas"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Instructure, Inc"
+     },
+     "display_names": {
+      "en": "Instructure, Inc"
+     },
+     "urls": {
+      "en": "http://www.instructure.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus Canvas tenant.",
+   "cluster": {
+    "pattern": "http://*.instructure.com/saml2",
+    "size": 182,
+    "registrant": "Instructure, Inc"
+   },
+   "service": {
+    "id": "3f723e75da23c35fb1103bf128e0a4adf18857b1",
+    "entity_id": "http://csusm.instructure.com/saml2",
+    "display_names": {
+     "en": "California State University - San Marcos - Canvas"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "California State University - San Marcos - Canvas"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://canvaslms.com"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Instructure, Inc"
+     },
+     "display_names": {
+      "en": "Instructure, Inc"
+     },
+     "urls": {
+      "en": "http://www.instructure.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus Qualtrics tenant.",
+   "cluster": {
+    "pattern": "https://*.co1.qualtrics.com/wrsaml/simplesaml/www/module.php/saml/sp/metadata.php/default-sp",
+    "size": 78,
+    "registrant": "Qualtrics Labs, Inc."
+   },
+   "service": {
+    "id": "62ea66a9584a44f8951f7928fc47049a5f09aa2f",
+    "entity_id": "https://albany.co1.qualtrics.com/WRSAML/simplesaml/www/module.php/saml/sp/metadata.php/default-sp",
+    "display_names": {
+     "en": "Qualtrics - albany"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Qualtrics - albany"
+    },
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Qualtrics Labs, Inc."
+     },
+     "display_names": {
+      "en": "Qualtrics Labs, Inc."
+     },
+     "urls": {
+      "en": "http://www.qualtrics.com"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.1",
+      "friendly_name": "eduPersonAffiliation",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "One library's hosted Alma.",
+   "cluster": {
+    "pattern": "https://*.alma.exlibrisgroup.com/mng/login",
+    "size": 213,
+    "registrant": "Ex Libris North America"
+   },
+   "service": {
+    "id": "31ba876559228cadcf882b21ea65851b5b60d1db",
+    "entity_id": "https://alliance-pugetsound.alma.exlibrisgroup.com/mng/login",
+    "display_names": {
+     "en": "Exlibris Hosted Alma - ALLIANCE-UPUGS"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Ex Libris North America"
+     },
+     "display_names": {
+      "en": "Ex Libris North America"
+     },
+     "urls": {
+      "en": "http://exlibrisgroup.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "One library's hosted Primo.",
+   "cluster": {
+    "pattern": "https://*.primo.exlibrisgroup.com/mng/login",
+    "size": 193,
+    "registrant": "Ex Libris North America"
+   },
+   "service": {
+    "id": "1bc63fcc5db6156b351e2accd51cb9522e6c66a1",
+    "entity_id": "https://alliance-ewu.primo.exlibrisgroup.com/mng/login",
+    "display_names": {
+     "en": "ExLibris - Hosted Primo VE - ALLIANCE-EWU"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Ex Libris North America"
+     },
+     "display_names": {
+      "en": "Ex Libris North America"
+     },
+     "urls": {
+      "en": "http://exlibrisgroup.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-customer Symplicity instance.",
+   "cluster": {
+    "pattern": "https://*.symplicity.com/sso/",
+    "size": 515,
+    "registrant": "Symplicity Corporation"
+   },
+   "service": {
+    "id": "4d3d38d0b6c9098a796d262d1469bf1bb757013c",
+    "entity_id": "https://c01-shib.symplicity.com/sso/",
+    "display_names": {
+     "en": "Symplicity Basic Shibboleth c01"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Symplicity Corporation"
+     },
+     "display_names": {
+      "en": "Symplicity Corporation"
+     },
+     "urls": {
+      "en": "http://www.symplicity.com"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus PeopleAdmin tenant.",
+   "cluster": {
+    "pattern": "https://*.peopleadmin.com/shibboleth",
+    "size": 288,
+    "registrant": "PeopleAdmin, Inc."
+   },
+   "service": {
+    "id": "86c6608b8e2196f5bd4fb5f3319d1ad1c07a89f3",
+    "entity_id": "https://elon.peopleadmin.com/shibboleth",
+    "display_names": {
+     "en": "PeopleAdmin, Inc."
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "PeopleAdmin, Inc."
+     },
+     "display_names": {
+      "en": "PeopleAdmin, Inc."
+     },
+     "urls": {
+      "en": "http://www.peopleadmin.com"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus InfoReady tenant.",
+   "cluster": {
+    "pattern": "https://*.infoready4.com/shibboleth",
+    "size": 286,
+    "registrant": "InfoReady Corp"
+   },
+   "service": {
+    "id": "5294fd1f6212cd7be36bf0f594c7c48cc7dda5d7",
+    "entity_id": "https://asu.infoready4.com/shibboleth",
+    "display_names": {
+     "en": "InfoReady Review - Arizona State University"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "InfoReady Review - Arizona State University"
+    },
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "InfoReady Corp"
+     },
+     "display_names": {
+      "en": "InfoReady Corp"
+     },
+     "urls": {
+      "en": "http://www.infoready4.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus Terra Dotta tenant.",
+   "cluster": {
+    "pattern": "https://*.terradotta.com/sp/shibboleth",
+    "size": 226,
+    "registrant": "Terra Dotta, LLC"
+   },
+   "service": {
+    "id": "71df2e2e0f3838f41b1cf3d6bc1b75883ce2eab8",
+    "entity_id": "https://agree-odu.terradotta.com/sp/shibboleth",
+    "display_names": {
+     "en": "Old Dominion University Agreements software powered by TerraDotta"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Old Dominion University Agreements software powered by TerraDotta"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "http://www.terradotta.com"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Terra Dotta, LLC"
+     },
+     "display_names": {
+      "en": "Terra Dotta, LLC"
+     },
+     "urls": {
+      "en": "http://www.terradotta.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus StarRez housing portal.",
+   "cluster": {
+    "pattern": "https://*.starrezhousing.com/starrezportalx/",
+    "size": 126,
+    "registrant": "StarRez, Inc."
+   },
+   "service": {
+    "id": "120a889f1b0507bf554493775cc44d42bcd1e2d9",
+    "entity_id": "https://amherst.starrezhousing.com/StarRezPortalX/",
+    "display_names": {
+     "en": "AMHERST StarRezPortalX"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://www.starrez.com"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "StarRez, Inc."
+     },
+     "display_names": {
+      "en": "StarRez, Inc."
+     },
+     "urls": {
+      "en": "https://www.starrez.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "One campus's authentication proxy.",
+   "cluster": {
+    "pattern": "https://*.proxy.cirrusidentity.com/sp",
+    "size": 74,
+    "registrant": "Cirrus Identity, Inc."
+   },
+   "service": {
+    "id": "0e422c7247442b8b136f5c5daeee8ec549bd58de",
+    "entity_id": "https://arizona.proxy.cirrusidentity.com/sp",
+    "display_names": {
+     "en": "Arizona Authentication Proxy"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Cirrus Identity, Inc."
+     },
+     "display_names": {
+      "en": "Cirrus Identity, Inc."
+     },
+     "urls": {
+      "en": "http://cirrusidentity.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "One college's hosted EZproxy.",
+   "cluster": {
+    "pattern": "https://*.idm.oclc.org/shibboleth",
+    "size": 17,
+    "registrant": "Online Computer Library Center Inc."
+   },
+   "service": {
+    "id": "dac39259d5c4afe2d3e2c57ea4a5a20a53fc57a2",
+    "entity_id": "https://colby.idm.oclc.org/shibboleth",
+    "display_names": {
+     "en": "Colby College Hosted EZproxy"
+    },
+    "descriptions": {
+     "en": "Colby's Hosted EZproxy server at OCLC"
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Online Computer Library Center Inc."
+     },
+     "display_names": {
+      "en": "Online Computer Library Center Inc."
+     },
+     "urls": {
+      "en": "http://www.oclc.org"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "One college's hosted EZproxy.",
+   "cluster": {
+    "pattern": "https://*.idm.oclc.org/shibboleth",
+    "size": 17,
+    "registrant": "Online Computer Library Center Inc."
+   },
+   "service": {
+    "id": "54b069aa9ae438cf3ea3316e4138f8741cb849b8",
+    "entity_id": "https://gettysburg.idm.oclc.org/shibboleth",
+    "display_names": {
+     "en": "OCLC Hosted EZproxy Gettysburg"
+    },
+    "descriptions": {
+     "en": "OCLC Hosted EZproxy for Gettysburg College"
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://www.oclc.org/"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Online Computer Library Center Inc."
+     },
+     "display_names": {
+      "en": "Online Computer Library Center Inc."
+     },
+     "urls": {
+      "en": "http://www.oclc.org"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Per-campus AcademicWorks tenant.",
+   "cluster": {
+    "pattern": "https://*.academicworks.com/shibboleth-sp",
+    "size": 146,
+    "registrant": "Blackbaud, Inc."
+   },
+   "service": {
+    "id": "708e29a90ab8581b306cc9ba1fd61c583766cb17",
+    "entity_id": "https://aces.academicworks.com/shibboleth-sp",
+    "display_names": {
+     "en": "AcademicWorks - University of Illinois: ACES"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Blackbaud, Inc."
+     },
+     "display_names": {
+      "en": "Blackbaud, Inc."
+     },
+     "urls": {
+      "en": "https://www.blackbaud.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "One library's Aeon.",
+   "cluster": {
+    "pattern": "https://*.aeon.atlas-sys.com/shibboleth",
+    "size": 71,
+    "registrant": "Atlas Systems, Inc."
+   },
+   "service": {
+    "id": "336b0bf3972670ea7b00045476dea7f1a03feffb",
+    "entity_id": "https://amherst.aeon.atlas-sys.com/shibboleth",
+    "display_names": {
+     "en": "Amherst College - Aeon"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Atlas Systems, Inc."
+     },
+     "display_names": {
+      "en": "Atlas Systems, Inc."
+     },
+     "urls": {
+      "en": "http://www.atlas-sys.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "UC Office of the President internal application.",
+   "cluster": {
+    "pattern": "https://*.ucop.edu",
+    "size": 88,
+    "registrant": "University of California - Office of the President"
+   },
+   "service": {
+    "id": "827a600f2e923430cbe11c66a4aa43f76f5d485d",
+    "entity_id": "https://aca.ucop.edu",
+    "display_names": {
+     "en": "ACAWeb"
+    },
+    "descriptions": {
+     "en": "The ACA Web Compliance (ACAWeb) is designed to improve the Affordable Care Act compliance process through a web based application and database."
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "University of California - Office of the President"
+     },
+     "display_names": {
+      "en": "University of California - Office of the President"
+     },
+     "urls": {
+      "en": "http://www.ucop.edu/welcome.html"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "UCLA's internal financial system.",
+   "cluster": {
+    "pattern": "https://*.it.ucla.edu/shibboleth-sp",
+    "size": 19,
+    "registrant": "University of California-Los Angeles"
+   },
+   "service": {
+    "id": "f226e04cc9ba8466eb99a0c5c374f5dfa1936c76",
+    "entity_id": "https://fswtrn.it.ucla.edu/shibboleth-sp",
+    "display_names": {
+     "en": "UCLA Financial Web"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "University of California-Los Angeles"
+     },
+     "display_names": {
+      "en": "University of California-Los Angeles"
+     },
+     "urls": {
+      "en": "http://www.ucla.edu/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Carnegie Mellon's financial aid service.",
+   "cluster": {
+    "pattern": "https://*.andrew.cmu.edu/shibboleth",
+    "size": 29,
+    "registrant": "Carnegie Mellon University"
+   },
+   "service": {
+    "id": "d84c428b27692efa36dceb8fcbadbb76e76b0cf8",
+    "entity_id": "https://fao.andrew.cmu.edu/shibboleth",
+    "display_names": {
+     "en": "Financial Aid or Student Accounts Service"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Carnegie Mellon University"
+     },
+     "display_names": {
+      "en": "Carnegie Mellon University"
+     },
+     "urls": {
+      "en": "http://www.cmu.edu/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Newcastle University's internal payment application, though published to eduGAIN.",
+   "cluster": {
+    "pattern": "https://*.ncl.ac.uk/shibboleth/metadata",
+    "size": 26,
+    "registrant": "University of Newcastle upon Tyne"
+   },
+   "service": {
+    "id": "2e27904f6d62fe1fe1f9dfb2ea6a7cb04ab95a65",
+    "entity_id": "https://appspay.ncl.ac.uk/shibboleth/metadata",
+    "display_names": {
+     "en": "Newcastle University AppsPay server"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "University of Newcastle upon Tyne"
+     },
+     "display_names": {
+      "en": "University of Newcastle upon Tyne"
+     },
+     "urls": {
+      "en": "http://appspay.ncl.ac.uk"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2017-04-11T13:54:22Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "One faculty's proxy at Ss. Cyril and Methodius University.",
+   "cluster": null,
+   "service": {
+    "id": "bb5fab5df7ae908dc1cbb53b9d64de49b2b9420e",
+    "entity_id": "https://arh.idp-proxy.finki.ukim.mk/module.php/saml/sp/metadata.php/default-sp",
+    "display_names": {},
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Faculty of Architecture, Ss. Cyril and Methodius University in Skopje"
+     },
+     "display_names": {
+      "en": "Faculty of Architecture, Ss. Cyril and Methodius University in Skopje"
+     },
+     "urls": {
+      "en": "http://arh.ukim.edu.mk"
+     }
+    },
+    "registration": {
+     "authority": "https://rr.aaiedu.mk",
+     "instant": "2020-04-02T11:45:55Z",
+     "policies": {}
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "AAIEDUMK"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Aberystwyth University's hosted Primo, published to eduGAIN.",
+   "cluster": null,
+   "service": {
+    "id": "c8d7750d114736dbd8cdf8520ae4efc739bacd75",
+    "entity_id": "https://abw-shib.hosted.exlibrisgroup.com/shib",
+    "display_names": {
+     "en": "Aberystwyth University - Primo"
+    },
+    "descriptions": {
+     "en": "This is an Ex Libris Primo Hosted SP on behalf of Aberystwyth University"
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Ex Libris (UK) Limited"
+     },
+     "display_names": {
+      "en": "This is a Shibboleth SP for Aberystwyth University"
+     },
+     "urls": {
+      "en": "http://exlibrisgroup.com/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2015-04-15T08:08:33Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Université de Bordeaux's own Moodle; declares the Code of Conduct.",
+   "cluster": {
+    "pattern": "https://*.u-bordeaux.fr/auth/shibboleth",
+    "size": 5,
+    "registrant": "Université de Bordeaux"
+   },
+   "service": {
+    "id": "97dc86eb308525b5f86e40eb28e759958d327fe3",
+    "entity_id": "https://fad.u-bordeaux.fr/auth/shibboleth",
+    "display_names": {
+     "en": "Bordeaux University - Moodle FAD",
+     "fr": "Université de Bordeaux - Moodle FAD"
+    },
+    "descriptions": {
+     "en": "Moodle Platform for remote learning",
+     "fr": "Plateforme pédagogique Moodle pour les formations à distance"
+    },
+    "service_names": {
+     "en": "Bordeaux University - Moodle FAD",
+     "fr": "Université de Bordeaux - Moodle FAD"
+    },
+    "service_descriptions": {
+     "en": "Moodle Platform for remote learning",
+     "fr": "Plateforme pédagogique Moodle pour les formations à distance"
+    },
+    "information_urls": {
+     "fr": "https://fad.u-bordeaux.fr/auth/shibboleth"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Université de Bordeaux"
+     },
+     "display_names": {
+      "en": "Université de Bordeaux"
+     },
+     "urls": {
+      "en": "http://www.u-bordeaux.fr"
+     }
+    },
+    "registration": {
+     "authority": "https://federation.renater.fr/",
+     "instant": "2016-09-16T14:28:16Z",
+     "policies": {
+      "en": "https://services.renater.fr/federation/en/documentation/engagement-conformite/metadata_registration_practice_statement"
+     }
+    },
+    "entity_categories": [
+     "https://federation.renater.fr/category/elearning",
+     "https://federation.renater.fr/scope/local",
+     "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+    ],
+    "categories": [
+     "code-of-conduct-v1"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.1",
+      "friendly_name": "uid",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.7135.1.2.1.10",
+      "friendly_name": "supannEtuId",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.3",
+      "friendly_name": "cn",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "FER"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "UC Agriculture and Natural Resources' identity management SP.",
+   "cluster": null,
+   "service": {
+    "id": "bd486f902617cc417d912d8de81cad4349a50557",
+    "entity_id": "https://sp.ucanr.edu/shibboleth",
+    "display_names": {
+     "en": "UCANR IDM Service Provider"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "University of California - Office of the President"
+     },
+     "display_names": {
+      "en": "University of California - Office of the President"
+     },
+     "urls": {
+      "en": "http://www.ucop.edu/welcome.html"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "Carnegie Mellon's own SP.",
+   "cluster": {
+    "pattern": "https://*.andrew.cmu.edu/shibboleth",
+    "size": 29,
+    "registrant": "Carnegie Mellon University"
+   },
+   "service": {
+    "id": "70623aec317ed7b2de7472b490c7d73fe895de57",
+    "entity_id": "https://cirrus-sp.andrew.cmu.edu/shibboleth",
+    "display_names": {
+     "en": "Cirrus SP Prod"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Carnegie Mellon University"
+     },
+     "display_names": {
+      "en": "Carnegie Mellon University"
+     },
+     "urls": {
+      "en": "http://www.cmu.edu/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "bilateral",
+   "why": "UC Office of the President internal application (dev).",
+   "cluster": null,
+   "service": {
+    "id": "05f7346ba5862effb0341ae0a9602e3448b48bb7",
+    "entity_id": "https://dev.aca.ucop.edu",
+    "display_names": {
+     "en": "Affordable Care Act Dev"
+    },
+    "descriptions": {},
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "University of California - Office of the President"
+     },
+     "display_names": {
+      "en": "University of California - Office of the President"
+     },
+     "urls": {
+      "en": "http://www.ucop.edu/welcome.html"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon"
+    ],
+    "availability": "incommon-only",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "The Internet2 IAM platform: any user at any IdP in eduGAIN.",
+   "cluster": null,
+   "service": {
+    "id": "e7c92201d85ed38c817ebe3a63866fd948f22d14",
+    "entity_id": "https://login.at.internet2.edu/Saml2/proxy_saml2_backend.xml",
+    "display_names": {
+     "en": "Internet2 Identity Services"
+    },
+    "descriptions": {
+     "en": "Login Service at Internet2"
+    },
+    "service_names": {
+     "en": "Internet2 Identity Services"
+    },
+    "service_descriptions": {
+     "en": "Login Service at Internet2"
+    },
+    "information_urls": {
+     "en": "https://comanage.at.internet2.edu/registry/pages/public/ICP-info-page"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Internet2"
+     },
+     "display_names": {
+      "en": "Internet2"
+     },
+     "urls": {
+      "en": "http://www.internet2.edu"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://refeds.org/category/research-and-scholarship",
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "CILogon: research cyberinfrastructure login for any institution.",
+   "cluster": null,
+   "service": {
+    "id": "ed6261546aa0607f40a3f04e6ee9e8e1da8dc047",
+    "entity_id": "https://cilogon.org/shibboleth",
+    "display_names": {
+     "en": "CILogon"
+    },
+    "descriptions": {
+     "en": "CILogon facilitates secure access to CyberInfrastructure (CI)."
+    },
+    "service_names": {
+     "en": "CILogon"
+    },
+    "service_descriptions": {
+     "en": "CILogon facilitates secure access to CyberInfrastructure (CI)."
+    },
+    "information_urls": {
+     "en": "https://www.cilogon.org/faq"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "University of Illinois at Urbana-Champaign"
+     },
+     "display_names": {
+      "en": "National Center for Supercomputing Applications"
+     },
+     "urls": {
+      "en": "http://www.ncsa.illinois.edu/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/research-and-scholarship",
+     "http://refeds.org/category/research-and-scholarship",
+     "https://refeds.org/category/personalized",
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "personalized",
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.11",
+      "friendly_name": "eduPersonAssurance",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oasis:names:tc:SAML:attribute:subject-id",
+      "friendly_name": "subject-id",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Open Science Framework, for researchers anywhere.",
+   "cluster": null,
+   "service": {
+    "id": "d1a16315f5a36fc0a7d997a1a71a77edd110a396",
+    "entity_id": "https://accounts.osf.io/shibboleth",
+    "display_names": {
+     "en": "Center for Open Science - Open Science Framework"
+    },
+    "descriptions": {
+     "en": "Our mission is to provide expertise, tools, and training to help researchers create and promote open science within their teams and institutions. Promoting these practices within the research funding and publishing communities accelerates scientific progress."
+    },
+    "service_names": {
+     "en": "Center for Open Science - Open Science Framework"
+    },
+    "service_descriptions": {
+     "en": "Our mission is to provide expertise, tools, and training to help researchers create and promote open science within their teams and institutions. Promoting these practices within the research funding and publishing communities accelerates scientific progress."
+    },
+    "information_urls": {
+     "en": "https://cos.io"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Center for Open Science, Inc."
+     },
+     "display_names": {
+      "en": "Center for Open Science, Inc."
+     },
+     "urls": {
+      "en": "https://cos.io/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/research-and-scholarship",
+     "http://refeds.org/category/research-and-scholarship",
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "LIGO collaboration service across many institutions.",
+   "cluster": null,
+   "service": {
+    "id": "d4a23cefe5ad5748ad74340910d49552ed076e46",
+    "entity_id": "https://gracedb.ligo.org/shibboleth-sp",
+    "display_names": {
+     "en": "Gravitational-wave Candidate Event Database"
+    },
+    "descriptions": {
+     "en": "GraceDB organizes candidate events from gravitational-wave searches and provides an environment to record information about follow-ups."
+    },
+    "service_names": {
+     "en": "Gravitational-wave Candidate Event Database"
+    },
+    "service_descriptions": {
+     "en": "GraceDB organizes candidate events from gravitational-wave searches and provides an environment to record information about follow-ups."
+    },
+    "information_urls": {
+     "en": "https://gracedb.ligo.org/SPInfo"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "LIGO Scientific Collaboration"
+     },
+     "display_names": {
+      "en": "LIGO Scientific Collaboration"
+     },
+     "urls": {
+      "en": "http://www.ligo.caltech.edu/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/research-and-scholarship",
+     "http://refeds.org/category/research-and-scholarship",
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "SLAC's collaboration registry for users from many institutions.",
+   "cluster": null,
+   "service": {
+    "id": "b349c360483deaf70a379fe7199e088036b01f82",
+    "entity_id": "https://comanage.iam-prod.slac.stanford.edu/shibboleth",
+    "display_names": {
+     "en": "SLAC COmanage"
+    },
+    "descriptions": {
+     "en": "SLAC COmanage"
+    },
+    "service_names": {
+     "en": "SLAC COmanage"
+    },
+    "service_descriptions": {
+     "en": "SLAC COmanage"
+    },
+    "information_urls": {
+     "en": "https://iam.slac.stanford.edu"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Stanford University"
+     },
+     "display_names": {
+      "en": "SLAC National Accelerator Laboratory"
+     },
+     "urls": {
+      "en": "http://www.stanford.edu/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://refeds.org/category/research-and-scholarship",
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "CLARIN research infrastructure.",
+   "cluster": null,
+   "service": {
+    "id": "e5fa8190cbcfc8bac65d15444248d1661b85f947",
+    "entity_id": "https://sp.vcr.clarin.eu",
+    "display_names": {
+     "de": "CLARIN Virtual Collection Registry",
+     "en": "CLARIN Virtual Collection Registry"
+    },
+    "descriptions": {
+     "de": "Für die Virtual Collection Registry.",
+     "en": "For the Virtual Collection Registry."
+    },
+    "service_names": {
+     "de": "CLARIN Virtual Collection Registry",
+     "en": "CLARIN Virtual Collection Registry"
+    },
+    "service_descriptions": {
+     "de": "Für die Virtual Collection Registry.",
+     "en": "For the Virtual Collection Registry."
+    },
+    "information_urls": {
+     "en": "https://www.clarin.eu/applications"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "de": "e459",
+      "en": "e459"
+     },
+     "display_names": {
+      "de": "CLARIN ERIC",
+      "en": "CLARIN ERIC"
+     },
+     "urls": {
+      "de": "http://clarin.eu",
+      "en": "http://clarin.eu"
+     }
+    },
+    "registration": {
+     "authority": "https://www.aai.dfn.de",
+     "instant": "2023-02-21T10:11:00Z",
+     "policies": {
+      "en": "https://www.aai.dfn.de/fileadmin/documents/mrps_dfn-aai_1.0.pdf"
+     }
+    },
+    "entity_categories": [
+     "http://www.geant.net/uri/dataprotection-code-of-conduct/v1",
+     "http://refeds.org/category/research-and-scholarship",
+     "http://clarin.eu/category/clarin-member"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "code-of-conduct-v1"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "DFN-AAI"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "ORCID, for researchers anywhere.",
+   "cluster": null,
+   "service": {
+    "id": "74cf263a2b4be44ada8e80b53b803aea7a38a459",
+    "entity_id": "https://orcid.org/saml2/sp/1",
+    "display_names": {
+     "en": "ORCID"
+    },
+    "descriptions": {
+     "en": "ORCID provides an identifier for individuals to use with their name as they engage in research, scholarship, and innovation activities. We provide open tools that enable transparent and trustworthy connections between researchers, their contributions, and affiliations. We provide this service to help people find information and to simplify reporting and analysis.",
+     "pt": "A ORCID fornece um identificador para indivíduos usarem com seu nome enquanto se engajam em atividades de pesquisa, bolsas de estudos e inovação. Fornecemos ferramentas de código livre que permitem conexões transparentes e confiáveis entre pesquisadores, suas contribuições e afiliações. Fornecemos este serviço para ajudar as pessoas a encontrarem informações e para simplificar o reporte e análise."
+    },
+    "service_names": {
+     "en": "ORCID"
+    },
+    "service_descriptions": {
+     "en": "ORCID’s vision is a world where all who participate in research, scholarship, and innovation are uniquely identified and connected to their contributions and affiliations across disciplines, borders, and time. We provide an identifier for these individuals to use with their name, and open tools that enable transparent and trustworthy connections between researchers, their contributions, and affiliations."
+    },
+    "information_urls": {
+     "en": "http://orcid.org/content/about-orcid"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "ORCID, Inc"
+     },
+     "display_names": {
+      "en": "ORCID"
+     },
+     "urls": {
+      "en": "http://orcid.org/"
+     }
+    },
+    "registration": {
+     "authority": "http://www.surfconext.nl/",
+     "instant": "2016-02-01T09:00:00Z",
+     "policies": {
+      "en": "https://support.surfconext.nl/edugain-reginfo"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.13",
+      "friendly_name": "eduPersonUniqueId",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "SURFCONEXT"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Elsevier ScienceDirect: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "22d2d3a3225f21888193392c08cb1e86da8c633b",
+    "entity_id": "https://sdauth.sciencedirect.com/",
+    "display_names": {
+     "en": "Elsevier"
+    },
+    "descriptions": {
+     "en": "Access Elsevier products using your institutional credentials"
+    },
+    "service_names": {
+     "en": "Elsevier"
+    },
+    "service_descriptions": {
+     "en": "Access Elsevier products using your institutional credentials"
+    },
+    "information_urls": {
+     "en": "https://service.elsevier.com/app/answers/detail/a_id/39097/supporthub/elsevieraccess/"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Elsevier"
+     },
+     "display_names": {
+      "en": "Elsevier"
+     },
+     "urls": {
+      "en": "http://www.elsevier.com"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7",
+      "friendly_name": "eduPersonEntitlement",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oasis:names:tc:SAML:attribute:pairwise-id",
+      "friendly_name": "pairwise-id",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oasis:names:tc:SAML:attribute:subject-id",
+      "friendly_name": "subject-id",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "JSTOR: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "585f9621adf21b97b7ebf431933829377615cb7c",
+    "entity_id": "https://shibbolethsp.jstor.org/shibboleth",
+    "display_names": {
+     "en": "ITHAKA Service Provider"
+    },
+    "descriptions": {
+     "en": "Service provider for JSTOR, Artstor and JSTOR Forum."
+    },
+    "service_names": {
+     "en": "ITHAKA Service Provider"
+    },
+    "service_descriptions": {
+     "en": "Service provider for JSTOR, Artstor and JSTOR Forum."
+    },
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "JSTOR"
+     },
+     "display_names": {
+      "en": "JSTOR"
+     },
+     "urls": {
+      "en": "http://www.jstor.org"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7",
+      "friendly_name": "eduPersonEntitlement",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "SpringerLink: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "b08b2baeffbe9dce89824755970c2ebeb6725fc0",
+    "entity_id": "https://fsso.springer.com",
+    "display_names": {
+     "en": "Springer"
+    },
+    "descriptions": {
+     "en": "The world's most comprehensive online collection of scientific, technological and medical journals."
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://www.springer.com/gp/about-springer"
+    },
+    "keywords": [
+     "Springer Service Provider",
+     "Identity",
+     "Sign-in",
+     "Login",
+     "Single Sign On",
+     "Publisher Access",
+     "Springer",
+     "SpringerLink",
+     "SpringerMaterials",
+     "Springer Professional",
+     "Nature Masterclasses"
+    ],
+    "organization": {
+     "names": {
+      "en": "Springer-Verlag London Limited"
+     },
+     "display_names": {
+      "en": "Springer-Verlag London Limited"
+     },
+     "urls": {
+      "en": "https://www.springernature.com/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2012-09-24T13:02:11Z",
+     "policies": {}
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Nature: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "3529a0564e4d91964fd0ced7f7f2ddefa33ec68f",
+    "entity_id": "https://secure.nature.com/shibboleth",
+    "display_names": {
+     "en": "Nature Research"
+    },
+    "descriptions": {
+     "en": "Nature Research serves the research community by publishing its most significant discoveries."
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://www.nature.com/nature/about"
+    },
+    "keywords": [
+     "Nature Service Provider",
+     "Identity",
+     "Sign-in",
+     "Login",
+     "Single Sign On",
+     "Publisher Access",
+     "Nature",
+     "Nano"
+    ],
+    "organization": {
+     "names": {
+      "en": "Springer Nature Limited"
+     },
+     "display_names": {
+      "en": "Springer Nature Limited"
+     },
+     "urls": {
+      "en": "https://www.springernature.com/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2009-10-16T15:51:05Z",
+     "policies": {}
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Taylor & Francis Online: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "1ae9182ea2d6ce7e4ecaf887e7b9bd65e2ff323b",
+    "entity_id": "https://www.tandfonline.com/shibboleth",
+    "display_names": {
+     "en": "Atypon Systems: Taylor & Francis Online"
+    },
+    "descriptions": {
+     "en": "Taylor & Francis Online provides access to over 1 million journals articles and access to 20,000 e-books for the academic, professional and business communities. Features include citation alerts and downloads, active reference linking and RSS feeds."
+    },
+    "service_names": {
+     "en": "Atypon Systems: Taylor & Francis Online"
+    },
+    "service_descriptions": {
+     "en": "Taylor & Francis Online provides access to over 1 million journals articles and access to 20,000 e-books for the academic, professional and business communities. Features include citation alerts and downloads, active reference linking and RSS feeds."
+    },
+    "information_urls": {
+     "en": "https://www.tandfonline.com/"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Atypon Systems, Inc"
+     },
+     "display_names": {
+      "en": "Atypon Systems, Inc"
+     },
+     "urls": {
+      "en": "http://www.tandfonline.com/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7",
+      "friendly_name": "eduPersonEntitlement",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.25178.1.2.9",
+      "friendly_name": "schacHomeOrganization",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Gale: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "776c24df80da36e29778102f9d9ce45b17c63a78",
+    "entity_id": "https://auth.galegroup.com/shibboleth",
+    "display_names": {
+     "en": "Production Gale Cengage Shibboleth"
+    },
+    "descriptions": {
+     "en": "Production shibboleth configuration for Gale"
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Cengage Learning"
+     },
+     "display_names": {
+      "en": "Cengage Learning"
+     },
+     "urls": {
+      "en": "http://www.cengage.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "CAS SciFinder: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "cc114c7d03660cd7b65ebada75c2a7d0a3b35376",
+    "entity_id": "https://sso.cas.org",
+    "display_names": {
+     "en": "CAS"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "CAS"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://www.cas.org/about-us"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "American Chemical Society"
+     },
+     "display_names": {
+      "en": "American Chemical Society"
+     },
+     "urls": {
+      "en": "http://www.acs.org"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "https://refeds.org/category/personalized",
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "personalized",
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Box: one SP that serves every institution, not per-campus tenants.",
+   "cluster": null,
+   "service": {
+    "id": "c3e090b806c1dc98fdc89b28e0c90b505f462b07",
+    "entity_id": "https://services.box.com/sp",
+    "display_names": {
+     "en": "Box"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Box"
+    },
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Box, Inc"
+     },
+     "display_names": {
+      "en": "Box, Inc"
+     },
+     "urls": {
+      "en": "http://www.box.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Dropbox: one SP that serves every institution.",
+   "cluster": null,
+   "service": {
+    "id": "be5c08ab1e6de45cfc04b6f08cf4c739e7a1c9fe",
+    "entity_id": "https://dropbox.com/sp",
+    "display_names": {
+     "en": "Dropbox"
+    },
+    "descriptions": {},
+    "service_names": {
+     "en": "Dropbox"
+    },
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Dropbox, Inc."
+     },
+     "display_names": {
+      "en": "Dropbox, Inc."
+     },
+     "urls": {
+      "en": "http://www.dropbox.com/"
+     }
+    },
+    "registration": {
+     "authority": "https://incommon.org",
+     "instant": null,
+     "policies": {}
+    },
+    "entity_categories": [
+     "http://id.incommon.org/category/registered-by-incommon"
+    ],
+    "categories": [
+     "sirtfi",
+     "registered-by-incommon"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "incommon-and-edugain",
+    "federation": "INCOMMON"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "protocols.io, for researchers anywhere.",
+   "cluster": null,
+   "service": {
+    "id": "b70ed6e4a023689c9ff474397af4a03f4d4c7939",
+    "entity_id": "https://protocols.io",
+    "display_names": {
+     "en": "protocols.io"
+    },
+    "descriptions": {
+     "en": "A secure platform for creating, sharing, and collaborating on research protocols."
+    },
+    "service_names": {
+     "en": "protocols.io"
+    },
+    "service_descriptions": {
+     "en": "A secure platform for creating, sharing, and collaborating on research protocols."
+    },
+    "information_urls": {
+     "en": "https://www.nature.com/nature/about"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Springer Nature Limited"
+     },
+     "display_names": {
+      "en": "Springer Nature Limited"
+     },
+     "urls": {
+      "en": "https://www.protocols.io"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2025-10-13T08:15:22Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.1",
+      "friendly_name": "uid",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "surname",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Wiley Digital Archives: one SP for every subscribing institution.",
+   "cluster": null,
+   "service": {
+    "id": "8a0149efae4c094c605e5f85ef28c8fd2059bd27",
+    "entity_id": "https://shibboleth.wileydigitalarchives.com/Shibboleth.sso/Metadata",
+    "display_names": {
+     "en": "Wiley Digital Archives"
+    },
+    "descriptions": {
+     "en": "Wiley Digital Archives is a continuous program of new databases comprised of unique or rare historical primary sources and archives around the world."
+    },
+    "service_names": {
+     "en": "Wiley Digital Archives"
+    },
+    "service_descriptions": {
+     "en": "Wiley Digital Archives is a continuous program of new databases comprised of unique or rare historical primary sources and archives around the world."
+    },
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "John Wiley & Sons, Inc"
+     },
+     "display_names": {
+      "en": "John Wiley & Sons, Inc"
+     },
+     "urls": {
+      "en": "http://www.wileydigitalarchives.com/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2020-09-28T09:51:10Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "A publisher on the Semantico platform: tenant by publisher, not by institution.",
+   "cluster": {
+    "pattern": "https://*.sams-sigma.com/shibboleth",
+    "size": 14,
+    "registrant": "Semantico Limited"
+   },
+   "service": {
+    "id": "e7cc82e8150020b860bf42c06064995ff0444182",
+    "entity_id": "https://asce-sp.sams-sigma.com/shibboleth",
+    "display_names": {
+     "en": "American Society of Civil Engineers"
+    },
+    "descriptions": {
+     "en": "Semantico Limited: American Society of Civil Engineers"
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Semantico Limited"
+     },
+     "display_names": {
+      "en": "Semantico Limited"
+     },
+     "urls": {
+      "en": "https://www.highwirepress.com/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2023-10-30T14:35:29Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "A publisher on the Semantico platform: tenant by publisher, not by institution.",
+   "cluster": {
+    "pattern": "https://*.sams-sigma.com/shibboleth",
+    "size": 14,
+    "registrant": "Semantico Limited"
+   },
+   "service": {
+    "id": "10f669e266aabbdd14ad6a68583a7f49f07800be",
+    "entity_id": "https://aorn-shib-sp.sams-sigma.com/shibboleth",
+    "display_names": {
+     "en": "AORN Guidelines"
+    },
+    "descriptions": {
+     "en": "AORN Guidelines Shibboleth Service Provider"
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Semantico Limited"
+     },
+     "display_names": {
+      "en": "Semantico Limited"
+     },
+     "urls": {
+      "en": "https://aornguidelines.org/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2026-04-23T11:07:18Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Jisc Library Hub, for UK institutions generally.",
+   "cluster": null,
+   "service": {
+    "id": "e5e23e110a0886b90b0fee8dfed15441072a5d51",
+    "entity_id": "https://contribute.libraryhub.jisc.ac.uk/shibboleth",
+    "display_names": {
+     "en": "Jisc Library Hub"
+    },
+    "descriptions": {
+     "en": "Jisc Library Hub: Contribute - resource discovery and collection management services."
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Jisc"
+     },
+     "display_names": {
+      "en": "Jisc"
+     },
+     "urls": {
+      "en": "https://jisc.ac.uk/"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2020-02-13T14:27:46Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Jisc IRUS-UK, for UK institutions generally.",
+   "cluster": {
+    "pattern": "https://*.jisc.ac.uk/shibboleth",
+    "size": 7,
+    "registrant": "Jisc"
+   },
+   "service": {
+    "id": "66b293826b83f15f06fac86bf451b7d4ab7339e9",
+    "entity_id": "https://irus.jisc.ac.uk/shibboleth",
+    "display_names": {
+     "en": "Jisc: IRUS-UK"
+    },
+    "descriptions": {
+     "en": "IRUS-UK enables IRs to share and expose COUNTER statistics."
+    },
+    "service_names": {
+     "en": "Jisc: IRUS-UK"
+    },
+    "service_descriptions": {},
+    "information_urls": {},
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "Jisc"
+     },
+     "display_names": {
+      "en": "Jisc"
+     },
+     "urls": {
+      "en": "https://jisc.ac.uk"
+     }
+    },
+    "registration": {
+     "authority": "http://ukfederation.org.uk",
+     "instant": "2018-12-20T09:23:46Z",
+     "policies": {
+      "en": "http://ukfederation.org.uk/doc/mdrps-20130902"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "UK-FEDERATION"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "SUNET eduSIGN, for any member institution.",
+   "cluster": null,
+   "service": {
+    "id": "7619550ac396a98d9c539542b38b78642bc911a5",
+    "entity_id": "https://edusign.sunet.se/shibboleth",
+    "display_names": {
+     "en": "SUNET eduSIGN Service",
+     "sv": "SUNET eduSIGN - tjänst för e-signaturer"
+    },
+    "descriptions": {
+     "en": "SUNET eduSIGN Service makes it easy to electronically sign documents",
+     "sv": "SUNET eduSIGN gör det enkelt att arbeta med e-signaturer"
+    },
+    "service_names": {
+     "en": "SUNET eduSIGN Service",
+     "sv": "SUNET eduSIGN - tjänst för e-signaturer"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://www.sunet.se/services/sakerhet/edusign/",
+     "sv": "https://www.sunet.se/services/sakerhet/edusign/"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "The Swedish Research Council",
+      "sv": "Vetenskapsrådet"
+     },
+     "display_names": {
+      "en": "Sunet",
+      "sv": "Sunet"
+     },
+     "urls": {
+      "en": "https://www.sunet.se",
+      "sv": "https://www.sunet.se"
+     }
+    },
+    "registration": {
+     "authority": "http://www.swamid.se/",
+     "instant": "2020-04-29T17:51:25Z",
+     "policies": {
+      "en": "http://swamid.se/policy/mdrps"
+     }
+    },
+    "entity_categories": [
+     "http://refeds.org/category/research-and-scholarship",
+     "https://refeds.org/category/code-of-conduct/v2",
+     "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "code-of-conduct-v2",
+     "code-of-conduct-v1",
+     "sirtfi",
+     "sirtfi2"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.11",
+      "friendly_name": "eduPersonAssurance",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.13",
+      "friendly_name": "mailLocalAddress",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "SWAMID"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "RedCLARA collaboration space for Latin American institutions.",
+   "cluster": {
+    "pattern": "https://*.redclara.net/shibboleth",
+    "size": 7,
+    "registrant": "RedCLARA"
+   },
+   "service": {
+    "id": "c0764fec8a127ecebfb6f15fa2c2b8b0d820375c",
+    "entity_id": "https://colaboratorio.redclara.net/shibboleth",
+    "display_names": {
+     "en": "Colaboratorio - RedCLARA",
+     "es": "Colaboratorio - RedCLARA"
+    },
+    "descriptions": {
+     "en": "RedCLARA's Colaboratorio Service",
+     "es": "Servicio de Colaboratorio de RedCLARA"
+    },
+    "service_names": {
+     "en": "Colaboratorio",
+     "es": "Colaboratorio"
+    },
+    "service_descriptions": {
+     "en": "Colaboratorio General Container Service",
+     "es": "Servicio Contenedor de servicios del Colaboratorio"
+    },
+    "information_urls": {
+     "en": "http://www.redclara.net/index.php?lang=en",
+     "es": "http://www.redclara.net/index.php?lang=es"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "RedCLARA"
+     },
+     "display_names": {
+      "en": "RedCLARA"
+     },
+     "urls": {
+      "en": "http://www.redclara.net/"
+     }
+    },
+    "registration": {
+     "authority": "http://cofre.reuna.cl",
+     "instant": "2015-06-25T00:00:00Z",
+     "policies": {
+      "es": "https://www.reuna.cl/cofre"
+     }
+    },
+    "entity_categories": [],
+    "categories": [],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "surname",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "COFRE"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "AARNet FileSender, for any member institution.",
+   "cluster": null,
+   "service": {
+    "id": "218cb3a2cfabff7d73908489f0c4798777cef291",
+    "entity_id": "https://filesender.aarnet.edu.au/simplesaml/module.php/saml/sp/metadata.php/default-sp",
+    "display_names": {
+     "en": "FileSender"
+    },
+    "descriptions": {
+     "en": "FileSender"
+    },
+    "service_names": {
+     "en": "FileSender"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://www.aarnet.edu.au/filesender"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "aarnet.edu.au"
+     },
+     "display_names": {
+      "en": "Australian Academic and Research Network (AARNet)"
+     },
+     "urls": {
+      "en": "https://www.aarnet.edu.au"
+     }
+    },
+    "registration": {
+     "authority": "https://aaf.edu.au",
+     "instant": "2023-10-30T05:46:23Z",
+     "policies": {
+      "en": "https://aaf.edu.au/media/metadata/aaf-mdrps-v1.1.pdf"
+     }
+    },
+    "entity_categories": [
+     "http://refeds.org/category/research-and-scholarship"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "sirtfi"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:2.5.4.3",
+      "friendly_name": "commonName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.1",
+      "friendly_name": "eduPersonAffiliation",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "email",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "AAF"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "Utafiti Africa, for researchers across African NRENs.",
+   "cluster": null,
+   "service": {
+    "id": "2f4b69d94dedbb0a55e0dd80aaaa710ada1c13ef",
+    "entity_id": "https://research.ubuntunet.net/shibboleth",
+    "display_names": {
+     "en": "Utafiti Africa"
+    },
+    "descriptions": {
+     "en": "Research and Funding opportunities platform in Africa"
+    },
+    "service_names": {
+     "en": "Utafiti Africa"
+    },
+    "service_descriptions": {
+     "en": "Research and Funding opportunities platform in Africa"
+    },
+    "information_urls": {
+     "en": "https://research.ubuntunet.net/"
+    },
+    "keywords": [
+     "utafiti,",
+     "research,",
+     "funding"
+    ],
+    "organization": {
+     "names": {
+      "en": "UbuntuNet Alliance for Research and Education Networking"
+     },
+     "display_names": {
+      "en": "UbuntuNet Alliance"
+     },
+     "urls": {
+      "en": "https://ubuntunet.net/"
+     }
+    },
+    "registration": {
+     "authority": "https://www.eduid.africa/",
+     "instant": "2022-11-04T14:47:00Z",
+     "policies": {
+      "en": "https://www.eduid.africa/mprs-v1.0.pdf"
+     }
+    },
+    "entity_categories": [
+     "http://refeds.org/category/research-and-scholarship",
+     "http://www.geant.net/uri/dataprotection-code-of-conduct/v1",
+     "https://refeds.org/sirtfi"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "code-of-conduct-v1"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.1",
+      "friendly_name": "eduPersonAffiliation",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "surname",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "email",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "EDUID-AFRICA"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "NeIC community wikis across Nordic institutions.",
+   "cluster": null,
+   "service": {
+    "id": "d8dec21b3bdf33cd74e951dd6f0fad9f3d1e00c0",
+    "entity_id": "https://wiki.neic.no/saml/sp.xml",
+    "display_names": {
+     "da": "NeIC Community Wikis",
+     "en": "NeIC Community Wikis"
+    },
+    "descriptions": {
+     "da": "Formålet er at tilbyde et sted hvor NeIC-medarbejdere og -partnere kan dele og formidle information.",
+     "en": "The purpose is to provide a place where NeIC members and partners can share and spread information."
+    },
+    "service_names": {
+     "da": "NeIC Community Wikis",
+     "en": "NeIC Community Wikis"
+    },
+    "service_descriptions": {
+     "da": "Formålet er at tilbyde et sted hvor NeIC-medarbejdere og -partnere kan dele og formidle information.",
+     "en": "The purpose is to provide a place where NeIC members and partners can share and spread information."
+    },
+    "information_urls": {
+     "en": "https://wiki.neic.no/wiki/NeIC_Community_Wiki"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "NBI"
+     },
+     "display_names": {
+      "en": "NBI"
+     },
+     "urls": {
+      "en": "https://nbi.ku.dk"
+     }
+    },
+    "registration": {
+     "authority": "https://www.wayf.dk",
+     "instant": "2017-11-20T12:14:51Z",
+     "policies": {
+      "en": "https://wayf.dk/sites/default/files/uploads/PDF/MDRPS.pdf"
+     }
+    },
+    "entity_categories": [
+     "http://refeds.org/category/research-and-scholarship",
+     "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "code-of-conduct-v1"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": true
+     }
+    ],
+    "supports_discovery_response": false,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "WAYF"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "eduGAIN attribute release check, for any IdP.",
+   "cluster": {
+    "pattern": "https://*.release-check.edugain.org/shibboleth",
+    "size": 8,
+    "registrant": "eduGAIN"
+   },
+   "service": {
+    "id": "4d7e86c1215580df357a34f5f52b312b7f5a12f2",
+    "entity_id": "https://anonymous.release-check.edugain.org/shibboleth",
+    "display_names": {
+     "en": "eduGAIN Attribute Release Check - REFEDS Anonymous",
+     "sv": "eduGAIN Attribute Release Check - REFEDS Anonymous"
+    },
+    "descriptions": {
+     "en": "Test service for IdP administrators to test that they follow Best Current Practice for Entity Category Attribute Release.",
+     "sv": "En testtjänst avsedd för att testa om tjänsten följer Best Current Practice for Entity Category Attribute Release."
+    },
+    "service_names": {},
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://release-check.edugain.org/",
+     "sv": "https://release-check.edugain.org/"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "GEANT Association",
+      "sv": "GEANT Association"
+     },
+     "display_names": {
+      "en": "eduGAIN",
+      "sv": "eduGAIN"
+     },
+     "urls": {
+      "en": "https://edugain.org/about-edugain/what-is-edugain/",
+      "sv": "https://edugain.org/about-edugain/what-is-edugain/"
+     }
+    },
+    "registration": {
+     "authority": "http://www.swamid.se/",
+     "instant": "2026-06-01T11:13:34Z",
+     "policies": {
+      "en": "http://swamid.se/policy/mdrps"
+     }
+    },
+    "entity_categories": [
+     "https://refeds.org/category/anonymous"
+    ],
+    "categories": [
+     "anonymous",
+     "sirtfi",
+     "sirtfi2"
+    ],
+    "requested_attributes": [],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "SWAMID"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "GÉANT service provider proxy.",
+   "cluster": null,
+   "service": {
+    "id": "3587ad9244ed61e69bda93a476f9e97a0a957928",
+    "entity_id": "https://terena.org/sp",
+    "display_names": {
+     "en": "GÉANT Service Provider Proxy"
+    },
+    "descriptions": {
+     "en": "A service provider proxy for all GÉANT federated services"
+    },
+    "service_names": {
+     "en": "GÉANT Service Provider Proxy"
+    },
+    "service_descriptions": {
+     "en": "A service provider proxy for all GÉANT federated services"
+    },
+    "information_urls": {
+     "en": "https://wiki.geant.org/display/aai"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "GÉANT"
+     },
+     "display_names": {
+      "en": "GÉANT"
+     },
+     "urls": {
+      "en": "http://www.geant.org/"
+     }
+    },
+    "registration": {
+     "authority": "http://www.surfconext.nl/",
+     "instant": "2011-06-08T02:00:00Z",
+     "policies": {
+      "en": "https://support.surfconext.nl/edugain-reginfo"
+     }
+    },
+    "entity_categories": [
+     "http://refeds.org/category/research-and-scholarship",
+     "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+    ],
+    "categories": [
+     "research-and-scholarship",
+     "code-of-conduct-v1"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": null,
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": null,
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.1",
+      "friendly_name": null,
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": null,
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": null,
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": null,
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": null,
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": null,
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "SURFCONEXT"
+   }
+  },
+  {
+   "label": "multilateral",
+   "why": "OCRE SP proxy for institutions across Europe.",
+   "cluster": null,
+   "service": {
+    "id": "846d84831f605962e88ce12122115b5147386865",
+    "entity_id": "https://proxy.ocre.aai.geant.org/metadata/backend.xml",
+    "display_names": {
+     "en": "OCRE SP Proxy"
+    },
+    "descriptions": {
+     "en": "OCRE Service Provider Proxy"
+    },
+    "service_names": {
+     "en": "OCRE SP Proxy"
+    },
+    "service_descriptions": {},
+    "information_urls": {
+     "en": "https://wiki.geant.org/display/OSP"
+    },
+    "keywords": [],
+    "organization": {
+     "names": {
+      "en": "GEANT"
+     },
+     "display_names": {
+      "en": "GEANT"
+     },
+     "urls": {
+      "en": "https://www.geant.org"
+     }
+    },
+    "registration": {
+     "authority": "http://www.surfconext.nl/",
+     "instant": "2021-07-14T08:00:49.660Z",
+     "policies": {
+      "en": "https://support.surfconext.nl/edugain-reginfo"
+     }
+    },
+    "entity_categories": [
+     "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+    ],
+    "categories": [
+     "code-of-conduct-v1"
+    ],
+    "requested_attributes": [
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.13",
+      "friendly_name": "eduPersonUniqueId",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.10",
+      "friendly_name": "eduPersonTargetedID",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.6",
+      "friendly_name": "eduPersonPrincipalName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.3",
+      "friendly_name": "cn",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.16.840.1.113730.3.1.241",
+      "friendly_name": "displayName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.4",
+      "friendly_name": "sn",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:2.5.4.42",
+      "friendly_name": "givenName",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:0.9.2342.19200300.100.1.3",
+      "friendly_name": "mail",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.9",
+      "friendly_name": "eduPersonScopedAffiliation",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.25178.1.2.9",
+      "friendly_name": "schacHomeOrganization",
+      "name_format": null,
+      "required": true
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.25178.4.1.6",
+      "friendly_name": "vopersonid",
+      "name_format": null,
+      "required": false
+     },
+     {
+      "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7",
+      "friendly_name": "eduPersonEntitlement",
+      "name_format": null,
+      "required": false
+     }
+    ],
+    "supports_discovery_response": true,
+    "sources": [
+     "incommon",
+     "edugain"
+    ],
+    "availability": "edugain-imported-by-incommon",
+    "federation": "SURFCONEXT"
+   }
+  }
+ ]
+}

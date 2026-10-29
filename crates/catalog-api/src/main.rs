@@ -16,6 +16,7 @@
 //! - natural-language search: see `nl.rs` (`ANTHROPIC_API_KEY`, `CATALOG_NL_*`)
 
 mod nl;
+mod releases;
 mod routes;
 mod state;
 

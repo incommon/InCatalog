@@ -1,7 +1,7 @@
 # Copyright 2026 Internet2
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: test lint ingest dev image test-image run-image state-bucket init push plan deploy seed first-ingest
+.PHONY: test lint notices ingest dev image test-image run-image state-bucket init push plan deploy seed first-ingest
 
 SNAPSHOT ?= data/catalog.json.gz
 
@@ -12,6 +12,12 @@ lint:
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-targets -- -D warnings
 	terraform -chdir=infra/terraform fmt -check
+	cargo deny check
+
+# The dependencies' license notices, as the image build writes them (not committed).
+notices:
+	cargo fetch --locked
+	cargo about generate --offline --locked --fail about.hbs -o THIRD-PARTY-LICENSES.html
 
 # Fetch InCommon + eduGAIN metadata and write a local snapshot (~10 s on a warm cache).
 ingest:
@@ -33,10 +39,12 @@ AWS_REGION ?= us-east-2
 export AWS_PROFILE AWS_REGION
 TF := terraform -chdir=infra/terraform
 IMAGE := incatalog:local
+# The workspace version: the only unindented `version =` line in Cargo.toml.
+VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' Cargo.toml)
 TAG := $(shell date -u +%Y%m%d-%H%M%S)
 
 image:
-	docker buildx build --platform linux/arm64 --load -t $(IMAGE) .
+	docker buildx build --platform linux/arm64 --load --build-arg VERSION=$(VERSION) -t $(IMAGE) .
 
 # Smoke test for the image: contents, signatures, ingest from fixtures, serving.
 test-image: image
@@ -66,13 +74,14 @@ plan: init
 deploy: push
 	$(TF) apply
 
-# Copy the local summary and logo caches up before the first ingest, so AWS reuses
-# the summaries already written instead of generating them all again. Skips any
-# that already exist in the bucket.
+# Copy the local summary, logo, and sharing caches up before the first ingest, so
+# AWS reuses what was already generated instead of generating it all again. Skips
+# any that already exist in the bucket, or that were never made locally.
 seed:
 	bucket=$$($(TF) output -raw data_bucket) && \
-	for f in summary-cache.json logo-cache.json; do \
-	  if aws s3api head-object --bucket $$bucket --key snapshots/$$f >/dev/null 2>&1; then echo "$$f already in s3://$$bucket"; \
+	for f in summary-cache.json logo-cache.json sharing-cache.json sector-cache.json; do \
+	  if [ ! -f data/$$f ]; then echo "no data/$$f to copy"; \
+	  elif aws s3api head-object --bucket $$bucket --key snapshots/$$f >/dev/null 2>&1; then echo "$$f already in s3://$$bucket"; \
 	  else aws s3 cp data/$$f s3://$$bucket/snapshots/$$f; fi; done
 
 first-ingest:

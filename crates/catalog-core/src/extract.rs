@@ -65,6 +65,7 @@ pub fn extract(entity: &Element) -> Extracted {
             ui_info(ui, &mut s);
         }
         s.supports_discovery_response = sp_ext.child(ns::IDPDISC, "DiscoveryResponse").is_some();
+        s.supports_request_initiator = sp_ext.child(ns::INIT, "RequestInitiator").is_some();
     }
 
     for kd in sp.children(ns::MD, "KeyDescriptor") {
@@ -85,6 +86,11 @@ pub fn extract(entity: &Element) -> Extracted {
     s.acs_bindings = dedup(
         sp.children(ns::MD, "AssertionConsumerService")
             .filter_map(|e| e.attr("Binding").map(str::to_owned)),
+    );
+    s.endpoint_hosts = dedup(
+        sp.children(ns::MD, "AssertionConsumerService")
+            .filter_map(|e| e.attr("Location"))
+            .filter_map(url_host),
     );
 
     for acs in sp.children(ns::MD, "AttributeConsumingService") {
@@ -231,6 +237,14 @@ fn lang_into<'a>(els: impl Iterator<Item = &'a Element>, m: &mut LangMap) {
         m.entry(e.lang().unwrap_or("").to_owned())
             .or_insert_with(|| v.to_owned());
     }
+}
+
+/// The lowercase host of an `http(s)` URL.
+fn url_host(url: &str) -> Option<String> {
+    let rest = url.trim().split_once("://")?.1;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let host = authority.rsplit('@').next()?.split(':').next()?;
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
 }
 
 fn dedup(it: impl Iterator<Item = String>) -> Vec<String> {

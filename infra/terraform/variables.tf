@@ -67,11 +67,41 @@ variable "claude_model" {
 variable "logo_max_lookups" {
   description = "Most organization websites to look up per ingest run. Results are cached for 30 days."
   type        = number
-  default     = 150
+  default     = 300
 }
 
 variable "summary_max_per_run" {
   description = "Most summaries to write per ingest run. Bedrock has no batch API, so they are written during the run; the daily trickle of metadata changes is far below this."
   type        = number
   default     = 500
+}
+
+variable "sharing_max_per_run" {
+  description = "Most multilateral/bilateral labels to request per ingest run (a tenant cluster is one request). Like summaries they are written during the run; the first run's backlog carries over to later ones."
+  type        = number
+  default     = 400
+}
+
+variable "sector_max_per_run" {
+  description = "Most organizations to ask Claude for a sector per ingest run (the rules decide most universities, publishers, and agencies without asking). Results are cached per organization."
+  type        = number
+  default     = 400
+}
+
+variable "github_oidc_provider_arn" {
+  description = "ARN of this account's IAM OIDC provider for token.actions.githubusercontent.com. Set it to create the role .github/workflows/build-images.yml assumes to push images; empty creates nothing."
+  type        = string
+  default     = ""
+}
+
+variable "github_repository" {
+  description = "The GitHub repository (owner/name) whose image builds may assume the push role."
+  type        = string
+  default     = "incommon/InCatalog"
+}
+
+variable "github_environment" {
+  description = "The GitHub Environment the image build runs in. The push role trusts only that environment's jobs."
+  type        = string
+  default     = "dev"
 }

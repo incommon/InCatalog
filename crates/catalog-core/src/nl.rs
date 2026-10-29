@@ -16,15 +16,30 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::categories::CATEGORIES;
+use crate::environment::Environment;
 use crate::model::{Availability, Federation, Service};
+use crate::regions::{self, REGIONS};
+use crate::search::split_list;
+use crate::sector::Sector;
+use crate::sharing::Sharing;
 
 /// The filters a query was read as. Field names and values match `/v1/services`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct InterpretedParams {
     /// Words left over for free-text matching.
     pub q: Option<String>,
+    /// Comma-separated federation codes; a service registered by any of them matches.
     pub federation: Option<String>,
+    /// Comma-separated ISO country codes; a service registered in any of them matches.
     pub country: Option<String>,
+    /// Comma-separated region keys (see `/v1/regions`); each stands for its countries.
+    pub region: Option<String>,
+    /// Comma-separated environments; a service in any of them matches.
+    pub environment: Option<String>,
+    /// Comma-separated sharing labels (`multilateral`, `bilateral`, `unknown`).
+    pub sharing: Option<String>,
+    /// Comma-separated sectors of the organization that runs the service.
+    pub sector: Option<String>,
     /// Comma-separated category keys.
     pub category: Option<String>,
     pub availability: Option<String>,
@@ -62,6 +77,10 @@ impl Interpretation {
         [
             &p.federation,
             &p.country,
+            &p.region,
+            &p.environment,
+            &p.sharing,
+            &p.sector,
             &p.category,
             &p.availability,
             &p.attribute,
@@ -106,8 +125,12 @@ enum Field {
     // Order is match priority when two phrases of equal length compete.
     Availability,
     Source,
+    Environment,
+    Sharing,
+    Sector,
     Category,
     Federation,
+    Region,
     Country,
     Attribute,
     ProviderType,
@@ -118,9 +141,13 @@ impl Field {
         match self {
             Field::Availability => "availability",
             Field::Source => "source",
+            Field::Environment => "environment",
+            Field::Sharing => "sharing",
+            Field::Sector => "sector",
             Field::Category => "category",
             Field::Federation => "federation",
             Field::Country => "country",
+            Field::Region => "region",
             Field::Attribute => "attribute",
             Field::ProviderType => "provider_type",
         }
@@ -514,6 +541,349 @@ const AVAILABILITY_ALIASES: &[(Availability, &[&str])] = &[
     ),
 ];
 
+/// Ways to ask for, or leave out, test and development instances. "test" alone is
+/// a subject ("test prep", "proctored tests"), and so is "production" ("video
+/// production"), so each needs a word that makes it about the instance.
+const ENVIRONMENT_ALIASES: &[(&str, &[&str])] = &[
+    (
+        "production",
+        &[
+            "only production",
+            "production only",
+            "production services only",
+            "in production",
+            "production instance",
+            "production instances",
+            "production version",
+            "production versions",
+            "production environment",
+            "production environments",
+            "prod",
+            "prod instances",
+            "live services",
+            "live instances",
+            "live versions",
+            "only live",
+        ],
+    ),
+    (
+        "test",
+        &[
+            "test instance",
+            "test instances",
+            "test environment",
+            "test environments",
+            "test version",
+            "test versions",
+            "test copy",
+            "test copies",
+            "test sp",
+            "test sps",
+            "test site",
+            "test sites",
+            "test server",
+            "test servers",
+            "test system",
+            "test systems",
+            "testing instance",
+            "testing instances",
+            "testing environment",
+            "sandboxes",
+            "sandbox instance",
+            "sandbox instances",
+            "sandbox environment",
+            "qa instance",
+            "qa instances",
+            "qa environment",
+            "uat",
+            "uat instances",
+        ],
+    ),
+    (
+        "staging",
+        &[
+            "staging instance",
+            "staging instances",
+            "staging environment",
+            "staging environments",
+            "staging sites",
+            "staging servers",
+            "staging copies",
+            "staging versions",
+            "stage instances",
+            "preprod",
+            "pre-production",
+            "pre production",
+        ],
+    ),
+    (
+        "development",
+        &[
+            "dev instance",
+            "dev instances",
+            "dev environment",
+            "dev environments",
+            "dev sites",
+            "dev servers",
+            "dev versions",
+            "development instance",
+            "development instances",
+            "development environment",
+            "development environments",
+            "development servers",
+            "development sites",
+        ],
+    ),
+    (
+        "test,staging",
+        &[
+            "test or staging instances",
+            "test and staging instances",
+            "staging or test instances",
+            "test and staging environments",
+        ],
+    ),
+    (
+        "test,staging,development",
+        &[
+            "non-production",
+            "nonproduction",
+            "non production",
+            "non-prod",
+            "nonprod",
+            "not production",
+            "not in production",
+        ],
+    ),
+];
+
+/// "no test instances", "excluding staging", "without dev sites": what is left is
+/// the live services and the ones nothing marks.
+const ENVIRONMENT_NEGATIONS: &[&str] = &[
+    "no",
+    "not",
+    "excluding",
+    "exclude",
+    "without",
+    "hide",
+    "skip",
+];
+const ENVIRONMENT_EXCLUDED: &[&str] = &[
+    "test",
+    "testing",
+    "test instances",
+    "test sites",
+    "test environments",
+    "test or staging",
+    "test and staging",
+    "test or dev",
+    "test and dev",
+    "staging",
+    "dev",
+    "dev instances",
+    "development instances",
+    "non-production",
+    "nonproduction",
+    "sandboxes",
+];
+
+/// Who a service is for: anyone's institution, or one institution's.
+const SHARING_ALIASES: &[(&str, &[&str])] = &[
+    (
+        "multilateral",
+        &[
+            "multilateral",
+            "anyone in edugain can use",
+            "anyone in incommon can use",
+            "any institution can use",
+            "anyone can use",
+            "open to any institution",
+            "open to all institutions",
+            "available to any institution",
+            "usable by any institution",
+            "for any institution",
+        ],
+    ),
+    (
+        "bilateral",
+        &[
+            "bilateral",
+            "institution-specific",
+            "institution specific",
+            "single-institution",
+            "single institution",
+            "for one institution",
+            "per-campus",
+            "per campus",
+            "campus-specific",
+        ],
+    ),
+    (
+        "multilateral,unknown",
+        &[
+            "not institution-specific",
+            "not institution specific",
+            "not specific to one institution",
+            "not bilateral",
+            "no bilateral",
+            "excluding bilateral",
+            "without bilateral",
+            "no per-campus",
+            "no per campus",
+            "not per-campus",
+        ],
+    ),
+];
+
+/// Who runs a service. A sector needs a word that makes it about the organization:
+/// "library" alone is a subject ("library management system"), while "libraries",
+/// "library services", and "run by libraries" are who runs it.
+const NOT_COMMERCIAL: &str =
+    "academia,research,libraries,museums,government,healthcare,k12,nonprofit,nren";
+const SECTOR_ALIASES: &[(&str, &[&str])] = &[
+    (
+        "academia",
+        &[
+            "universities",
+            "colleges and universities",
+            "academic institutions",
+            "higher education institutions",
+            "run by universities",
+            "academia",
+        ],
+    ),
+    (
+        "research",
+        &[
+            "research institutes",
+            "research institutions",
+            "research labs",
+            "research laboratories",
+            "national labs",
+            "national laboratories",
+            "research centers",
+            "research centres",
+            "research infrastructures",
+        ],
+    ),
+    (
+        "commercial",
+        &[
+            "commercial",
+            "commercial vendors",
+            "commercial services",
+            "commercial providers",
+            "vendors",
+            "vendor",
+            "companies",
+            "for-profit",
+        ],
+    ),
+    (
+        "nonprofit",
+        &[
+            "nonprofits",
+            "non-profits",
+            "nonprofit organizations",
+            "charities",
+            "foundations",
+        ],
+    ),
+    (
+        NOT_COMMERCIAL,
+        &[
+            "non-commercial",
+            "noncommercial",
+            "not commercial",
+            "nonprofit",
+            "non-profit",
+        ],
+    ),
+    (
+        "libraries",
+        &[
+            "libraries",
+            "library services",
+            "library sps",
+            "run by libraries",
+        ],
+    ),
+    (
+        "museums",
+        &[
+            "museums",
+            "run by museums",
+            "museum services",
+            "museum sps",
+            "archives",
+            "galleries",
+            "glam",
+            "cultural heritage institutions",
+        ],
+    ),
+    (
+        "government",
+        &[
+            "government",
+            "government agencies",
+            "government services",
+            "public sector",
+            "public bodies",
+        ],
+    ),
+    (
+        "healthcare",
+        &[
+            "hospitals",
+            "health systems",
+            "medical centers",
+            "healthcare providers",
+        ],
+    ),
+    ("k12", &["k-12", "k12", "schools", "school districts"]),
+    (
+        "publishers",
+        &["publishers", "journal publishers", "publisher services"],
+    ),
+    (
+        "nren",
+        &[
+            "nrens",
+            "research and education networks",
+            "federation operators",
+            "network operators",
+        ],
+    ),
+];
+
+fn sector_label(value: &str) -> String {
+    if value == NOT_COMMERCIAL {
+        return "Anything but companies".into();
+    }
+    value
+        .split(',')
+        .map(|k| Sector::from_key(k).map(|s| s.label()).unwrap_or(k))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
+fn sharing_label(value: &str) -> String {
+    value
+        .split(',')
+        .map(|k| Sharing::from_key(k).map(|s| s.label()).unwrap_or(k))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
+/// "test or staging": several environments in one filter.
+fn environment_label(value: &str) -> String {
+    value
+        .split(',')
+        .map(|k| Environment::from_key(k).map(|e| e.label()).unwrap_or(k))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 const SOURCE_ALIASES: &[(&str, &[&str])] = &[
     (
         "incommon",
@@ -596,6 +966,14 @@ impl Vocab {
                 }
             }
         }
+        for r in REGIONS.iter() {
+            for n in [r.label.as_str(), r.label.trim_start_matches("the ")]
+                .into_iter()
+                .chain(r.aliases.iter().map(String::as_str))
+            {
+                v.add(n, Field::Region, &r.key, &r.label, false);
+            }
+        }
         for def in CATEGORIES {
             v.add(def.label, Field::Category, def.key, def.label, false);
         }
@@ -609,6 +987,33 @@ impl Vocab {
         for (a, names) in AVAILABILITY_ALIASES {
             for n in *names {
                 v.add(n, Field::Availability, a.key(), a.label(), false);
+            }
+        }
+        for (env, names) in ENVIRONMENT_ALIASES {
+            for n in *names {
+                v.add(n, Field::Environment, env, &environment_label(env), false);
+            }
+        }
+        for (value, names) in SECTOR_ALIASES {
+            for n in *names {
+                v.add(n, Field::Sector, value, &sector_label(value), false);
+            }
+        }
+        for (value, names) in SHARING_ALIASES {
+            for n in *names {
+                v.add(n, Field::Sharing, value, &sharing_label(value), false);
+            }
+        }
+        for neg in ENVIRONMENT_NEGATIONS {
+            for what in ENVIRONMENT_EXCLUDED {
+                let value = "production,unknown";
+                v.add(
+                    &format!("{neg} {what}"),
+                    Field::Environment,
+                    value,
+                    &environment_label(value),
+                    false,
+                );
             }
         }
         for (src, names) in SOURCE_ALIASES {
@@ -717,6 +1122,14 @@ impl Vocab {
         });
     }
 
+    /// Whether any filter phrase begins at word `i`.
+    fn phrase_starts(&self, toks: &[String], i: usize) -> bool {
+        self.phrases.iter().any(|p| {
+            let n = p.words.len();
+            i + n <= toks.len() && toks[i..i + n] == p.words[..]
+        })
+    }
+
     /// Read a query with the built-in rules.
     pub fn interpret(&self, query: &str) -> Interpretation {
         let cased = cased_words(query);
@@ -735,8 +1148,38 @@ impl Vocab {
                     && (!p.needs_cue || cue_before(&toks, i))
                     && (!p.shouty || shouted(&cased[i]) || beside(&toks, i, "federation"))
             });
+            // "European Molecular Biology Laboratory", "Europe PMC", "American Chemical
+            // Society": a capitalized place followed by a capitalized word that is no
+            // filter of its own is part of a name.
+            let place = |p: &&Phrase| matches!(p.field, Field::Country | Field::Region);
+            if let Some(p) = hit.filter(place) {
+                let next = i + p.words.len();
+                let capital = |w: &str| w.chars().next().is_some_and(char::is_uppercase);
+                if capital(&cased[i])
+                    && cased.get(next).is_some_and(|w| capital(w))
+                    && !self.phrase_starts(&toks, next)
+                {
+                    notes.push(format!(
+                        "\"{}\" looks like part of a name (\"{} {} …\"), so it was searched as a word rather than as a place.",
+                        cased[i..next].join(" "),
+                        cased[i..next].join(" "),
+                        cased[next]
+                    ));
+                    i = next;
+                    continue;
+                }
+            }
             match hit {
                 Some(p) => {
+                    if p.field == Field::Country && toks[i..i + p.words.len()] == ["america"] {
+                        notes.push("\"America\" was read as the United States; say \"the Americas\" for North and South America.".into());
+                    }
+                    if let Some(note) = (p.field == Field::Region)
+                        .then(|| regions::get(&p.value).and_then(|r| r.reading_note.as_deref()))
+                        .flatten()
+                    {
+                        notes.push(note.into());
+                    }
                     for u in &mut used[i..i + p.words.len()] {
                         *u = true;
                     }
@@ -804,8 +1247,8 @@ impl Vocab {
         }
     }
 
-    /// Fold matches into one value per field (categories combine; the rest take
-    /// the first match and note what was dropped).
+    /// Fold matches into one value per field (categories, federations, places, and
+    /// environments combine; the rest take the first match and note what was dropped).
     fn collect(
         &self,
         matched: &[MatchedTerm],
@@ -816,17 +1259,54 @@ impl Vocab {
             q: (!keywords.is_empty()).then(|| keywords.to_owned()),
             ..Default::default()
         };
+        fn add<'a>(list: &mut Vec<&'a str>, v: &'a str) {
+            if !list.contains(&v) {
+                list.push(v);
+            }
+        }
         let mut cats: Vec<&str> = Vec::new();
+        let mut feds: Vec<&str> = Vec::new();
+        let mut envs: Vec<&str> = Vec::new();
+        let mut sharing: Vec<&str> = Vec::new();
+        let mut sectors: Vec<&str> = Vec::new();
+        let mut countries: Vec<&str> = Vec::new();
+        let mut regions: Vec<&str> = Vec::new();
         for m in matched {
             let slot = match m.field.as_str() {
-                "category" => {
-                    if !cats.contains(&m.value.as_str()) {
-                        cats.push(&m.value);
+                "country" => {
+                    add(&mut countries, &m.value);
+                    continue;
+                }
+                "region" => {
+                    add(&mut regions, &m.value);
+                    continue;
+                }
+                "environment" => {
+                    for v in m.value.split(',') {
+                        add(&mut envs, v);
                     }
                     continue;
                 }
-                "federation" => &mut p.federation,
-                "country" => &mut p.country,
+                "sharing" => {
+                    for v in m.value.split(',') {
+                        add(&mut sharing, v);
+                    }
+                    continue;
+                }
+                "sector" => {
+                    for v in m.value.split(',') {
+                        add(&mut sectors, v);
+                    }
+                    continue;
+                }
+                "category" => {
+                    add(&mut cats, &m.value);
+                    continue;
+                }
+                "federation" => {
+                    add(&mut feds, &m.value);
+                    continue;
+                }
                 "availability" => &mut p.availability,
                 "attribute" => &mut p.attribute,
                 "source" => &mut p.source,
@@ -845,6 +1325,24 @@ impl Vocab {
         }
         if !cats.is_empty() {
             p.category = Some(cats.join(","));
+        }
+        if !feds.is_empty() {
+            p.federation = Some(feds.join(","));
+        }
+        if !envs.is_empty() {
+            p.environment = Some(envs.join(","));
+        }
+        if !sharing.is_empty() {
+            p.sharing = Some(sharing.join(","));
+        }
+        if !sectors.is_empty() {
+            p.sector = Some(sectors.join(","));
+        }
+        if !countries.is_empty() {
+            p.country = Some(countries.join(","));
+        }
+        if !regions.is_empty() {
+            p.region = Some(regions.join(","));
         }
         // An availability already says which aggregates; a source on top is redundant
         // and can contradict it ("not in InCommon" contains "in InCommon").
@@ -871,14 +1369,47 @@ impl Vocab {
                 .collect::<Vec<_>>()
                 .join(",")
         });
+        let federations: Vec<String> = split_list(p.federation.as_deref())
+            .into_iter()
+            .filter_map(|v| keep("federation", Some(v), &|v| self.federations.contains_key(v)))
+            .collect();
+        let environments: Vec<String> =
+            split_list(p.environment.map(|e| e.to_lowercase()).as_deref())
+                .into_iter()
+                .filter_map(|v| {
+                    keep("environment", Some(v), &|v| {
+                        Environment::from_key(v).is_some()
+                    })
+                })
+                .collect();
+        let countries: Vec<String> = split_list(p.country.map(|c| c.to_uppercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| keep("country", Some(v), &|v| self.countries.contains_key(v)))
+            .collect();
+        let regions: Vec<String> = split_list(p.region.map(|r| r.to_lowercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| keep("region", Some(v), &|v| regions::get(v).is_some()))
+            .collect();
+        let sharing: Vec<String> = split_list(p.sharing.map(|v| v.to_lowercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| keep("sharing", Some(v), &|v| Sharing::from_key(v).is_some()))
+            .collect();
+        let sectors: Vec<String> = split_list(p.sector.map(|v| v.to_lowercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| {
+                keep("sector", Some(v), &|v| {
+                    v == "unknown" || Sector::from_key(v).is_some()
+                })
+            })
+            .collect();
         InterpretedParams {
             q: p.q.map(|q| q.trim().to_owned()).filter(|q| !q.is_empty()),
-            federation: keep("federation", p.federation, &|v| {
-                self.federations.contains_key(v)
-            }),
-            country: keep("country", p.country.map(|c| c.to_uppercase()), &|v| {
-                self.countries.contains_key(v)
-            }),
+            sector: (!sectors.is_empty()).then(|| sectors.join(",")),
+            sharing: (!sharing.is_empty()).then(|| sharing.join(",")),
+            country: (!countries.is_empty()).then(|| countries.join(",")),
+            region: (!regions.is_empty()).then(|| regions.join(",")),
+            environment: (!environments.is_empty()).then(|| environments.join(",")),
+            federation: (!federations.is_empty()).then(|| federations.join(",")),
             category: category.filter(|c| !c.is_empty()),
             availability: keep("availability", p.availability, &|v| {
                 Availability::from_key(v).is_some()
@@ -900,11 +1431,15 @@ impl Vocab {
         match field {
             "federation" => self.federations.get(value).map(|(n, _)| n.clone()),
             "country" => self.countries.get(value).cloned(),
+            "region" => regions::get(value).map(|r| r.label.to_owned()),
             "category" => CATEGORIES
                 .iter()
                 .find(|d| d.key == value)
                 .map(|d| d.label.to_owned()),
             "availability" => Availability::from_key(value).map(|a| a.label().to_owned()),
+            "environment" => Some(environment_label(value)),
+            "sharing" => Some(sharing_label(value)),
+            "sector" => Some(sector_label(value)),
             "attribute" => self
                 .attributes
                 .iter()
@@ -1016,7 +1551,7 @@ mod tests {
 
     #[test]
     fn reads_filters_and_keeps_subject_words() {
-        let i = vocab().interpret("R&S library services in Sweden that request email");
+        let i = vocab().interpret("R&S wiki services in Sweden that request email");
         assert_eq!(
             i.params.category.as_deref(),
             Some("research-and-scholarship")
@@ -1026,7 +1561,13 @@ mod tests {
             i.params.attribute.as_deref(),
             Some("urn:oid:0.9.2342.19200300.100.1.3")
         );
-        assert_eq!(i.params.q.as_deref(), Some("library"));
+        assert_eq!(i.params.q.as_deref(), Some("wiki"));
+
+        // "library services" is who runs them.
+        let i = vocab().interpret("R&S library services in Sweden that request email");
+        assert_eq!(i.params.sector.as_deref(), Some("libraries"));
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert_eq!(i.params.q, None);
     }
 
     #[test]
@@ -1052,6 +1593,26 @@ mod tests {
             Some("incommon-and-edugain")
         );
         assert_eq!(i.params.q, None);
+    }
+
+    #[test]
+    fn several_federations_combine() {
+        let i = vocab().interpret("R&S services registered by SWAMID or InCommon");
+        assert_eq!(i.params.federation.as_deref(), Some("SWAMID,INCOMMON"));
+        assert_eq!(
+            i.params.category.as_deref(),
+            Some("research-and-scholarship")
+        );
+        assert_eq!(i.params.q, None);
+        assert!(i.notes.is_empty(), "{:?}", i.notes);
+        assert_eq!(
+            i.matched.iter().filter(|m| m.field == "federation").count(),
+            2
+        );
+
+        // Naming one twice is still one.
+        let i = vocab().interpret("SWAMID wikis, swamid only");
+        assert_eq!(i.params.federation.as_deref(), Some("SWAMID"));
     }
 
     #[test]
@@ -1127,15 +1688,61 @@ mod tests {
     }
 
     #[test]
-    fn commercial_without_curation_is_explained() {
+    fn commercial_reads_as_a_sector() {
         let i = vocab().interpret("commercial british services that need eppn");
         assert_eq!(i.params.country.as_deref(), Some("GB"));
         assert_eq!(
             i.params.attribute.as_deref(),
             Some("urn:oid:1.3.6.1.4.1.5923.1.1.1.6")
         );
-        assert!(i.notes.iter().any(|n| n.contains("commercial")));
+        assert_eq!(i.params.sector.as_deref(), Some("commercial"));
+        assert!(i.notes.is_empty(), "{:?}", i.notes);
         assert_eq!(i.params.q, None);
+    }
+
+    #[test]
+    fn sectors_by_name() {
+        let v = vocab();
+        let i = v.interpret("services from libraries");
+        assert_eq!(i.params.sector.as_deref(), Some("libraries"));
+        assert_eq!(i.params.q, None);
+        let i = v.interpret("SPs run by museums");
+        assert_eq!(i.params.sector.as_deref(), Some("museums"));
+        let i = v.interpret("commercial vendors in Europe");
+        assert_eq!(i.params.sector.as_deref(), Some("commercial"));
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+        let i = v.interpret("non-commercial research tools");
+        assert_eq!(i.params.sector.as_deref(), Some(NOT_COMMERCIAL));
+        assert_eq!(i.params.q.as_deref(), Some("research tools"));
+        assert_eq!(i.matched[0].label, "Anything but companies");
+        let i = v.interpret("government agencies or hospitals");
+        assert_eq!(i.params.sector.as_deref(), Some("government,healthcare"));
+        for (q, sector) in [
+            ("library services", "libraries"),
+            ("German library SPs", "libraries"),
+            ("museum SPs", "museums"),
+            ("museum services in Europe", "museums"),
+        ] {
+            assert_eq!(v.interpret(q).params.sector.as_deref(), Some(sector), "{q}");
+        }
+        // A subject is not who runs it.
+        for q in [
+            "library management system",
+            "museum ticketing",
+            "research data",
+        ] {
+            assert_eq!(v.interpret(q).params.sector, None, "{q}");
+        }
+        let mut notes = Vec::new();
+        let p = v.validate(
+            InterpretedParams {
+                sector: Some("Academia,banks,unknown".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.sector.as_deref(), Some("academia,unknown"));
+        assert_eq!(notes.len(), 1);
     }
 
     #[test]
@@ -1155,5 +1762,271 @@ mod tests {
         assert_eq!(p.federation, None);
         assert_eq!(p.category.as_deref(), Some("sirtfi"));
         assert_eq!(notes.len(), 1);
+
+        let mut notes = Vec::new();
+        let p = v.validate(
+            InterpretedParams {
+                federation: Some("SWAMID, NOPE,INCOMMON,SWAMID".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.federation.as_deref(), Some("SWAMID,INCOMMON"));
+        assert_eq!(notes, ["Dropped an unknown federation \"NOPE\"."]);
+    }
+
+    #[test]
+    fn environments_are_read_with_their_instance_words() {
+        let v = vocab();
+        let i = v.interpret("test instances of Canvas");
+        assert_eq!(i.params.environment.as_deref(), Some("test"));
+        assert_eq!(i.params.q.as_deref(), Some("canvas"));
+        assert_eq!(i.matched[0].label, "Test");
+
+        let i = v.interpret("only production services");
+        assert_eq!(i.params.environment.as_deref(), Some("production"));
+        assert_eq!(i.params.q, None);
+
+        let i = v.interpret("test or staging instances of zoom");
+        assert_eq!(i.params.environment.as_deref(), Some("test,staging"));
+        assert_eq!(i.matched[0].label, "Test or Staging");
+
+        let i = v.interpret("non-production wikis");
+        assert_eq!(
+            i.params.environment.as_deref(),
+            Some("test,staging,development")
+        );
+        assert_eq!(i.params.q.as_deref(), Some("wikis"));
+
+        let i = v.interpret("R&S services in Sweden, no test instances");
+        assert_eq!(i.params.environment.as_deref(), Some("production,unknown"));
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert_eq!(
+            i.params.category.as_deref(),
+            Some("research-and-scholarship")
+        );
+
+        // Two readings combine, like federations.
+        let i = v.interpret("dev instances and staging environments of the library proxy");
+        assert_eq!(i.params.environment.as_deref(), Some("development,staging"));
+        assert_eq!(i.params.q.as_deref(), Some("library proxy"));
+    }
+
+    #[test]
+    fn test_and_production_as_subjects_are_left_alone() {
+        let v = vocab();
+        for q in [
+            "test prep",
+            "proctored test delivery",
+            "video production services",
+            "cancer staging calculator",
+            "sandbox games",
+            "music production",
+            "testing center",
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.environment, None, "{q}");
+        }
+    }
+
+    #[test]
+    fn validate_keeps_known_environments() {
+        let mut notes = Vec::new();
+        let p = vocab().validate(
+            InterpretedParams {
+                environment: Some("Test, prod,staging,test".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.environment.as_deref(), Some("test,staging"));
+        assert_eq!(notes, ["Dropped an unknown environment \"prod\"."]);
+        assert_eq!(
+            vocab().label("environment", "production,unknown"),
+            "Production or Unknown"
+        );
+    }
+
+    #[test]
+    fn regions_and_several_countries() {
+        let v = vocab();
+        let i = v.interpret("Research & Scholarship services in Europe");
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+        assert_eq!(
+            i.params.category.as_deref(),
+            Some("research-and-scholarship")
+        );
+        assert_eq!(i.params.q, None);
+
+        for (q, region) in [
+            ("SPs registered in the Americas", "americas"),
+            ("anything from BRICS countries", "brics"),
+            ("wikis in the EU", "eu"),
+            ("european library services", "europe"),
+            ("LatAm journals", "latin-america"),
+            ("Asia-Pacific research data", "asia-pacific"),
+            ("services in Oceania", "oceania"),
+            ("the european union", "eu"),
+        ] {
+            assert_eq!(v.interpret(q).params.region.as_deref(), Some(region), "{q}");
+        }
+
+        let i = v.interpret("services in Sweden or the UK");
+        assert_eq!(i.params.country.as_deref(), Some("SE,GB"));
+        assert!(i.notes.is_empty(), "{:?}", i.notes);
+        let i = v.interpret("services in Sweden or anywhere in the EEA");
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert_eq!(i.params.region.as_deref(), Some("eea"));
+    }
+
+    #[test]
+    fn ambiguous_place_names_say_how_they_were_read() {
+        let v = vocab();
+        let i = v.interpret("journals in America");
+        assert_eq!(i.params.country.as_deref(), Some("US"));
+        assert_eq!(i.params.region, None);
+        assert!(
+            i.notes.iter().any(|n| n.contains("the Americas")),
+            "{:?}",
+            i.notes
+        );
+
+        let i = v.interpret("North American wikis");
+        assert_eq!(i.params.region.as_deref(), Some("northern-america"));
+        assert!(
+            i.notes.iter().any(|n| n.contains("Mexico")),
+            "{:?}",
+            i.notes
+        );
+
+        let i = v.interpret("APAC services");
+        assert!(i.notes.iter().any(|n| n.contains("no standard definition")));
+    }
+
+    #[test]
+    fn places_inside_names_are_words() {
+        let v = vocab();
+        for (q, words) in [
+            (
+                "European Molecular Biology Laboratory",
+                "european molecular biology laboratory",
+            ),
+            ("Europe PMC", "europe pmc"),
+            (
+                "American Chemical Society journals",
+                "american chemical society journals",
+            ),
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.region, None, "{q}");
+            assert_eq!(i.params.country, None, "{q}");
+            assert_eq!(i.params.q.as_deref(), Some(words), "{q}");
+            assert!(i.notes.iter().any(|n| n.contains("part of a name")), "{q}");
+        }
+        // A capital that starts another filter is not a name.
+        let i = v.interpret("European R&S services");
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+        // Lowercase can't be told apart, and reads as a place.
+        let i = v.interpret("european molecular biology");
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+    }
+
+    #[test]
+    fn validate_keeps_known_places() {
+        let mut notes = Vec::new();
+        let p = vocab().validate(
+            InterpretedParams {
+                country: Some("se,XX,GB".into()),
+                region: Some("Europe,atlantis,eu".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.country.as_deref(), Some("SE,GB"));
+        assert_eq!(p.region.as_deref(), Some("europe,eu"));
+        assert_eq!(notes.len(), 2, "{notes:?}");
+        assert_eq!(vocab().label("region", "brics"), "BRICS");
+    }
+
+    #[test]
+    fn sharing_phrasings() {
+        let v = vocab();
+        let i = v.interpret("services anyone in eduGAIN can use for survey tools");
+        assert_eq!(i.params.sharing.as_deref(), Some("multilateral"));
+        assert_eq!(i.params.source, None, "the phrase claims \"in eduGAIN\"");
+        assert_eq!(i.params.q.as_deref(), Some("survey tools"));
+
+        let i = v.interpret("video conferencing, not institution-specific");
+        assert_eq!(i.params.sharing.as_deref(), Some("multilateral,unknown"));
+        assert_eq!(i.params.q.as_deref(), Some("video conferencing"));
+        assert_eq!(i.matched[0].label, "Open to any institution or Unknown");
+
+        let i = v.interpret("bilateral zoom registrations");
+        assert_eq!(i.params.sharing.as_deref(), Some("bilateral"));
+
+        let mut notes = Vec::new();
+        let p = v.validate(
+            InterpretedParams {
+                sharing: Some("Multilateral,open".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.sharing.as_deref(), Some("multilateral"));
+        assert_eq!(notes.len(), 1);
+    }
+
+    #[test]
+    fn groupings_by_name() {
+        let v = vocab();
+        for (q, region) in [
+            ("R&S services in Schengen countries", "schengen"),
+            ("services from NATO members", "nato"),
+            ("OECD library services", "oecd"),
+            ("wikis in the eurozone", "eurozone"),
+            ("Nordic countries' research data", "nordic-council"),
+            ("services in G20 countries", "g20"),
+            ("ASEAN universities' services", "asean"),
+            ("services registered in GÉANT countries", "geant"),
+            ("UbuntuNet countries' services", "ubuntunet"),
+            ("anything from Mercosur", "mercosur"),
+            ("services from Commonwealth countries", "commonwealth"),
+        ] {
+            assert_eq!(v.interpret(q).params.region.as_deref(), Some(region), "{q}");
+        }
+        // Several groupings combine like countries.
+        let i = v.interpret("services in NATO members or the GCC");
+        assert_eq!(i.params.region.as_deref(), Some("nato,gcc"));
+    }
+
+    #[test]
+    fn network_and_grouping_names_inside_service_names_stay_words() {
+        let v = vocab();
+        for q in [
+            "RedCLARA communities",
+            "virginia commonwealth university",
+            "geant edusign",
+            "apan conference",
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.region, None, "{q}");
+        }
+    }
+
+    #[test]
+    fn african_blocs_by_name() {
+        let v = vocab();
+        for (q, region) in [
+            ("services in ECOWAS countries", "ecowas"),
+            ("SADC members' library services", "sadc"),
+            ("services from the East African Community", "eac"),
+            ("anything in the CFA franc zone", "cfa-franc-zone"),
+            ("Arab League countries", "arab-league"),
+            ("COMESA services", "comesa"),
+        ] {
+            assert_eq!(v.interpret(q).params.region.as_deref(), Some(region), "{q}");
+        }
+        // Aligarh Muslim University's "AMU" is not the Arab Maghreb Union.
+        assert_eq!(v.interpret("amu library").params.region, None);
     }
 }

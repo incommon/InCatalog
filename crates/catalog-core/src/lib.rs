@@ -15,12 +15,17 @@ pub mod ask;
 pub mod build;
 pub mod categories;
 pub mod curation;
+pub mod environment;
+pub mod examples;
 pub mod extract;
 pub mod federations;
 pub mod model;
 pub mod nl;
 pub mod ns;
+pub mod regions;
 pub mod search;
+pub mod sector;
+pub mod sharing;
 pub mod xml;
 
 /// Bump when the snapshot layout changes incompatibly.

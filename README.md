@@ -117,16 +117,99 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/ask?q=` | Read a plain-language search and find results, loosening it when it matches nothing (see Natural-language search) |
 | `/v1/interpret?q=` | Only the reading: the filters a plain-language search maps to |
 | `/v1/meta` | Snapshot provenance (URLs, `Last-Modified`, SHA-256, `validUntil`, signature status), counts, caveats |
-| `/v1/services` | Search. `q`, `federation`, `country`, `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
+| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, `sharing`, and `sector` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
 | `/v1/services/{id}` | One service. `id` is the lowercase hex SHA-1 of the entityID, which is the same identifier MDQ uses, so `{sha1}` is accepted as a prefix |
 | `/v1/lookup?entity_id=` | One service, by entityID |
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
 | `/v1/federations` | eduGAIN's federations joined to catalog counts, plus any registrars eduGAIN does not list |
+| `/v1/regions` | Regions a search can name, each with its countries, source, and service count |
+| `/v1/examples` | Example searches, one or more for each thing the search understands |
 | `/v1/categories` | Known categories with synonyms and counts, plus every raw tag value seen |
 | `/v1/attributes` | Requested attributes, most requested first |
+| `/v1/releases`, `/v1/releases/{version}` | Release notes from `CHANGELOG.md`, as built into this version; `/v1/meta` has the running `version` |
 
 Facet counts for each dimension apply every *other* active filter, so a user can switch
 between values without losing sight of the alternatives.
+
+### Regions
+
+`region=` names a set of countries, and `regions` on the results lists each region with
+the countries it stood for, its source, and when that was checked, so a reader can see
+what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
+`crates/catalog-core/data/regions.json`.
+
+- **Geographic regions** follow [UN M49](https://unstats.un.org/unsd/methodology/m49/)
+  exactly: continents, subregions, and the intermediate regions of Africa and the
+  Americas. So Cyprus and Turkey are in Western Asia, Mexico is in Latin America and
+  not Northern America, and Greenland is in Northern America. Asia-Pacific is not an
+  M49 region; here it is Eastern, South-eastern, and Southern Asia plus Oceania.
+- **Political, security, and economic groupings** carry the date their listed
+  membership took effect (`as_of`), and when recent members joined (`joined`):
+  - the EU, the EEA, Schengen, and the euro area
+  - the Nordic Council
+  - NATO and Five Eyes
+  - the OECD, the G7, the G20, ASEAN, APEC, Mercosur, and USMCA
+  - the African Union, the GCC, the Commonwealth of Nations, and BRICS
+  - Africa's regional economic communities (ECOWAS, SADC, the EAC, COMESA, ECCAS,
+    IGAD, CEN-SAD, the Arab Maghreb Union), the CFA franc zone (WAEMU and CEMAC),
+    SACU, AfCFTA's state parties, and the Arab League
+
+  Former members are recorded with the date they left (`left`), rather than dropped
+  silently. For example, Burkina Faso, Mali, and Niger left ECOWAS on 2025-01-29,
+  and Eritrea left IGAD on 2025-12-12. Memberships overlap: Kenya is in the EAC,
+  COMESA, and IGAD.
+
+  The EU is not Europe, and Schengen is not the EU: Norway and Switzerland are in it,
+  and Ireland and Cyprus are not.
+- **Research and education networks** stand for the countries of their member
+  networks: GÉANT (its 37 national members and the Nordic NRENs through NORDUnet),
+  RedCLARA, APAN, WACREN, UbuntuNet, and ASREN. Their names count as regions only with
+  a word like "countries" or "members", so a search for "RedCLARA communities" still
+  finds RedCLARA's own services.
+- **Choices are written down.** Where a list took a choice, its `note` says what was
+  chosen:
+  - the G20's EU and African Union seats are groupings, not countries
+  - the African Union's Sahrawi Republic has no ISO code, and Western Sahara is not
+    equated with it
+  - Mercosur's suspended Venezuela is left out
+  - so is Saudi Arabia, invited to BRICS in 2023 but not confirmed
+  - so is Kosovo, whose network is a GÉANT associate but which has no ISO code
+  - AfCFTA lists the states that have ratified the agreement, not every signatory
+  - the Alliance of Sahel States (Burkina Faso, Mali, Niger) is not listed, as a
+    politically sensitive grouping
+
+  Groupings whose membership is contested, or that label countries by a judgment
+  (sanctions lists, "developed countries"), are left out on purpose.
+- **Every list is rechecked yearly.** Each entry records the date it was checked
+  against its source. A test fails once any entry is more than a year old, as a prompt
+  to recheck it and update `checked`.
+- **Federations that list several countries** are in a region when any of their
+  countries is, the same rule `country` applies. WAYF (Denmark, Iceland, Greenland) is
+  in Europe, the EU, and Northern America. A federation that lists no country is in
+  no region.
+
+`country` and `region` together are one set of places: `region=eu&country=US` finds
+services registered in the EU or the United States.
+
+### Environments
+
+Every service is `production`, `test`, `staging`, `development`, or `unknown`, and
+`environment_source` on each result says what decided it:
+
+1. **`metadata`:** a marker word in the entityID's host (`canvas-test.`, `shibstg.`,
+   `uat2.`) or path (`/staging/`, `/StarRezPortalXDev/`), or in the display or service
+   name ("(Test)", "Sandbox", "— Development"). The rules are narrow on purpose, since
+   they outrank Claude: "Test Prep Academy", `contest.example.org`, `devry.edu`, and
+   "Office of Development" are not test or development instances.
+2. **`generated`:** otherwise, the environment Claude read while writing the summary.
+3. **`metadata`** again, from the endpoint hosts, when there is no summary and every
+   `AssertionConsumerService` host carries the same marker.
+4. Otherwise `unknown`. Metadata never shows that something *is* live, so `production`
+   always comes from Claude's reading.
+
+`/v1/services/{id}` returns the reading with the marker that decided it. Search ranks
+test, staging, and development copies below the live service they mirror, and the
+`environment` filter and facet let people ask for them, or leave them out.
 
 ## Natural-language search
 
@@ -138,15 +221,31 @@ results so the user can check it or search the literal words instead.
 |---|---|
 | R&S services in Sweden that request email | `category=research-and-scholarship`, `country=SE`, `attribute=mail` |
 | UK federation services that need ORCID | `federation=UK-FEDERATION`, `attribute=eduPersonOrcid` |
-| German library services | `country=DE`, words `library` |
+| German library services | `country=DE`, `sector=libraries` |
 | journals not in InCommon | `availability=edugain-only`, words `journals` |
+| test instances of Canvas | `environment=test`, words `canvas` |
+| only production services, no test instances | `environment=production` (or `production,unknown`) |
+| R&S services in Europe | `category=research-and-scholarship`, `region=europe` |
+| services in Schengen countries or the GCC | `region=schengen,gcc` |
+| services in Sweden or the UK | `country=SE,GB` |
+| journals in America | `country=US`, words `journals`, and a note that "the Americas" names the region |
+| survey tools anyone in eduGAIN can use | `sharing=multilateral`, words `survey tools` |
+| video conferencing, not institution-specific | `sharing=multilateral,unknown`, words `video conferencing` |
+| European Molecular Biology Laboratory | words only: a capitalized place followed by a capitalized word is read as part of a name, and the reading says so |
 | email marketing | words only (no "request" verb, so *email* is a subject, not an attribute) |
+
+The landing page offers three of the examples from `/v1/examples`
+(`catalog-core/src/examples.rs`), different on each visit. The About page lists them
+all, in a "How to search" section that also explains each filter, how regions are
+defined, and which labels Claude wrote. `crates/catalog-core/tests/examples.rs` reads
+every example with the rules and checks that it produces the filters it is meant to
+show and finds services without being loosened, so none can quietly stop working.
 
 Two readers do this work:
 
 - **Built-in rules** (`catalog-core/src/nl.rs`) are always on. They are deterministic,
   free, and need no network. Their vocabulary comes from the loaded snapshot: federation
-  names and codes, countries and nationalities, category synonyms, availability
+  names and codes, countries and nationalities, region names, category synonyms, availability
   phrasings, and attribute names with everyday aliases ("email", "ORCID", "last name").
 - **Claude** (`catalog-api/src/nl.rs`) is optional. It reads queries of three or more
   words when an Anthropic key is configured. Rust has no official Anthropic SDK, so it
@@ -168,8 +267,8 @@ finds something. When the literal reading matches nothing it loosens one step at
 time, and returns a sentence saying what it loosened:
 
 1. every filter and every word, then most of the words, then any of them
-2. drop one filter at a time, softest first (requested attribute, country, seen-in,
-   federation, provider type, availability, category)
+2. drop one filter at a time, softest first (requested attribute, country, region,
+   environment, sharing, seen-in, federation, provider type, availability, category)
 3. the words alone, then the filters alone
 
 "journals not in InCommon" has no literal match (no journal is eduGAIN-only), so it
@@ -226,11 +325,25 @@ little:
 | Inconclusive logo URL | 3 days |
 | Website with a logo found | 30 days |
 | Website with no usable logo | 14 days |
-| Website that failed to load | 3 days |
+| Website that failed transiently (DNS, connection, timeout, 5xx, 429, the model) | 6 hours |
+| Website that failed otherwise (403, 404, TLS, redirect loops) | 3 days |
 
-Each run looks up at most `CATALOG_LOGO_MAX_LOOKUPS` websites (default 150),
+Each run looks up at most `CATALOG_LOGO_MAX_LOOKUPS` websites (default 300),
 starting with the sites behind the most services, so the first few runs fill the cache
-gradually. Website lookup needs an Anthropic key, the same one natural-language search
+gradually. A transient failure is retried twice within the run, after 3 and 12
+seconds. If 12 lookups in a row cannot reach their site at all, the network is down
+rather than the sites, so the run stops looking up and leaves the rest uncached for
+the next run, with a warning. One local run on 2026-10-28 shows why: it cached 520
+sites as DNS failures within ten seconds, and kept them for 3 days. Host names are
+resolved 8 at a time.
+
+The ingest report counts the services left without any logo by reason in
+`services_without_logo`: `no_website`, `waiting` (not looked up yet),
+`no_logo_on_site`, or the lookup's failure (`dns`, `connect`, `timeout`, `tls`,
+`http`, `http_transient`, `model`, `other`). It also reports how many of them publish
+a broken metadata logo, and how many metadata logos were inconclusive. A service
+with no logo shows a monogram of its name. A federation's or identity provider's logo
+would look like the service's own, so it is not used as a fallback. Website lookup needs an Anthropic key, the same one natural-language search
 uses (`ANTHROPIC_API_KEY`, or `anthropic_api_key_ssm_parameter` in Terraform).
 Without one, ingest still checks metadata logos and reports how many services are
 waiting. `CATALOG_LOGO_MODEL` (default `claude-opus-5-5` at `low` effort) chooses the
@@ -292,6 +405,119 @@ To read a sample before generating everything:
 ```bash
 CATALOG_ENRICH_MODE=sync CATALOG_ENRICH_MAX=20 make ingest
 ```
+
+## Multilateral or bilateral
+
+Much of the catalog is bilateral: registered for one institution's users, like the
+hundreds of per-campus Zoom, Canvas, and Qualtrics registrations, or a campus's own
+internal applications. A multilateral service takes users from any institution's
+identity provider through one registration: publishers, research collaborations,
+federation and network services. Each service's `sharing` is `multilateral`,
+`bilateral`, or `unknown`, and `sharing_source` says what decided it.
+
+"Multilateral" means open to users of any identity provider *in principle*. Whether a
+person gets in still depends on their identity provider releasing the attributes the
+service needs, and on any subscription. The API docs and the service page say so.
+
+1. **Signals** (`catalog-core/src/sharing.rs`): categories that lean multilateral
+   (Research & Scholarship, the Code of Conduct, the REFEDS access categories),
+   publication to eduGAIN, discovery or request-initiator endpoints, an institution
+   named in the display name, the registrant, and **tenant clusters**. A tenant cluster
+   is five or more registrations that differ only by the host's first label
+   (`https://*.zoom.us`), at least 80% under one registrant. A pattern spread over many
+   registrants, like `*.carsi.edu.cn`, is not one.
+2. **Rule (`metadata`)**: a tenant cluster member that is not in eduGAIN and carries no
+   open category is bilateral. This outranks Claude. On the 2026-10-28 snapshot it
+   decides 3,261 of 8,633 services.
+3. **Claude (`generated`)**: ingest sends everything else to Claude, with the signals as
+   facts. It sends a tenant cluster the rule left open once, and labels every member
+   with the answer. Like the summaries, the label is held apart with the model and date
+   (`service.sharing`), shown as generated, and cached by a hash of its input. It uses
+   its own prompt version and `sharing-cache.json`, so changing it never rewrites a
+   summary, and each run is capped.
+4. **Rule (`metadata`)**: where Claude has not answered, a service in eduGAIN with
+   Research & Scholarship or a REFEDS access category, outside any tenant cluster, is
+   multilateral (534 services on that snapshot).
+
+Search ranks bilateral entries a little below multilateral ones. `sharing=multilateral`
+and phrasings such as "services anyone in eduGAIN can use" or "not
+institution-specific" filter on it.
+
+**Validation.** `crates/catalog-core/tests/fixtures/sharing-sample.json` is a
+hand-labeled sample of 60 services: per-campus Zoom, Canvas, and Qualtrics tenants,
+hosted library systems, campuses' own applications, publishers, Box, the Internet2 IAM
+platform, research collaborations, and federation services. `cargo test` checks the
+rules against it, and reports how many they decide and their precision per label. To
+check the prompt against it after a change (this calls Claude):
+
+```bash
+cargo test -p catalog-ingest sharing::tests::eval -- --ignored --nocapture
+```
+
+| Setting | Default | |
+|---|---|---|
+| `CATALOG_SHARING_MAX` | 400 | most requests per run (a cluster is one); `0` turns them off |
+| `CATALOG_SHARING_MODEL` | `claude-opus-5-5` | at `CATALOG_SHARING_EFFORT`, default `low`; Terraform sets `claude_model` |
+| `CATALOG_SHARING_CACHE` | `sharing-cache.json` beside the snapshot | |
+
+## Who runs a service
+
+`sector` says what kind of organization registered a service. It describes who runs
+the service, not who uses it. There are 11 sectors:
+- `academia`, `research`, `commercial`, `libraries`
+- `museums` (with archives and galleries)
+- `government`, `healthcare`, `k12`, `publishers`, `nonprofit`
+- `nren` (federations and networks)
+
+An organization can have several: a university medical center is `academia` and
+`healthcare`, and a publishing company is `publishers` and `commercial`.
+`sector_source` on each result says what decided it, in this order:
+
+1. **`curated`:** a curation overlay's `provider_type`, mapped onto the sectors.
+2. **`metadata`:** rules over the organization's name and domain
+   (`catalog-core/src/sector.rs`). Names decide in several languages:
+   - "University", "Universität", "Université", "Hochschule", "Politecnico" →
+     `academia`
+   - "National Library", "Staatsbibliothek" → `libraries`
+   - "Museo", "Rijksmuseum" → `museums`
+   - "Ministry", "Bundesamt" → `government`
+   - "Hospital", "Medical Center" → `healthcare`
+   - "Press", "Publishing", "Verlag" → `publishers`
+   - "Foundation", "Society", "e. V." → `nonprofit`
+   - "GmbH", "LLC", "B.V.", "Co., Ltd" → `commercial`
+
+   So do domains: `.gov`, `.gouv.*`, `.gob.*` and `.govt.*` → `government`, and a
+   federation's own domain → `nren`. The rules are narrow, because they outrank
+   Claude:
+   - "Cambridge University Press" is a publisher, not a university.
+   - An "Online Library" or "Ebook Library" is a product, not a library.
+   - A company is not a museum, a hospital or an agency because of a word in its name.
+   - "Inc.", "Ltd", "Corporation" and `.edu` or `.ac.*` domains are only hints, since
+     nonprofits, public bodies and networks use them too.
+3. **`generated`:** Claude reads the rest during ingest, once per organization, from
+   its name, website, a sample of its services and the rules' hints. The answer is
+   kept in `service.sector` with the model and date, cached in `sector-cache.json`,
+   and capped per run (`CATALOG_SECTOR_MAX`, default 400; Terraform
+   `sector_max_per_run`). The rules decide 719 of the 1,414 organizations in the
+   2026-10-28 snapshot, so about 700 are left for Claude.
+
+Publicly funded institutions are labeled by what they are: a public university is
+`academia`, a public library `libraries`, a national laboratory `research` (and
+`government` when it runs on a `.gov` domain). A vendor that sells to governments is
+`commercial`.
+
+In plain language:
+- "libraries", "library services", "museum SPs", "run by museums", "universities" and
+  "government agencies" filter on sector
+- "commercial", "vendors" and "companies" → `commercial`
+- "non-commercial" → every sector except `commercial` and `publishers`
+- "library" alone stays a word, so "library management system" searches the words
+
+`crates/catalog-core/tests/fixtures/sector-sample.json` is a hand-labeled sample of 60
+organizations, including the false positives above. `cargo test` checks the rules'
+precision per sector against it, and
+`cargo test -p catalog-ingest sector::tests::eval -- --ignored --nocapture` runs the
+prompt over the organizations the rules leave undecided.
 
 ## Curation overlay
 
@@ -372,7 +598,18 @@ infra/terraform         S3, Lambda, API Gateway, EventBridge, CloudFront
 curation/               overlay example
 ```
 
+## Contributing
+
+Branching (gitflow on `develop` and `main`), commit messages, versioning and cutting a
+release, what CI checks, the coverage gates, and how images are built and promoted are
+in [CONTRIBUTING.md](CONTRIBUTING.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
-Licensed under the [Apache License, Version 2.0](LICENSE). The bundled Poppins fonts in
-`web/fonts/` are under the SIL Open Font License (`web/fonts/OFL.txt`).
+Licensed under the [Apache License, Version 2.0](LICENSE); see also [NOTICE](NOTICE). The
+bundled Poppins fonts in `web/fonts/` are under the SIL Open Font License
+(`web/fonts/OFL.txt`). Dependency licenses are held to an allow-list in CI with
+[`cargo-deny`](deny.toml), and their attributions are generated with
+[`cargo-about`](about.toml) into `THIRD-PARTY-LICENSES.html`, which the image build
+writes from the `Cargo.lock` it builds and ships in the container image (`make notices`
+writes it locally).
