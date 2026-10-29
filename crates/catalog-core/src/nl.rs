@@ -20,6 +20,7 @@ use crate::environment::Environment;
 use crate::model::{Availability, Federation, Service};
 use crate::regions::{self, REGIONS};
 use crate::search::split_list;
+use crate::sharing::Sharing;
 
 /// The filters a query was read as. Field names and values match `/v1/services`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -34,6 +35,8 @@ pub struct InterpretedParams {
     pub region: Option<String>,
     /// Comma-separated environments; a service in any of them matches.
     pub environment: Option<String>,
+    /// Comma-separated sharing labels (`multilateral`, `bilateral`, `unknown`).
+    pub sharing: Option<String>,
     /// Comma-separated category keys.
     pub category: Option<String>,
     pub availability: Option<String>,
@@ -73,6 +76,7 @@ impl Interpretation {
             &p.country,
             &p.region,
             &p.environment,
+            &p.sharing,
             &p.category,
             &p.availability,
             &p.attribute,
@@ -118,6 +122,7 @@ enum Field {
     Availability,
     Source,
     Environment,
+    Sharing,
     Category,
     Federation,
     Region,
@@ -132,6 +137,7 @@ impl Field {
             Field::Availability => "availability",
             Field::Source => "source",
             Field::Environment => "environment",
+            Field::Sharing => "sharing",
             Field::Category => "category",
             Field::Federation => "federation",
             Field::Country => "country",
@@ -675,6 +681,62 @@ const ENVIRONMENT_EXCLUDED: &[&str] = &[
     "sandboxes",
 ];
 
+/// Who a service is for: anyone's institution, or one institution's.
+const SHARING_ALIASES: &[(&str, &[&str])] = &[
+    (
+        "multilateral",
+        &[
+            "multilateral",
+            "anyone in edugain can use",
+            "anyone in incommon can use",
+            "any institution can use",
+            "anyone can use",
+            "open to any institution",
+            "open to all institutions",
+            "available to any institution",
+            "usable by any institution",
+            "for any institution",
+        ],
+    ),
+    (
+        "bilateral",
+        &[
+            "bilateral",
+            "institution-specific",
+            "institution specific",
+            "single-institution",
+            "single institution",
+            "for one institution",
+            "per-campus",
+            "per campus",
+            "campus-specific",
+        ],
+    ),
+    (
+        "multilateral,unknown",
+        &[
+            "not institution-specific",
+            "not institution specific",
+            "not specific to one institution",
+            "not bilateral",
+            "no bilateral",
+            "excluding bilateral",
+            "without bilateral",
+            "no per-campus",
+            "no per campus",
+            "not per-campus",
+        ],
+    ),
+];
+
+fn sharing_label(value: &str) -> String {
+    value
+        .split(',')
+        .map(|k| Sharing::from_key(k).map(|s| s.label()).unwrap_or(k))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 /// "test or staging": several environments in one filter.
 fn environment_label(value: &str) -> String {
     value
@@ -792,6 +854,11 @@ impl Vocab {
         for (env, names) in ENVIRONMENT_ALIASES {
             for n in *names {
                 v.add(n, Field::Environment, env, &environment_label(env), false);
+            }
+        }
+        for (value, names) in SHARING_ALIASES {
+            for n in *names {
+                v.add(n, Field::Sharing, value, &sharing_label(value), false);
             }
         }
         for neg in ENVIRONMENT_NEGATIONS {
@@ -1057,6 +1124,7 @@ impl Vocab {
         let mut cats: Vec<&str> = Vec::new();
         let mut feds: Vec<&str> = Vec::new();
         let mut envs: Vec<&str> = Vec::new();
+        let mut sharing: Vec<&str> = Vec::new();
         let mut countries: Vec<&str> = Vec::new();
         let mut regions: Vec<&str> = Vec::new();
         for m in matched {
@@ -1072,6 +1140,12 @@ impl Vocab {
                 "environment" => {
                     for v in m.value.split(',') {
                         add(&mut envs, v);
+                    }
+                    continue;
+                }
+                "sharing" => {
+                    for v in m.value.split(',') {
+                        add(&mut sharing, v);
                     }
                     continue;
                 }
@@ -1107,6 +1181,9 @@ impl Vocab {
         }
         if !envs.is_empty() {
             p.environment = Some(envs.join(","));
+        }
+        if !sharing.is_empty() {
+            p.sharing = Some(sharing.join(","));
         }
         if !countries.is_empty() {
             p.country = Some(countries.join(","));
@@ -1160,8 +1237,13 @@ impl Vocab {
             .into_iter()
             .filter_map(|v| keep("region", Some(v), &|v| regions::get(v).is_some()))
             .collect();
+        let sharing: Vec<String> = split_list(p.sharing.map(|v| v.to_lowercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| keep("sharing", Some(v), &|v| Sharing::from_key(v).is_some()))
+            .collect();
         InterpretedParams {
             q: p.q.map(|q| q.trim().to_owned()).filter(|q| !q.is_empty()),
+            sharing: (!sharing.is_empty()).then(|| sharing.join(",")),
             country: (!countries.is_empty()).then(|| countries.join(",")),
             region: (!regions.is_empty()).then(|| regions.join(",")),
             environment: (!environments.is_empty()).then(|| environments.join(",")),
@@ -1194,6 +1276,7 @@ impl Vocab {
                 .map(|d| d.label.to_owned()),
             "availability" => Availability::from_key(value).map(|a| a.label().to_owned()),
             "environment" => Some(environment_label(value)),
+            "sharing" => Some(sharing_label(value)),
             "attribute" => self
                 .attributes
                 .iter()
@@ -1648,5 +1731,33 @@ mod tests {
         assert_eq!(p.region.as_deref(), Some("europe,eu"));
         assert_eq!(notes.len(), 2, "{notes:?}");
         assert_eq!(vocab().label("region", "brics"), "BRICS");
+    }
+
+    #[test]
+    fn sharing_phrasings() {
+        let v = vocab();
+        let i = v.interpret("services anyone in eduGAIN can use for survey tools");
+        assert_eq!(i.params.sharing.as_deref(), Some("multilateral"));
+        assert_eq!(i.params.source, None, "the phrase claims \"in eduGAIN\"");
+        assert_eq!(i.params.q.as_deref(), Some("survey tools"));
+
+        let i = v.interpret("video conferencing, not institution-specific");
+        assert_eq!(i.params.sharing.as_deref(), Some("multilateral,unknown"));
+        assert_eq!(i.params.q.as_deref(), Some("video conferencing"));
+        assert_eq!(i.matched[0].label, "Open to any institution or Unknown");
+
+        let i = v.interpret("bilateral zoom registrations");
+        assert_eq!(i.params.sharing.as_deref(), Some("bilateral"));
+
+        let mut notes = Vec::new();
+        let p = v.validate(
+            InterpretedParams {
+                sharing: Some("Multilateral,open".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.sharing.as_deref(), Some("multilateral"));
+        assert_eq!(notes.len(), 1);
     }
 }

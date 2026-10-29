@@ -117,7 +117,7 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/ask?q=` | Read a plain-language search and find results, loosening it when it matches nothing (see Natural-language search) |
 | `/v1/interpret?q=` | Only the reading: the filters a plain-language search maps to |
 | `/v1/meta` | Snapshot provenance (URLs, `Last-Modified`, SHA-256, `validUntil`, signature status), counts, caveats |
-| `/v1/services` | Search. `q`, `federation`, `country`, `region`, and `environment` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
+| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, and `sharing` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
 | `/v1/services/{id}` | One service. `id` is the lowercase hex SHA-1 of the entityID, which is the same identifier MDQ uses, so `{sha1}` is accepted as a prefix |
 | `/v1/lookup?entity_id=` | One service, by entityID |
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
@@ -188,6 +188,8 @@ results so the user can check it or search the literal words instead.
 | R&S services in Europe | `category=research-and-scholarship`, `region=europe` |
 | services in Sweden or the UK | `country=SE,GB` |
 | journals in America | `country=US`, words `journals`, and a note that "the Americas" names the region |
+| survey tools anyone in eduGAIN can use | `sharing=multilateral`, words `survey tools` |
+| video conferencing, not institution-specific | `sharing=multilateral,unknown`, words `video conferencing` |
 | European Molecular Biology Laboratory | words only: a capitalized place followed by a capitalized word is read as part of a name, and the reading says so |
 | email marketing | words only (no "request" verb, so *email* is a subject, not an attribute) |
 
@@ -218,7 +220,7 @@ time, and returns a sentence saying what it loosened:
 
 1. every filter and every word, then most of the words, then any of them
 2. drop one filter at a time, softest first (requested attribute, country, region,
-   environment, seen-in, federation, provider type, availability, category)
+   environment, sharing, seen-in, federation, provider type, availability, category)
 3. the words alone, then the filters alone
 
 "journals not in InCommon" has no literal match (no journal is eduGAIN-only), so it
@@ -341,6 +343,60 @@ To read a sample before generating everything:
 ```bash
 CATALOG_ENRICH_MODE=sync CATALOG_ENRICH_MAX=20 make ingest
 ```
+
+## Multilateral or bilateral
+
+Much of the catalog is bilateral: registered for one institution's users, like the
+hundreds of per-campus Zoom, Canvas, and Qualtrics registrations, or a campus's own
+internal applications. A multilateral service takes users from any institution's
+identity provider through one registration: publishers, research collaborations,
+federation and network services. Each service's `sharing` is `multilateral`,
+`bilateral`, or `unknown`, and `sharing_source` says what decided it.
+
+"Multilateral" means open to users of any identity provider *in principle*. Whether a
+person gets in still depends on their identity provider releasing the attributes the
+service needs, and on any subscription. The API docs and the service page say so.
+
+1. **Signals** (`catalog-core/src/sharing.rs`): categories that lean multilateral
+   (Research & Scholarship, the Code of Conduct, the REFEDS access categories),
+   publication to eduGAIN, discovery or request-initiator endpoints, an institution
+   named in the display name, the registrant, and **tenant clusters**. A tenant cluster
+   is five or more registrations that differ only by the host's first label
+   (`https://*.zoom.us`), at least 80% under one registrant. A pattern spread over many
+   registrants, like `*.carsi.edu.cn`, is not one.
+2. **Rule (`metadata`)**: a tenant cluster member that is not in eduGAIN and carries no
+   open category is bilateral. This outranks Claude. On the 2026-10-28 snapshot it
+   decides 3,261 of 8,633 services.
+3. **Claude (`generated`)**: ingest sends everything else to Claude, with the signals as
+   facts. It sends a tenant cluster the rule left open once, and labels every member
+   with the answer. Like the summaries, the label is held apart with the model and date
+   (`service.sharing`), shown as generated, and cached by a hash of its input. It uses
+   its own prompt version and `sharing-cache.json`, so changing it never rewrites a
+   summary, and each run is capped.
+4. **Rule (`metadata`)**: where Claude has not answered, a service in eduGAIN with
+   Research & Scholarship or a REFEDS access category, outside any tenant cluster, is
+   multilateral (534 services on that snapshot).
+
+Search ranks bilateral entries a little below multilateral ones. `sharing=multilateral`
+and phrasings such as "services anyone in eduGAIN can use" or "not
+institution-specific" filter on it.
+
+**Validation.** `crates/catalog-core/tests/fixtures/sharing-sample.json` is a
+hand-labeled sample of 60 services: per-campus Zoom, Canvas, and Qualtrics tenants,
+hosted library systems, campuses' own applications, publishers, Box, the Internet2 IAM
+platform, research collaborations, and federation services. `cargo test` checks the
+rules against it, and reports how many they decide and their precision per label. To
+check the prompt against it after a change (this calls Claude):
+
+```bash
+cargo test -p catalog-ingest sharing::tests::eval -- --ignored --nocapture
+```
+
+| Setting | Default | |
+|---|---|---|
+| `CATALOG_SHARING_MAX` | 400 | most requests per run (a cluster is one); `0` turns them off |
+| `CATALOG_SHARING_MODEL` | `claude-opus-5-5` | at `CATALOG_SHARING_EFFORT`, default `low`; Terraform sets `claude_model` |
+| `CATALOG_SHARING_CACHE` | `sharing-cache.json` beside the snapshot | |
 
 ## Curation overlay
 

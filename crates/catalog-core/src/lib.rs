@@ -23,6 +23,7 @@ pub mod nl;
 pub mod ns;
 pub mod regions;
 pub mod search;
+pub mod sharing;
 pub mod xml;
 
 /// Bump when the snapshot layout changes incompatibly.

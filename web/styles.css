@@ -275,6 +275,7 @@ button.chip:hover { border-color: var(--accent); }
 .badge.avail { color: var(--accent); }
 .badge.cur { color: var(--ok); }
 .badge.env { color: var(--warn); }
+.badge.sharing.multilateral { color: var(--ink); }
 .gen-mark { color: var(--second); }
 .panel.generated { border-style: dashed; border-color: var(--second); }
 .panel.generated h2 { color: var(--second); }

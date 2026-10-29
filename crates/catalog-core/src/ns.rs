@@ -12,6 +12,7 @@ pub const MDRPI: &str = "urn:oasis:names:tc:SAML:metadata:rpi";
 pub const MDATTR: &str = "urn:oasis:names:tc:SAML:metadata:attribute";
 pub const MDUI: &str = "urn:oasis:names:tc:SAML:metadata:ui";
 pub const IDPDISC: &str = "urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol";
+pub const INIT: &str = "urn:oasis:names:tc:SAML:profiles:SSO:request-init";
 pub const XML: &str = "http://www.w3.org/XML/1998/namespace";
 /// REFEDS metadata extensions. SAML's `contactType` enumeration has no "security"
 /// member, so the REFEDS security contact is `contactType="other"` plus

@@ -83,7 +83,7 @@ const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().repla
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
 // a service must carry every category, and may be registered by any of the federations,
 // in any of the countries or regions, or be in any of the environments.
-const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any" };
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any" };
 // Region names read "the European Union" in a sentence and "European Union" in a list.
 const bare = (label) => label.replace(/^the /, "");
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -132,6 +132,15 @@ const AVAILABILITY_HELP = {
 // cards leave them off to keep the meaningful tags visible.
 const ENVIRONMENT = { production: "Production", test: "Test", staging: "Staging", development: "Development", unknown: "Unknown" };
 const NON_PRODUCTION = { test: "test", staging: "staging", development: "dev" };
+const SHARING = { multilateral: "Open to any institution", bilateral: "For one institution", unknown: "Unknown" };
+const SHARING_BADGE = { multilateral: "any institution", bilateral: "one institution" };
+// What "open to any institution" does and does not promise, wherever it is shown.
+const SHARING_CAVEAT =
+  "Open to users of any institution's identity provider in principle. Whether you get in still depends on your identity provider releasing the attributes the service needs, and on any subscription it requires.";
+const SHARING_SOURCE = {
+  metadata: "Decided from the metadata",
+  generated: "Claude's reading of this service's metadata",
+};
 // What decided a service's environment (`environment_source` on results).
 const ENVIRONMENT_SOURCE = {
   metadata: "Read from a marker in the entityID, the name, or the endpoint hosts",
@@ -177,6 +186,16 @@ function serviceCard(s) {
       "div",
       { class: "badges" },
       NON_PRODUCTION[s.environment] && h("span", { class: "badge env", title: ENVIRONMENT_SOURCE[s.environment_source] }, NON_PRODUCTION[s.environment]),
+      SHARING_BADGE[s.sharing] &&
+        h(
+          "span",
+          {
+            class: `badge sharing ${s.sharing}`,
+            title: [SHARING_SOURCE[s.sharing_source], s.sharing === "multilateral" ? SHARING_CAVEAT : null].filter(Boolean).join(". "),
+          },
+          s.sharing_source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "),
+          SHARING_BADGE[s.sharing],
+        ),
       s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
       cats.map((c) => h("span", { class: "badge cat" }, CATEGORY_LABELS[c] || c)),
       s.federation_name && h("span", { class: "badge" }, `${flag(s.countries[0])} ${s.federation_name}`.trim()),
@@ -243,6 +262,7 @@ const FIELD_LABELS = {
   category: "Category",
   availability: "Availability",
   environment: "Environment",
+  sharing: "Open to",
   attribute: "Requests",
   source: "Seen in",
   provider_type: "Provider type",
@@ -353,6 +373,7 @@ async function landing() {
 const FACET_ORDER = [
   ["availability", "Availability"],
   ["environment", "Environment"],
+  ["sharing", "Open to"],
   ["category", "Category"],
   ["federation", "Registered by"],
   ["region", "Region"],
@@ -458,8 +479,8 @@ async function search(params) {
   const chipLabel = (k, v) =>
     k === "availability"
       ? AVAILABILITY[v] || v
-      : k === "environment"
-        ? ENVIRONMENT[v] || v
+      : k === "environment" || k === "sharing"
+        ? (k === "environment" ? ENVIRONMENT : SHARING)[v] || v
         : k === "category"
           ? CATEGORY_LABELS[v] || v
           : (k === "federation" && feds?.get(v.toLowerCase())?.name) ||
@@ -531,6 +552,21 @@ function environmentNote(env) {
   if (env.source === "metadata") return `${label}, from ${env.evidence}`;
   if (env.source === "generated") return [h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "), `${label}, as Claude read this service's metadata`];
   return "Unknown: nothing in the metadata marks it, and there is no summary to go by";
+}
+
+// The label, why, and who decided it; a generated reading is marked and dated, and
+// "any institution" always comes with what it does not promise.
+function sharingNote(sh) {
+  if (!sh || sh.value === "unknown") return "Unknown: the metadata does not say, and Claude has not read it yet";
+  const cluster = sh.signals?.tenant_cluster;
+  return [
+    sh.source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "),
+    h("b", {}, SHARING[sh.value]),
+    sh.reason ? `. ${sh.reason.replace(/\.$/, "")}.` : ".",
+    sh.source === "generated" && h("span", { class: "gen-note" }, ` Claude's reading (${sh.model}, ${(sh.generated_at || "").slice(0, 10)}); may be wrong.`),
+    cluster && sh.source === "generated" && h("div", { class: "mono", style: "color:var(--muted)" }, `One of ${fmt(cluster.size)} registrations at ${cluster.pattern}`),
+    sh.value === "multilateral" && h("div", { style: "color:var(--muted);font-size:12px;margin-top:4px" }, SHARING_CAVEAT),
+  ];
 }
 
 function langList(map) {
@@ -647,6 +683,8 @@ async function serviceView(id) {
             h("dd", {}, s.sources.map((x) => (x === "incommon" ? "InCommon aggregate" : "eduGAIN aggregate")).join(", ")),
             h("dt", {}, "Environment"),
             h("dd", {}, environmentNote(d.environment)),
+            h("dt", {}, "Open to"),
+            h("dd", {}, sharingNote(d.sharing)),
             s.also_registered_by?.length > 0 && [h("dt", {}, "Also registered by"), h("dd", {}, s.also_registered_by.join(", "))],
           ),
         ),

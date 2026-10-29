@@ -72,13 +72,14 @@ plan: init
 deploy: push
 	$(TF) apply
 
-# Copy the local summary and logo caches up before the first ingest, so AWS reuses
-# the summaries already written instead of generating them all again. Skips any
-# that already exist in the bucket.
+# Copy the local summary, logo, and sharing caches up before the first ingest, so
+# AWS reuses what was already generated instead of generating it all again. Skips
+# any that already exist in the bucket, or that were never made locally.
 seed:
 	bucket=$$($(TF) output -raw data_bucket) && \
-	for f in summary-cache.json logo-cache.json; do \
-	  if aws s3api head-object --bucket $$bucket --key snapshots/$$f >/dev/null 2>&1; then echo "$$f already in s3://$$bucket"; \
+	for f in summary-cache.json logo-cache.json sharing-cache.json; do \
+	  if [ ! -f data/$$f ]; then echo "no data/$$f to copy"; \
+	  elif aws s3api head-object --bucket $$bucket --key snapshots/$$f >/dev/null 2>&1; then echo "$$f already in s3://$$bucket"; \
 	  else aws s3 cp data/$$f s3://$$bucket/snapshots/$$f; fi; done
 
 first-ingest:

@@ -26,6 +26,7 @@ use catalog_core::model::Availability;
 use catalog_core::nl::{Interpretation, InterpretedParams, MatchedTerm, Vocab};
 use catalog_core::regions::{RegionKind, REGIONS};
 use catalog_core::search::Catalog;
+use catalog_core::sharing::Sharing;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -103,6 +104,7 @@ impl ClaudeReader {
                 .filter(|c| !c.is_empty()),
                 region: (!out.regions.is_empty()).then(|| out.regions.join(",")),
                 environment: (!out.environments.is_empty()).then(|| out.environments.join(",")),
+                sharing: (!out.sharing.is_empty()).then(|| out.sharing.join(",")),
                 category: (!out.categories.is_empty()).then(|| out.categories.join(",")),
                 availability: out.availability,
                 attribute: out.attribute,
@@ -177,6 +179,8 @@ struct ModelReading {
     regions: Vec<String>,
     #[serde(default)]
     environments: Vec<String>,
+    #[serde(default)]
+    sharing: Vec<String>,
     categories: Vec<String>,
     availability: Option<String>,
     attribute: Option<String>,
@@ -214,6 +218,9 @@ fn matched_from(vocab: &Vocab, p: &InterpretedParams) -> Vec<MatchedTerm> {
     for e in p.environment.iter().flat_map(|e| e.split(',')) {
         push("environment", e);
     }
+    for v in p.sharing.iter().flat_map(|v| v.split(',')) {
+        push("sharing", v);
+    }
     for c in p.country.iter().flat_map(|c| c.split(',')) {
         push("country", c);
     }
@@ -250,13 +257,14 @@ fn schema(vocab: &Vocab) -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["keywords", "federations", "countries", "regions", "environments", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
+        "required": ["keywords", "federations", "countries", "regions", "environments", "sharing", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
         "properties": {
             "keywords": { "type": "string" },
             "federations": enum_array(vocab.federations.keys().cloned().collect()),
             "countries": enum_array(vocab.countries.keys().cloned().collect()),
             "regions": { "type": "array", "items": { "type": "string", "enum": REGIONS.iter().map(|r| r.key).collect::<Vec<_>>() } },
             "environments": enum_array(Environment::ALL.iter().map(|e| e.key().to_owned()).collect()),
+            "sharing": enum_array(Sharing::ALL.iter().map(|s| s.key().to_owned()).collect()),
             "categories": { "type": "array", "items": { "type": "string", "enum": CATEGORIES.iter().map(|c| c.key).collect::<Vec<_>>() } },
             "availability": nullable_enum(Availability::ALL.iter().map(|a| a.key().to_owned()).collect()),
             "attribute": nullable_enum(attributes(vocab).map(|(n, _)| n.clone()).collect()),
@@ -279,6 +287,7 @@ Set a filter only when the search clearly asks for it, and leave it null otherwi
 - `countries`: the registering federation's countries, when the search names one or more countries or nationalities rather than a federation. A service registered in any of them matches. \"America\" alone usually means the United States.
 - `regions`: when the search names a region or a grouping of countries (\"Europe\", \"the EU\", \"the Americas\", \"Asia-Pacific\", \"BRICS\"). Pick the region; do not list its countries. A place word inside an organization's name (\"European Molecular Biology Laboratory\", \"American Chemical Society\") is a keyword, not a place.
 - `environments`: only when the search asks for test, staging, or development instances (\"test instances of Canvas\", \"the staging environment\") or for live ones only (\"only production services\"); a service in any listed environment matches. To leave out test instances (\"no test sites\"), list `production` and `unknown`. \"Test\" or \"production\" as a subject (\"test prep\", \"video production\") is a keyword, not an environment. Leave the list empty otherwise.
+- `sharing`: only when the search asks who a service is open to. `multilateral` for services any institution's users can use (\"services anyone in eduGAIN can use\"); `bilateral` for ones registered for a single institution (\"institution-specific\", \"per-campus\"). To leave out single-institution registrations (\"not institution-specific\"), list `multilateral` and `unknown`. Leave the list empty otherwise.
 - `categories`: entity categories and certifications the service must carry, all of them.
 - `availability`: where the service can be used from. Use it only for searches about reach (\"not in InCommon\", \"exported to eduGAIN\"); do not combine it with `source`.
 - `source`: `incommon` when the search asks only for services InCommon members can use; `edugain` for services available through eduGAIN.
@@ -428,7 +437,7 @@ mod tests {
     #[tokio::test]
     async fn claude_reading_is_requested_correctly_and_validated() {
         let answer = json!({
-            "keywords": "collaborative writing", "federations": ["NOT-A-FED"], "countries": ["SE"], "regions": [], "environments": [],
+            "keywords": "collaborative writing", "federations": ["NOT-A-FED"], "countries": ["SE"], "regions": [], "environments": [], "sharing": [],
             "categories": ["research-and-scholarship"], "availability": null,
             "attribute": "urn:oid:0.9.2342.19200300.100.1.3", "source": null, "provider_type": null,
             "explanation": "Services for collaborative writing in Sweden that request email.",
@@ -485,7 +494,7 @@ mod tests {
     #[tokio::test]
     async fn claude_can_name_several_federations() {
         let answer = json!({
-            "keywords": "", "federations": ["SWAMID", "DFN-AAI", "NOPE"], "countries": [], "regions": [], "environments": [],
+            "keywords": "", "federations": ["SWAMID", "DFN-AAI", "NOPE"], "countries": [], "regions": [], "environments": [], "sharing": [],
             "categories": [], "availability": null, "attribute": null, "source": null,
             "provider_type": null, "explanation": "Services registered by SWAMID or DFN-AAI.",
         });
@@ -550,7 +559,7 @@ mod tests {
     async fn claude_names_regions_rather_than_country_lists() {
         let answer = json!({
             "keywords": "", "federations": [], "countries": ["SE", "XX"],
-            "regions": ["europe", "atlantis"], "environments": [], "categories": [],
+            "regions": ["europe", "atlantis"], "environments": [], "sharing": ["multilateral"], "categories": [],
             "availability": null, "attribute": null, "source": null, "provider_type": null,
             "explanation": "Services registered in Sweden or anywhere in Europe.",
         });
@@ -564,8 +573,9 @@ mod tests {
         .await;
         assert_eq!(i.params.country.as_deref(), Some("SE"));
         assert_eq!(i.params.region.as_deref(), Some("europe"));
+        assert_eq!(i.params.sharing.as_deref(), Some("multilateral"));
         let labels: Vec<&str> = i.matched.iter().map(|m| m.label.as_str()).collect();
-        assert_eq!(labels, ["Sweden", "Europe"]);
+        assert_eq!(labels, ["Open to any institution", "Sweden", "Europe"]);
         assert_eq!(i.notes.len(), 2, "{:?}", i.notes);
 
         let body = seen.lock().unwrap()[0].1.clone();
