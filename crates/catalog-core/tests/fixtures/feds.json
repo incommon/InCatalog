@@ -1,0 +1,3 @@
+{"INCOMMON":{"code":"INCOMMON","name":"InCommon","reg_auth":"https://incommon.org","status":"6","country_code":["us"],"countries":["United States"]},
+ "SWAMID":{"code":"SWAMID","name":"SWAMID","reg_auth":"http://www.swamid.se/","status":"6","country_code":["se"],"countries":["Sweden"],"stats":{"All":"10","IdPs":"4","SPs":"6"}},
+ "RENATER":{"code":"RENATER","name":"Fédération Éducation-Recherche","reg_auth":"https://federation.renater.fr/","status":"6","country_code":["fr"],"countries":["France"]}}

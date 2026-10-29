@@ -1,0 +1,71 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StateAndDataBuckets",
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::catabasis-*",
+        "arn:aws:s3:::catabasis-*/*"
+      ]
+    },
+    {
+      "Sid": "Functions",
+      "Effect": "Allow",
+      "Action": "lambda:*",
+      "Resource": "arn:aws:lambda:us-east-2:719982589369:function:catabasis-*"
+    },
+    {
+      "Sid": "HttpApi",
+      "Effect": "Allow",
+      "Action": "apigateway:*",
+      "Resource": [
+        "arn:aws:apigateway:us-east-2::/apis",
+        "arn:aws:apigateway:us-east-2::/apis/*",
+        "arn:aws:apigateway:us-east-2::/tags/*"
+      ]
+    },
+    {
+      "Sid": "IngestSchedule",
+      "Effect": "Allow",
+      "Action": "events:*",
+      "Resource": "arn:aws:events:us-east-2:719982589369:rule/catabasis-*"
+    },
+    {
+      "Sid": "SiteDistribution",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateDistribution",
+        "cloudfront:UpdateDistribution",
+        "cloudfront:DeleteDistribution",
+        "cloudfront:GetDistribution",
+        "cloudfront:GetDistributionConfig",
+        "cloudfront:TagResource",
+        "cloudfront:ListTagsForResource",
+        "cloudfront:CreateOriginAccessControl",
+        "cloudfront:UpdateOriginAccessControl",
+        "cloudfront:DeleteOriginAccessControl",
+        "cloudfront:GetOriginAccessControl",
+        "cloudfront:CreateResponseHeadersPolicy",
+        "cloudfront:UpdateResponseHeadersPolicy",
+        "cloudfront:DeleteResponseHeadersPolicy",
+        "cloudfront:GetResponseHeadersPolicy",
+        "cloudfront:GetCachePolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockModelLookup",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-mantle:ListModels",
+        "bedrock:ListFoundationModels",
+        "bedrock:GetFoundationModel",
+        "bedrock:ListInferenceProfiles",
+        "bedrock:GetInferenceProfile"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+/target
+/data
+*.json.gz
+.terraform/
+*.tfstate*
+web/config.local.js
+.DS_Store

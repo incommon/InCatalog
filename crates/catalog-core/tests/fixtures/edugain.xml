@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+    xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi"
+    xmlns:mdattr="urn:oasis:names:tc:SAML:metadata:attribute"
+    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+    xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui"
+    Name="http://edugain.org/" validUntil="2099-01-01T00:00:00Z">
+  <EntityDescriptor entityID="https://sp.example.edu/shibboleth">
+    <Extensions><mdrpi:RegistrationInfo registrationAuthority="https://incommon.org"/></Extensions>
+    <SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <Extensions><mdui:UIInfo><mdui:DisplayName xml:lang="en">eduGAIN copy</mdui:DisplayName></mdui:UIInfo></Extensions>
+    </SPSSODescriptor>
+  </EntityDescriptor>
+  <EntityDescriptor entityID="https://sp.example.se/sp">
+    <Extensions>
+      <mdrpi:RegistrationInfo registrationAuthority="http://www.swamid.se/"/>
+      <mdattr:EntityAttributes>
+        <saml:Attribute Name="http://macedir.org/entity-category">
+          <saml:AttributeValue>https://refeds.org/category/code-of-conduct/v2</saml:AttributeValue>
+        </saml:Attribute>
+      </mdattr:EntityAttributes>
+    </Extensions>
+    <SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <Extensions><mdui:UIInfo><mdui:DisplayName xml:lang="sv">Exempeltjänst</mdui:DisplayName><mdui:DisplayName xml:lang="en">Example Service</mdui:DisplayName></mdui:UIInfo></Extensions>
+    </SPSSODescriptor>
+  </EntityDescriptor>
+  <EntityDescriptor entityID="https://sp.example.fr/sp">
+    <Extensions><mdrpi:RegistrationInfo registrationAuthority="https://federation.renater.fr/"/></Extensions>
+    <SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"/>
+    <Organization><OrganizationName xml:lang="fr">Exemple</OrganizationName><OrganizationDisplayName xml:lang="fr">Exemple</OrganizationDisplayName><OrganizationURL xml:lang="fr">https://example.fr/</OrganizationURL></Organization>
+  </EntityDescriptor>
+</EntitiesDescriptor>

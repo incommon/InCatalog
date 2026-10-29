@@ -1,0 +1,18 @@
+{
+  "_comment": "Editorial overlay. Copy to curation/curation.json. Keys under 'services' are entityIDs; keys under 'providers' are organization display names (case-insensitive) and apply to every service that organization registers. Curated values are shown separately from metadata and never overwrite it.",
+  "providers": {
+    "Example University": {
+      "provider_type": "non-commercial",
+      "tags": ["campus"]
+    }
+  },
+  "services": {
+    "https://sp.example.org/shibboleth": {
+      "summary": "A plain-language description written for catalog readers.",
+      "tags": ["library", "e-resources"]
+    },
+    "https://test-sp.example.org/shibboleth": {
+      "hidden": true
+    }
+  }
+}

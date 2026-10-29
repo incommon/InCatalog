@@ -1,0 +1,24 @@
+[package]
+name = "catalog-claude"
+description = "Minimal Claude Messages API client for structured output (no official Rust SDK exists)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+aws-config.workspace = true
+aws-sdk-ssm.workspace = true
+aws-sigv4 = "1.6"
+percent-encoding.workspace = true
+aws-credential-types = "1.3"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["net"] }
+axum = "0.8"
+sha2.workspace = true
+hex.workspace = true

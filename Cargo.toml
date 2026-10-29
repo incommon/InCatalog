@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/catalog-core",
+    "crates/catalog-store",
+    "crates/catalog-claude",
+    "crates/catalog-ingest",
+    "crates/catalog-api",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.85"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "sync", "time", "process", "io-util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+utoipa = { version = "5", features = ["axum_extras"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
+flate2 = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+hex = "0.4"
+quick-xml = "0.37"
+percent-encoding = "2"
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1"
+aws-sdk-ssm = "1"
+lambda_runtime = "0.14"
+lambda_http = "0.15"
+catalog-core = { path = "crates/catalog-core" }
+catalog-store = { path = "crates/catalog-store" }
+catalog-claude = { path = "crates/catalog-claude" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

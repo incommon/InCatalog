@@ -1,0 +1,447 @@
+// Copyright 2026 Internet2
+// SPDX-License-Identifier: Apache-2.0
+
+//! Natural-language search, read by Claude when a key is configured.
+//!
+//! The built-in rules in `catalog_core::nl` handle the common phrasings. Longer, looser
+//! queries ("something like Overleaf that Swedish universities can use without
+//! sending names") go to Claude, which answers in a JSON schema whose enums are the
+//! catalog's own federations, countries, categories, and attributes, so it can only
+//! choose filters that exist. Its answer is validated again anyway, and any failure
+//! falls back to the rules.
+//!
+//! Environment (credentials are read by `catalog_claude`):
+//! - `CATALOG_NL_MODEL` (default `claude-opus-5-5`), `CATALOG_NL_EFFORT` (default `low`)
+//! - `CATALOG_NL_ENGINE` — `auto` (default), `rules` to never call Claude
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::time::Duration;
+
+use anyhow::{Context, Result};
+use catalog_claude::Claude;
+use catalog_core::categories::CATEGORIES;
+use catalog_core::model::Availability;
+use catalog_core::nl::{Interpretation, InterpretedParams, MatchedTerm, Vocab};
+use catalog_core::search::Catalog;
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+/// How many words before a query is worth a model call. Shorter queries are names
+/// or topics, which the rules read just as well, for free.
+const MIN_WORDS_FOR_MODEL: usize = 3;
+const CACHE_LIMIT: usize = 2000;
+const MAX_ATTRIBUTES: usize = 80;
+
+pub struct ClaudeReader {
+    claude: Claude,
+    // (snapshot generated_at, normalized query) → reading. Saves repeat calls for
+    // popular queries; cleared when it fills.
+    cache: Mutex<HashMap<(String, String), Interpretation>>,
+}
+
+impl ClaudeReader {
+    pub async fn from_env() -> Result<Option<Self>> {
+        if std::env::var("CATALOG_NL_ENGINE").as_deref() == Ok("rules") {
+            return Ok(None);
+        }
+        let claude = Claude::from_env(
+            "CATALOG_NL_MODEL",
+            "CATALOG_NL_EFFORT",
+            Duration::from_secs(12),
+        )
+        .await?;
+        Ok(claude.map(Self::new))
+    }
+
+    fn new(claude: Claude) -> Self {
+        Self {
+            claude,
+            cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn model(&self) -> &str {
+        self.claude.model()
+    }
+
+    async fn read(&self, catalog: &Catalog, query: &str) -> Result<Interpretation> {
+        let cache_key = (
+            catalog.snapshot().generated_at.clone(),
+            query.trim().to_lowercase(),
+        );
+        if let Some(hit) = self.cache.lock().unwrap().get(&cache_key) {
+            return Ok(hit.clone());
+        }
+
+        let vocab = catalog.vocab();
+        // The system prompt is the vocabulary: stable per snapshot, so it caches
+        // across every query until the next ingest.
+        let answer = self
+            .claude
+            .structured(&system_prompt(vocab), query, schema(vocab), 4096)
+            .await?;
+        let out: ModelReading = serde_json::from_value(answer.value)
+            .context("model output did not match the schema")?;
+        let served_by = answer.model;
+
+        let mut notes = Vec::new();
+        let params = vocab.validate(
+            InterpretedParams {
+                q: Some(out.keywords),
+                federation: out.federation,
+                country: out.country,
+                category: (!out.categories.is_empty()).then(|| out.categories.join(",")),
+                availability: out.availability,
+                attribute: out.attribute,
+                source: out.source,
+                provider_type: out.provider_type,
+            },
+            &mut notes,
+        );
+        let reading = Interpretation {
+            query: query.trim().to_owned(),
+            engine: served_by,
+            matched: matched_from(vocab, &params),
+            params,
+            notes,
+            explanation: Some(out.explanation).filter(|e| !e.trim().is_empty()),
+        };
+
+        let mut cache = self.cache.lock().unwrap();
+        if cache.len() >= CACHE_LIMIT {
+            cache.clear();
+        }
+        cache.insert(cache_key, reading.clone());
+        Ok(reading)
+    }
+}
+
+/// `engine`: `auto` (default), `rules`, or `claude`.
+pub async fn interpret(
+    reader: Option<&ClaudeReader>,
+    catalog: &Catalog,
+    query: &str,
+    engine: &str,
+) -> Interpretation {
+    let words = query.split_whitespace().count();
+    let want_model = match engine {
+        "rules" => false,
+        "claude" => true,
+        _ => words >= MIN_WORDS_FOR_MODEL,
+    };
+    let Some(reader) = reader.filter(|_| want_model) else {
+        let mut i = catalog.interpret(query);
+        if engine == "claude" {
+            i.notes.push(
+                "Claude is not configured for this API, so the built-in rules read this query."
+                    .into(),
+            );
+        }
+        return i;
+    };
+    match reader.read(catalog, query).await {
+        Ok(i) => i,
+        Err(e) => {
+            tracing::warn!(error = %e, "Claude reading failed; using rules");
+            let mut i = catalog.interpret(query);
+            i.notes.push(
+                "Claude could not read this query just now, so the built-in rules did.".into(),
+            );
+            i
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct ModelReading {
+    keywords: String,
+    federation: Option<String>,
+    country: Option<String>,
+    categories: Vec<String>,
+    availability: Option<String>,
+    attribute: Option<String>,
+    source: Option<String>,
+    provider_type: Option<String>,
+    explanation: String,
+}
+
+fn matched_from(vocab: &Vocab, p: &InterpretedParams) -> Vec<MatchedTerm> {
+    let mut out = Vec::new();
+    let mut push = |field: &str, value: &str| {
+        out.push(MatchedTerm {
+            text: String::new(),
+            field: field.into(),
+            value: value.into(),
+            label: vocab.label(field, value),
+        })
+    };
+    for (field, v) in [
+        ("federation", &p.federation),
+        ("country", &p.country),
+        ("availability", &p.availability),
+        ("attribute", &p.attribute),
+        ("source", &p.source),
+        ("provider_type", &p.provider_type),
+    ] {
+        if let Some(v) = v {
+            push(field, v);
+        }
+    }
+    for c in p.category.iter().flat_map(|c| c.split(',')) {
+        push("category", c);
+    }
+    out
+}
+
+fn nullable_enum(values: Vec<String>) -> Value {
+    if values.is_empty() {
+        json!({ "type": "null" })
+    } else {
+        json!({ "anyOf": [{ "type": "string", "enum": values }, { "type": "null" }] })
+    }
+}
+
+fn attributes(vocab: &Vocab) -> impl Iterator<Item = &(String, Option<String>)> {
+    vocab.attributes.iter().take(MAX_ATTRIBUTES)
+}
+
+fn schema(vocab: &Vocab) -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["keywords", "federation", "country", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
+        "properties": {
+            "keywords": { "type": "string" },
+            "federation": nullable_enum(vocab.federations.keys().cloned().collect()),
+            "country": nullable_enum(vocab.countries.keys().cloned().collect()),
+            "categories": { "type": "array", "items": { "type": "string", "enum": CATEGORIES.iter().map(|c| c.key).collect::<Vec<_>>() } },
+            "availability": nullable_enum(Availability::ALL.iter().map(|a| a.key().to_owned()).collect()),
+            "attribute": nullable_enum(attributes(vocab).map(|(n, _)| n.clone()).collect()),
+            "source": nullable_enum(vec!["incommon".into(), "edugain".into()]),
+            "provider_type": nullable_enum(vocab.provider_types.keys().cloned().collect()),
+            "explanation": { "type": "string" },
+        },
+    })
+}
+
+fn system_prompt(vocab: &Vocab) -> String {
+    let mut s = String::from(
+        "You read searches typed into a catalog of federated-login services and turn them into the catalog's filters.
+
+The catalog lists SAML service providers from InCommon, the US research and education federation, and from eduGAIN, which connects national federations worldwide. Each service was registered by one federation.
+
+Set a filter only when the search clearly asks for it, and leave it null otherwise. Most searches are just a name or a topic: return those as keywords with no filters. Put the words that describe what the service is or does (its subject, product, or vendor) in `keywords`, as a short space-separated list without filler words, and do not repeat words already used by a filter.
+
+- `federation`: the registering federation, when the search names one (\"SWAMID\", \"the UK federation\", \"registered by InCommon\").
+- `country`: the registering federation's country, when the search names a country or nationality rather than a federation.
+- `categories`: entity categories and certifications the service must carry, all of them.
+- `availability`: where the service can be used from. Use it only for searches about reach (\"not in InCommon\", \"exported to eduGAIN\"); do not combine it with `source`.
+- `source`: `incommon` when the search asks only for services InCommon members can use; `edugain` for services available through eduGAIN.
+- `attribute`: when the search says the service requests, needs, or receives a particular user attribute (email, ORCID, name). Pick the attribute Name. A topic like \"email marketing\" is a keyword, not an attribute.
+- `provider_type`: only when the search asks for that kind of provider and the value is listed.
+- `explanation`: one short sentence for the person who searched, saying how you read it, starting with \"Services\".
+
+Categories:
+",
+    );
+    for c in CATEGORIES {
+        s.push_str(&format!("- {}: {}. {}\n", c.key, c.label, c.description));
+    }
+    s.push_str("\nAvailability values:\n");
+    for a in Availability::ALL {
+        s.push_str(&format!("- {}: {}\n", a.key(), a.label()));
+    }
+    s.push_str("\nFederations (code: name, countries):\n");
+    for (code, (name, ccs)) in &vocab.federations {
+        s.push_str(&format!("- {code}: {name}, {}\n", ccs.join(" ")));
+    }
+    s.push_str("\nCountries (code: name):\n");
+    for (cc, name) in &vocab.countries {
+        s.push_str(&format!("- {cc}: {name}\n"));
+    }
+    s.push_str("\nRequested attributes (Name: friendly name):\n");
+    for (name, friendly) in attributes(vocab) {
+        s.push_str(&format!(
+            "- {name}: {}\n",
+            friendly.as_deref().unwrap_or("-")
+        ));
+    }
+    if !vocab.provider_types.is_empty() {
+        s.push_str("\nProvider types: ");
+        s.push_str(
+            &vocab
+                .provider_types
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        s.push('\n');
+    }
+    s
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex as StdMutex};
+
+    use axum::extract::State;
+    use axum::http::HeaderMap;
+    use axum::routing::post;
+    use axum::{Json, Router};
+    use catalog_core::model::{Federation, RequestedAttribute, Service, Snapshot};
+
+    use super::*;
+
+    type Seen = Arc<StdMutex<Vec<(HeaderMap, Value)>>>;
+
+    /// A stand-in for the Messages API that records requests and returns `reply`.
+    async fn stub(reply: Value) -> (String, Seen) {
+        let seen: Seen = Arc::default();
+        let app = Router::new()
+            .route(
+                "/v1/messages",
+                post(
+                    |State((seen, reply)): State<(Seen, Value)>,
+                     headers: HeaderMap,
+                     Json(body): Json<Value>| async move {
+                        seen.lock().unwrap().push((headers, body));
+                        Json(reply)
+                    },
+                ),
+            )
+            .with_state((seen.clone(), reply));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (format!("http://{addr}"), seen)
+    }
+
+    fn reader(base: String) -> ClaudeReader {
+        let claude = Claude::new(
+            "test-key".into(),
+            "claude-opus-5-5".into(),
+            "low".into(),
+            Duration::from_secs(5),
+        )
+        .unwrap()
+        .with_base(base);
+        ClaudeReader::new(claude)
+    }
+
+    fn catalog() -> Catalog {
+        let s = Service {
+            entity_id: "https://sp.example.se/sp".into(),
+            id: catalog_core::entity_hash("https://sp.example.se/sp"),
+            requested_attributes: vec![RequestedAttribute {
+                name: "urn:oid:0.9.2342.19200300.100.1.3".into(),
+                friendly_name: Some("mail".into()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let swamid = Federation {
+            code: "SWAMID".into(),
+            name: "SWAMID".into(),
+            registration_authority: "http://www.swamid.se/".into(),
+            country_codes: vec!["SE".into()],
+            countries: vec!["Sweden".into()],
+            ..Default::default()
+        };
+        Catalog::new(Snapshot {
+            services: vec![s],
+            federations: vec![swamid],
+            ..Default::default()
+        })
+    }
+
+    fn message(stop_reason: &str, text: &str) -> Value {
+        json!({
+            "id": "msg_test", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
+            "stop_reason": stop_reason,
+            "content": [{ "type": "thinking", "thinking": "" }, { "type": "text", "text": text }],
+            "usage": { "input_tokens": 1, "output_tokens": 1 },
+        })
+    }
+
+    #[tokio::test]
+    async fn claude_reading_is_requested_correctly_and_validated() {
+        let answer = json!({
+            "keywords": "collaborative writing", "federation": "NOT-A-FED", "country": "SE",
+            "categories": ["research-and-scholarship"], "availability": null,
+            "attribute": "urn:oid:0.9.2342.19200300.100.1.3", "source": null, "provider_type": null,
+            "explanation": "Services for collaborative writing in Sweden that request email.",
+        });
+        let (base, seen) = stub(message("end_turn", &answer.to_string())).await;
+        let r = reader(base);
+        let c = catalog();
+        let i = interpret(
+            Some(&r),
+            &c,
+            "R&S collaborative writing tools in Sweden that need email",
+            "auto",
+        )
+        .await;
+
+        assert_eq!(i.engine, "claude-opus-5-5");
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert_eq!(
+            i.params.category.as_deref(),
+            Some("research-and-scholarship")
+        );
+        assert_eq!(i.params.q.as_deref(), Some("collaborative writing"));
+        assert_eq!(
+            i.params.federation, None,
+            "values outside the catalog are dropped"
+        );
+        assert!(i.notes.iter().any(|n| n.contains("NOT-A-FED")));
+        assert!(i.explanation.is_some());
+
+        let (headers, body) = seen.lock().unwrap()[0].clone();
+        assert_eq!(headers["x-api-key"], "test-key");
+        assert_eq!(headers["anthropic-version"], "2026-10-21");
+        assert_eq!(headers["anthropic-beta"], catalog_claude::FALLBACK_BETA);
+        assert_eq!(body["fallbacks"], "default");
+        assert_eq!(body["output_config"]["effort"], "low");
+        assert_eq!(body["output_config"]["format"]["type"], "json_schema");
+        assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
+        assert!(body.get("thinking").is_none() && body.get("temperature").is_none());
+        let fed_enum = &body["output_config"]["format"]["schema"]["properties"]["federation"]
+            ["anyOf"][0]["enum"];
+        assert_eq!(fed_enum, &json!(["SWAMID"]));
+
+        // A repeat of the same query is served from the cache.
+        interpret(
+            Some(&r),
+            &c,
+            "r&s collaborative writing tools in sweden that need email",
+            "auto",
+        )
+        .await;
+        assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn refusal_falls_back_to_rules() {
+        let (base, _) = stub(message("refusal", "")).await;
+        let i = interpret(
+            Some(&reader(base)),
+            &catalog(),
+            "services in Sweden that request email",
+            "auto",
+        )
+        .await;
+        assert_eq!(i.engine, "rules");
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert!(i.notes.iter().any(|n| n.contains("built-in rules")));
+    }
+
+    #[tokio::test]
+    async fn short_queries_skip_the_model() {
+        let (base, seen) = stub(message("end_turn", "{}")).await;
+        let i = interpret(Some(&reader(base)), &catalog(), "overleaf", "auto").await;
+        assert_eq!(i.engine, "rules");
+        assert!(seen.lock().unwrap().is_empty());
+    }
+}
