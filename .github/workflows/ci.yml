@@ -231,7 +231,7 @@ jobs:
       - name: Install cargo-deny and cargo-about
         run: |
           cargo install --locked cargo-deny@0.20.2
-          cargo install --locked cargo-about@0.9.1
+          cargo install --locked --features cli cargo-about@0.9.1
 
       # Enforce the permissive-only license allow-list (deny.toml). A
       # dependency under a non-permissive license fails here.
