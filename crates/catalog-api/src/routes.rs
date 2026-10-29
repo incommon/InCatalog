@@ -12,8 +12,8 @@ use catalog_core::ask::AskResult;
 use catalog_core::nl::{Interpretation, InterpretedParams, MatchedTerm};
 use catalog_core::search::{
     AttributeView, CategoryReport, CategoryView, Counts, FacetValue, FederationView, Links, Meta,
-    Provider, ProviderDetail, ProviderPage, ProviderQuery, ProviderRef, RawTag, ServiceDetail,
-    ServicePage, ServiceQuery, ServiceSummary,
+    Provider, ProviderDetail, ProviderPage, ProviderQuery, ProviderRef, RawTag, RegionView,
+    ServiceDetail, ServicePage, ServiceQuery, ServiceSummary,
 };
 use serde::{Deserialize, Serialize};
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -39,6 +39,7 @@ type St = State<Arc<AppState>>;
         providers,
         provider,
         federations,
+        regions,
         categories,
         attributes
     ),
@@ -69,6 +70,9 @@ type St = State<Arc<AppState>>;
         catalog_core::model::SourceInfo,
         catalog_core::environment::Environment,
         catalog_core::environment::EnvironmentReading,
+        catalog_core::regions::RegionExpansion,
+        catalog_core::regions::RegionKind,
+        RegionView,
     ))
 )]
 pub struct ApiDoc;
@@ -84,6 +88,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/providers", get(providers))
         .route("/providers/{id}", get(provider))
         .route("/federations", get(federations))
+        .route("/regions", get(regions))
         .route("/categories", get(categories))
         .route("/attributes", get(attributes))
         // Metadata is republished daily; five minutes of caching is plenty fresh.
@@ -208,11 +213,12 @@ async fn read(
 }
 
 /// Search services with filters, paging, and facet counts. Filters combine with
-/// AND; several `federation` or `environment` values combine with OR.
+/// AND; several values of `federation`, `country`, `region`, or `environment`
+/// combine with OR, and `country` and `region` together are one set of places.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
 async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
     let mut query = raw.unwrap_or_default();
-    for key in ["federation", "environment"] {
+    for key in ["federation", "country", "region", "environment"] {
         query = join_repeated(&query, key);
     }
     // It came from a valid URI and only gained commas, so it parses again.
@@ -287,6 +293,14 @@ async fn provider(State(s): St, Path(id): Path<String>, Query(l): Query<LangPara
 #[utoipa::path(get, path = "/v1/federations", responses((status = 200, body = Vec<FederationView>)))]
 async fn federations(State(s): St) -> Json<Vec<FederationView>> {
     Json(s.catalog().await.federations())
+}
+
+/// Regions a search can name: UN M49 geographic regions and dated political
+/// groupings (the EU, the EEA, BRICS), each with its countries and service count.
+/// A federation that lists several countries is in a region when any of them is.
+#[utoipa::path(get, path = "/v1/regions", responses((status = 200, body = Vec<RegionView>)))]
+async fn regions(State(s): St) -> Json<Vec<RegionView>> {
+    Json(s.catalog().await.regions())
 }
 
 /// Known entity categories with synonyms and counts, plus every raw tag value seen.
@@ -517,5 +531,90 @@ mod tests {
         assert_eq!(param["schema"]["type"], "array");
         assert_eq!(param["explode"], true);
         assert!(spec["components"]["schemas"]["EnvironmentReading"].is_object());
+    }
+
+    #[tokio::test]
+    async fn services_filter_by_region_and_list_regions() {
+        let total = |path: &'static str| async move {
+            let (st, page) = get_json_from(two_federations_with_countries(), path).await;
+            assert_eq!(st, StatusCode::OK, "{path}");
+            page["total"].as_u64().unwrap()
+        };
+        assert_eq!(total("/v1/services?region=europe").await, 2);
+        assert_eq!(total("/v1/services?region=eu&country=US").await, 3);
+        assert_eq!(total("/v1/services?country=SE&country=DE").await, 2);
+        assert_eq!(total("/v1/services?region=americas&region=brics").await, 1);
+
+        let (_, page) = get_json_from(
+            two_federations_with_countries(),
+            "/v1/services?region=europe",
+        )
+        .await;
+        let europe = &page["regions"][0];
+        assert_eq!(europe["key"], "europe");
+        assert_eq!(europe["kind"], "geographic");
+        assert!(europe["countries"]
+            .as_array()
+            .unwrap()
+            .contains(&"SE".into()));
+
+        let (st, regions) = get_json_from(two_federations_with_countries(), "/v1/regions").await;
+        assert_eq!(st, StatusCode::OK);
+        let eu = regions
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["key"] == "eu")
+            .unwrap();
+        assert_eq!(eu["service_count"], 2);
+        assert_eq!(eu["as_of"], "2020-02-01");
+
+        let (_, spec) = get_json("/openapi.json").await;
+        assert!(spec["paths"]["/v1/regions"].is_object());
+        for name in ["country", "region"] {
+            let param = spec["paths"]["/v1/services"]["get"]["parameters"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|p| p["name"] == name)
+                .unwrap()
+                .clone();
+            assert_eq!(param["schema"]["type"], "array", "{name}");
+        }
+    }
+
+    fn two_federations_with_countries() -> Router {
+        use catalog_core::model::Federation;
+        let svc = |id: &str, ra: &str, code: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: catalog_core::entity_hash(id),
+                federation: Some(code.into()),
+                ..Default::default()
+            };
+            s.registration.authority = Some(ra.into());
+            s
+        };
+        let fed = |code: &str, ra: &str, cc: &str| Federation {
+            code: code.into(),
+            name: code.into(),
+            registration_authority: ra.into(),
+            country_codes: vec![cc.into()],
+            ..Default::default()
+        };
+        let catalog = Catalog::new(Snapshot {
+            services: vec![
+                svc("https://a/", "https://incommon.org", "INCOMMON"),
+                svc("https://b/", "http://www.swamid.se/", "SWAMID"),
+                svc("https://c/", "https://www.aai.dfn.de", "DFN-AAI"),
+            ],
+            federations: vec![
+                fed("INCOMMON", "https://incommon.org", "US"),
+                fed("SWAMID", "http://www.swamid.se/", "SE"),
+                fed("DFN-AAI", "https://www.aai.dfn.de", "DE"),
+            ],
+            ..Default::default()
+        });
+        router(AppState::from_catalog(catalog))
     }
 }

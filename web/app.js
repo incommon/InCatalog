@@ -81,9 +81,11 @@ async function fedIndex() {
 const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().replace(/\/+$/, "").toLowerCase();
 
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
-// a service must carry every category, and may be registered by any of the federations
-// or be in any of the environments.
-const MULTI = { category: "all", federation: "any", environment: "any" };
+// a service must carry every category, and may be registered by any of the federations,
+// in any of the countries or regions, or be in any of the environments.
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any" };
+// Region names read "the European Union" in a sentence and "European Union" in a list.
+const bare = (label) => label.replace(/^the /, "");
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
 
 function parseHash() {
@@ -237,6 +239,7 @@ async function interpretAndGo(text, form) {
 const FIELD_LABELS = {
   federation: "Registered by",
   country: "Country",
+  region: "Region",
   category: "Category",
   availability: "Availability",
   environment: "Environment",
@@ -352,6 +355,7 @@ const FACET_ORDER = [
   ["environment", "Environment"],
   ["category", "Category"],
   ["federation", "Registered by"],
+  ["region", "Region"],
   ["country", "Country"],
   ["attribute", "Requested attribute"],
   ["source", "Seen in"],
@@ -427,7 +431,7 @@ async function search(params) {
             refine({ [key]: next });
           },
         },
-        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
+        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : key === "region" ? bare(v.label) : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
         h("span", { class: "n" }, fmt(v.count)),
       );
       list.append(btn);
@@ -461,21 +465,29 @@ async function search(params) {
           : (k === "federation" && feds?.get(v.toLowerCase())?.name) ||
             (page.facets[k] || []).find((f) => f.value.toLowerCase() === v.toLowerCase())?.label ||
             v;
+  const remove = (k, v) => () => refine({ [k]: k in MULTI ? listOf(params[k]).filter((x) => x !== v).join(",") : "" });
   const chips = FACET_ORDER.filter(([k]) => params[k]).flatMap(([k, label]) =>
-    (k in MULTI ? listOf(params[k]) : [params[k]]).map((v) =>
-      h(
-        "button",
-        {
-          class: "chip",
-          type: "button",
-          onclick: () => {
-            const rest = k in MULTI ? listOf(params[k]).filter((x) => x !== v).join(",") : "";
-            refine({ [k]: rest });
-          },
-        },
-        `${label}: ${chipLabel(k, v)} ×`,
-      ),
-    ),
+    (k in MULTI ? listOf(params[k]) : [params[k]]).map((v) => {
+      const region = k === "region" && (page.regions || []).find((r) => r.key === v.toLowerCase());
+      if (!region) return h("button", { class: "chip", type: "button", onclick: remove(k, v) }, `${label}: ${chipLabel(k, v)} ×`);
+      // A region is one chip that opens to the countries it stood for, and where that list comes from.
+      return h(
+        "span",
+        { class: "chip region-chip" },
+        h(
+          "details",
+          {},
+          h("summary", {}, `${label}: ${bare(region.label)} · ${region.countries.length} countries`),
+          h(
+            "div",
+            { class: "region-list" },
+            region.countries.map((c) => h("span", { title: c }, `${flag(c)} ${c}`)),
+            h("p", { class: "region-source" }, region.as_of ? `Membership as of ${region.as_of}. ` : "", region.source),
+          ),
+        ),
+        h("button", { class: "chip-x", type: "button", "aria-label": `Remove ${label}: ${bare(region.label)}`, onclick: remove(k, v) }, "×"),
+      );
+    }),
   );
   if (params.provider) chips.push(h("button", { class: "chip", type: "button", onclick: () => refine({ provider: "" }) }, "Provider filter ×"));
 

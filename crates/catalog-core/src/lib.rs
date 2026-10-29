@@ -21,6 +21,7 @@ pub mod federations;
 pub mod model;
 pub mod nl;
 pub mod ns;
+pub mod regions;
 pub mod search;
 pub mod xml;
 

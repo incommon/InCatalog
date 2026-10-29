@@ -117,16 +117,39 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/ask?q=` | Read a plain-language search and find results, loosening it when it matches nothing (see Natural-language search) |
 | `/v1/interpret?q=` | Only the reading: the filters a plain-language search maps to |
 | `/v1/meta` | Snapshot provenance (URLs, `Last-Modified`, SHA-256, `validUntil`, signature status), counts, caveats |
-| `/v1/services` | Search. `q`, `federation` and `environment` (comma-separated or repeated, OR), `country`, `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
+| `/v1/services` | Search. `q`, `federation`, `country`, `region`, and `environment` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
 | `/v1/services/{id}` | One service. `id` is the lowercase hex SHA-1 of the entityID, which is the same identifier MDQ uses, so `{sha1}` is accepted as a prefix |
 | `/v1/lookup?entity_id=` | One service, by entityID |
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
 | `/v1/federations` | eduGAIN's federations joined to catalog counts, plus any registrars eduGAIN does not list |
+| `/v1/regions` | Regions a search can name, each with its countries, source, and service count |
 | `/v1/categories` | Known categories with synonyms and counts, plus every raw tag value seen |
 | `/v1/attributes` | Requested attributes, most requested first |
 
 Facet counts for each dimension apply every *other* active filter, so a user can switch
 between values without losing sight of the alternatives.
+
+### Regions
+
+`region=` names a set of countries (`catalog-core/src/regions.rs`), and `regions` on the
+results lists each region with the countries it stood for, so a reader can see what
+"Europe" meant.
+
+- **Geographic regions** follow [UN M49](https://unstats.un.org/unsd/methodology/m49/)
+  exactly: continents, subregions, and the intermediate regions of Africa and the
+  Americas. So Cyprus and Turkey are in Western Asia, Mexico is in Latin America and
+  not Northern America, and Greenland is in Northern America. Asia-Pacific is not an
+  M49 region; here it is Eastern, South-eastern, and Southern Asia plus Oceania.
+- **Political groupings** (the EU, the EEA, BRICS) carry the date their listed
+  membership took effect. The EU is not Europe. BRICS lists the ten confirmed members
+  as of 2025-01-06; Saudi Arabia, invited in 2023, has not confirmed and is left out.
+- **Federations that list several countries** are in a region when any of their
+  countries is, the same rule `country` applies. WAYF (Denmark, Iceland, Greenland) is
+  in Europe, the EU, and Northern America. A federation that lists no country is in
+  no region.
+
+`country` and `region` together are one set of places: `region=eu&country=US` finds
+services registered in the EU or the United States.
 
 ### Environments
 
@@ -162,13 +185,17 @@ results so the user can check it or search the literal words instead.
 | journals not in InCommon | `availability=edugain-only`, words `journals` |
 | test instances of Canvas | `environment=test`, words `canvas` |
 | only production services, no test instances | `environment=production` (or `production,unknown`) |
+| R&S services in Europe | `category=research-and-scholarship`, `region=europe` |
+| services in Sweden or the UK | `country=SE,GB` |
+| journals in America | `country=US`, words `journals`, and a note that "the Americas" names the region |
+| European Molecular Biology Laboratory | words only: a capitalized place followed by a capitalized word is read as part of a name, and the reading says so |
 | email marketing | words only (no "request" verb, so *email* is a subject, not an attribute) |
 
 Two readers do this work:
 
 - **Built-in rules** (`catalog-core/src/nl.rs`) are always on. They are deterministic,
   free, and need no network. Their vocabulary comes from the loaded snapshot: federation
-  names and codes, countries and nationalities, category synonyms, availability
+  names and codes, countries and nationalities, region names, category synonyms, availability
   phrasings, and attribute names with everyday aliases ("email", "ORCID", "last name").
 - **Claude** (`catalog-api/src/nl.rs`) is optional. It reads queries of three or more
   words when an Anthropic key is configured. Rust has no official Anthropic SDK, so it
@@ -190,8 +217,8 @@ finds something. When the literal reading matches nothing it loosens one step at
 time, and returns a sentence saying what it loosened:
 
 1. every filter and every word, then most of the words, then any of them
-2. drop one filter at a time, softest first (requested attribute, country, environment,
-   seen-in, federation, provider type, availability, category)
+2. drop one filter at a time, softest first (requested attribute, country, region,
+   environment, seen-in, federation, provider type, availability, category)
 3. the words alone, then the filters alone
 
 "journals not in InCommon" has no literal match (no journal is eduGAIN-only), so it

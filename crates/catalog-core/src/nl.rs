@@ -18,6 +18,7 @@ use utoipa::ToSchema;
 use crate::categories::CATEGORIES;
 use crate::environment::Environment;
 use crate::model::{Availability, Federation, Service};
+use crate::regions::{self, REGIONS};
 use crate::search::split_list;
 
 /// The filters a query was read as. Field names and values match `/v1/services`.
@@ -27,7 +28,10 @@ pub struct InterpretedParams {
     pub q: Option<String>,
     /// Comma-separated federation codes; a service registered by any of them matches.
     pub federation: Option<String>,
+    /// Comma-separated ISO country codes; a service registered in any of them matches.
     pub country: Option<String>,
+    /// Comma-separated region keys (see `/v1/regions`); each stands for its countries.
+    pub region: Option<String>,
     /// Comma-separated environments; a service in any of them matches.
     pub environment: Option<String>,
     /// Comma-separated category keys.
@@ -67,6 +71,7 @@ impl Interpretation {
         [
             &p.federation,
             &p.country,
+            &p.region,
             &p.environment,
             &p.category,
             &p.availability,
@@ -115,6 +120,7 @@ enum Field {
     Environment,
     Category,
     Federation,
+    Region,
     Country,
     Attribute,
     ProviderType,
@@ -129,6 +135,7 @@ impl Field {
             Field::Category => "category",
             Field::Federation => "federation",
             Field::Country => "country",
+            Field::Region => "region",
             Field::Attribute => "attribute",
             Field::ProviderType => "provider_type",
         }
@@ -759,6 +766,14 @@ impl Vocab {
                 }
             }
         }
+        for r in REGIONS {
+            for n in [r.label, r.label.trim_start_matches("the ")]
+                .into_iter()
+                .chain(r.aliases.iter().copied())
+            {
+                v.add(n, Field::Region, r.key, r.label, false);
+            }
+        }
         for def in CATEGORIES {
             v.add(def.label, Field::Category, def.key, def.label, false);
         }
@@ -897,6 +912,14 @@ impl Vocab {
         });
     }
 
+    /// Whether any filter phrase begins at word `i`.
+    fn phrase_starts(&self, toks: &[String], i: usize) -> bool {
+        self.phrases.iter().any(|p| {
+            let n = p.words.len();
+            i + n <= toks.len() && toks[i..i + n] == p.words[..]
+        })
+    }
+
     /// Read a query with the built-in rules.
     pub fn interpret(&self, query: &str) -> Interpretation {
         let cased = cased_words(query);
@@ -915,8 +938,38 @@ impl Vocab {
                     && (!p.needs_cue || cue_before(&toks, i))
                     && (!p.shouty || shouted(&cased[i]) || beside(&toks, i, "federation"))
             });
+            // "European Molecular Biology Laboratory", "Europe PMC", "American Chemical
+            // Society": a capitalized place followed by a capitalized word that is no
+            // filter of its own is part of a name.
+            let place = |p: &&Phrase| matches!(p.field, Field::Country | Field::Region);
+            if let Some(p) = hit.filter(place) {
+                let next = i + p.words.len();
+                let capital = |w: &str| w.chars().next().is_some_and(char::is_uppercase);
+                if capital(&cased[i])
+                    && cased.get(next).is_some_and(|w| capital(w))
+                    && !self.phrase_starts(&toks, next)
+                {
+                    notes.push(format!(
+                        "\"{}\" looks like part of a name (\"{} {} …\"), so it was searched as a word rather than as a place.",
+                        cased[i..next].join(" "),
+                        cased[i..next].join(" "),
+                        cased[next]
+                    ));
+                    i = next;
+                    continue;
+                }
+            }
             match hit {
                 Some(p) => {
+                    if p.field == Field::Country && toks[i..i + p.words.len()] == ["america"] {
+                        notes.push("\"America\" was read as the United States; say \"the Americas\" for North and South America.".into());
+                    }
+                    if let Some(note) = (p.field == Field::Region)
+                        .then(|| regions::get(&p.value).and_then(|r| r.reading_note))
+                        .flatten()
+                    {
+                        notes.push(note.into());
+                    }
                     for u in &mut used[i..i + p.words.len()] {
                         *u = true;
                     }
@@ -984,8 +1037,8 @@ impl Vocab {
         }
     }
 
-    /// Fold matches into one value per field (categories and federations combine;
-    /// the rest take the first match and note what was dropped).
+    /// Fold matches into one value per field (categories, federations, places, and
+    /// environments combine; the rest take the first match and note what was dropped).
     fn collect(
         &self,
         matched: &[MatchedTerm],
@@ -1004,8 +1057,18 @@ impl Vocab {
         let mut cats: Vec<&str> = Vec::new();
         let mut feds: Vec<&str> = Vec::new();
         let mut envs: Vec<&str> = Vec::new();
+        let mut countries: Vec<&str> = Vec::new();
+        let mut regions: Vec<&str> = Vec::new();
         for m in matched {
             let slot = match m.field.as_str() {
+                "country" => {
+                    add(&mut countries, &m.value);
+                    continue;
+                }
+                "region" => {
+                    add(&mut regions, &m.value);
+                    continue;
+                }
                 "environment" => {
                     for v in m.value.split(',') {
                         add(&mut envs, v);
@@ -1020,7 +1083,6 @@ impl Vocab {
                     add(&mut feds, &m.value);
                     continue;
                 }
-                "country" => &mut p.country,
                 "availability" => &mut p.availability,
                 "attribute" => &mut p.attribute,
                 "source" => &mut p.source,
@@ -1045,6 +1107,12 @@ impl Vocab {
         }
         if !envs.is_empty() {
             p.environment = Some(envs.join(","));
+        }
+        if !countries.is_empty() {
+            p.country = Some(countries.join(","));
+        }
+        if !regions.is_empty() {
+            p.region = Some(regions.join(","));
         }
         // An availability already says which aggregates; a source on top is redundant
         // and can contradict it ("not in InCommon" contains "in InCommon").
@@ -1084,13 +1152,20 @@ impl Vocab {
                     })
                 })
                 .collect();
+        let countries: Vec<String> = split_list(p.country.map(|c| c.to_uppercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| keep("country", Some(v), &|v| self.countries.contains_key(v)))
+            .collect();
+        let regions: Vec<String> = split_list(p.region.map(|r| r.to_lowercase()).as_deref())
+            .into_iter()
+            .filter_map(|v| keep("region", Some(v), &|v| regions::get(v).is_some()))
+            .collect();
         InterpretedParams {
             q: p.q.map(|q| q.trim().to_owned()).filter(|q| !q.is_empty()),
+            country: (!countries.is_empty()).then(|| countries.join(",")),
+            region: (!regions.is_empty()).then(|| regions.join(",")),
             environment: (!environments.is_empty()).then(|| environments.join(",")),
             federation: (!federations.is_empty()).then(|| federations.join(",")),
-            country: keep("country", p.country.map(|c| c.to_uppercase()), &|v| {
-                self.countries.contains_key(v)
-            }),
             category: category.filter(|c| !c.is_empty()),
             availability: keep("availability", p.availability, &|v| {
                 Availability::from_key(v).is_some()
@@ -1112,6 +1187,7 @@ impl Vocab {
         match field {
             "federation" => self.federations.get(value).map(|(n, _)| n.clone()),
             "country" => self.countries.get(value).cloned(),
+            "region" => regions::get(value).map(|r| r.label.to_owned()),
             "category" => CATEGORIES
                 .iter()
                 .find(|d| d.key == value)
@@ -1471,5 +1547,106 @@ mod tests {
             vocab().label("environment", "production,unknown"),
             "Production or Unknown"
         );
+    }
+
+    #[test]
+    fn regions_and_several_countries() {
+        let v = vocab();
+        let i = v.interpret("Research & Scholarship services in Europe");
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+        assert_eq!(
+            i.params.category.as_deref(),
+            Some("research-and-scholarship")
+        );
+        assert_eq!(i.params.q, None);
+
+        for (q, region) in [
+            ("SPs registered in the Americas", "americas"),
+            ("anything from BRICS countries", "brics"),
+            ("wikis in the EU", "eu"),
+            ("european library services", "europe"),
+            ("LatAm journals", "latin-america"),
+            ("Asia-Pacific research data", "asia-pacific"),
+            ("services in Oceania", "oceania"),
+            ("the european union", "eu"),
+        ] {
+            assert_eq!(v.interpret(q).params.region.as_deref(), Some(region), "{q}");
+        }
+
+        let i = v.interpret("services in Sweden or the UK");
+        assert_eq!(i.params.country.as_deref(), Some("SE,GB"));
+        assert!(i.notes.is_empty(), "{:?}", i.notes);
+        let i = v.interpret("services in Sweden or anywhere in the EEA");
+        assert_eq!(i.params.country.as_deref(), Some("SE"));
+        assert_eq!(i.params.region.as_deref(), Some("eea"));
+    }
+
+    #[test]
+    fn ambiguous_place_names_say_how_they_were_read() {
+        let v = vocab();
+        let i = v.interpret("journals in America");
+        assert_eq!(i.params.country.as_deref(), Some("US"));
+        assert_eq!(i.params.region, None);
+        assert!(
+            i.notes.iter().any(|n| n.contains("the Americas")),
+            "{:?}",
+            i.notes
+        );
+
+        let i = v.interpret("North American wikis");
+        assert_eq!(i.params.region.as_deref(), Some("northern-america"));
+        assert!(
+            i.notes.iter().any(|n| n.contains("Mexico")),
+            "{:?}",
+            i.notes
+        );
+
+        let i = v.interpret("APAC services");
+        assert!(i.notes.iter().any(|n| n.contains("no standard definition")));
+    }
+
+    #[test]
+    fn places_inside_names_are_words() {
+        let v = vocab();
+        for (q, words) in [
+            (
+                "European Molecular Biology Laboratory",
+                "european molecular biology laboratory",
+            ),
+            ("Europe PMC", "europe pmc"),
+            (
+                "American Chemical Society journals",
+                "american chemical society journals",
+            ),
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.region, None, "{q}");
+            assert_eq!(i.params.country, None, "{q}");
+            assert_eq!(i.params.q.as_deref(), Some(words), "{q}");
+            assert!(i.notes.iter().any(|n| n.contains("part of a name")), "{q}");
+        }
+        // A capital that starts another filter is not a name.
+        let i = v.interpret("European R&S services");
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+        // Lowercase can't be told apart, and reads as a place.
+        let i = v.interpret("european molecular biology");
+        assert_eq!(i.params.region.as_deref(), Some("europe"));
+    }
+
+    #[test]
+    fn validate_keeps_known_places() {
+        let mut notes = Vec::new();
+        let p = vocab().validate(
+            InterpretedParams {
+                country: Some("se,XX,GB".into()),
+                region: Some("Europe,atlantis,eu".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.country.as_deref(), Some("SE,GB"));
+        assert_eq!(p.region.as_deref(), Some("europe,eu"));
+        assert_eq!(notes.len(), 2, "{notes:?}");
+        assert_eq!(vocab().label("region", "brics"), "BRICS");
     }
 }
