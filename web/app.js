@@ -65,6 +65,13 @@ async function meta() {
   return (metaCache ??= api("/v1/meta"));
 }
 
+// Example searches (/v1/examples), each tested to read as the filters it shows.
+let examplesCache = null;
+async function examples() {
+  examplesCache ??= api("/v1/examples").catch(() => ((examplesCache = null), []));
+  return examplesCache;
+}
+
 // Federation code or registration authority (lowercase) → { name, ra }, for labeling
 // filters and for telling that a code in a link and a registrar in a facet are one federation.
 let fedIndexCache = null;
@@ -297,6 +304,20 @@ function readingBanner(params, a) {
 
 async function landing() {
   document.body.classList.add("landing");
+  // Three examples, different on each visit, so every kind of search gets shown
+  // without crowding the box. The first three stand in until the list arrives.
+  const tryLink = (ex) => h("a", { href: "#", onclick: (e) => (e.preventDefault(), (input.value = ex), interpretAndGo(ex, form)) }, ex);
+  const tryRow = h(
+    "div",
+    { class: "quick try" },
+    h("span", {}, "try:"),
+    ["journals not in InCommon", "test instances of Canvas", "services anyone in eduGAIN can use"].map(tryLink),
+  );
+  examples().then((list) => {
+    if (list.length < 3) return;
+    const picks = [...list].sort(() => Math.random() - 0.5).slice(0, 3);
+    fill(tryRow, h("span", {}, "try:"), picks.map((ex) => tryLink(ex.query)));
+  });
   const canvas = h("canvas", { "aria-hidden": "true" });
   const input = h("input", {
     type: "search",
@@ -333,18 +354,7 @@ async function landing() {
           h("a", { href: "#/search?availability=edugain-only" }, "Beyond InCommon"),
           h("a", { href: "#/providers" }, "By provider"),
         ),
-        h(
-          "div",
-          { class: "quick try" },
-          h("span", {}, "try:"),
-          [
-            "journals not in InCommon",
-            "UK federation services that need ORCID",
-            "anonymous access services exported to eduGAIN",
-          ].map((ex) =>
-            h("a", { href: "#", onclick: (e) => (e.preventDefault(), (input.value = ex), interpretAndGo(ex, form)) }, ex),
-          ),
-        ),
+        tryRow,
       ),
     ),
   );
@@ -948,12 +958,91 @@ async function federationsView(params) {
   );
 }
 
+// What each filter matches and how they combine, for people rather than API clients.
+const FILTER_HELP = [
+  ["Registered by", "The federation that registered the service. Pick several and a service registered by any of them matches."],
+  ["Country and region", "The registering federation's country. A region or grouping stands for its countries, and countries and regions together are one set of places: a service in any of them matches. A federation that lists several countries is in a region when any of them is."],
+  ["Category", "Entity categories and certifications, such as Research & Scholarship or Sirtfi. A service must carry every one you pick."],
+  ["Availability", "Where the service can be used from: InCommon only, exported to eduGAIN, or registered elsewhere and imported."],
+  ["Environment", "Production, test, staging, or development. It is read from markers in the entityID or the name (test., -dev, \u201c(Staging)\u201d), or else from Claude\u2019s reading of the metadata (marked \u2726). Every environment is shown unless you pick some; test and staging copies rank below the live service they mirror."],
+  ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],
+  ["Requests", "A user attribute the service asks identity providers for, such as email or ORCID."],
+  ["Seen in", "Which aggregate the service appears in: InCommon\u2019s or eduGAIN\u2019s."],
+];
+
+function howToSearch(regions, exs) {
+  const kinds = { geographic: "UN M49 region", political: "Grouping", network: "Research network" };
+  return h(
+    "section",
+    { class: "panel" },
+    h("h2", {}, "How to search"),
+    h(
+      "p",
+      {},
+      "Type a service\u2019s name, or ask in plain words. Above the results, the page shows how it read your search, and you can search the exact words instead. Different filters combine: a service must match all of them.",
+    ),
+    h("dl", { class: "kv" }, FILTER_HELP.map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])),
+    exs.length > 0 &&
+      h(
+        "div",
+        {},
+        h("h3", {}, "Searches it understands"),
+        h(
+          "ul",
+          { class: "linklist" },
+          exs.map((ex) => h("li", {}, h("a", { href: "#", onclick: (e) => (e.preventDefault(), interpretAndGo(ex.query)) }, ex.query), h("span", { style: "color:var(--muted)" }, ` \u2014 ${ex.shows}`))),
+        ),
+      ),
+    h(
+      "p",
+      { class: "gen-note" },
+      "\u2726 marks text Claude generated from a service\u2019s metadata: summaries, some environments, and most \u201copen to\u201d labels. Each says which model wrote it and when, and it may be wrong.",
+    ),
+    regions.length > 0 &&
+      h(
+        "details",
+        {},
+        h("summary", {}, `Regions and groupings (${regions.length})`),
+        h(
+          "p",
+          {},
+          "Each stands for a list of countries with its source. Geographic regions follow UN M49. Groupings say when their membership took effect, and every list says when it was last checked against its source. Contested lists are left out on purpose.",
+        ),
+        h(
+          "div",
+          { class: "table-wrap" },
+          h(
+            "table",
+            {},
+            h("thead", {}, h("tr", {}, h("th", {}, "Region"), h("th", {}, "Kind"), h("th", { class: "num" }, "Countries"), h("th", {}, "Source"), h("th", {}, "Membership as of"), h("th", {}, "Checked"))),
+            h(
+              "tbody",
+              {},
+              regions.map((r) =>
+                h(
+                  "tr",
+                  {},
+                  h("td", {}, h("a", { href: `#/search?region=${encodeURIComponent(r.key)}` }, bare(r.label)), r.note && h("div", { style: "color:var(--muted);font-size:12px" }, r.note)),
+                  h("td", {}, kinds[r.kind] || r.kind),
+                  h("td", { class: "num" }, fmt(r.countries.length)),
+                  h("td", {}, h("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, r.source)),
+                  h("td", {}, r.kind === "geographic" ? "\u2014" : r.as_of || "\u2014"),
+                  h("td", {}, r.checked),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+  );
+}
+
 async function aboutView() {
   setNav("about");
   render(loading());
-  let m, cats;
+  let m, cats, regions, exs;
   try {
-    [m, cats] = await Promise.all([meta(), api("/v1/categories")]);
+    [m, cats, regions, exs] = await Promise.all([meta(), api("/v1/categories"), api("/v1/regions").catch(() => []), examples()]);
   } catch (e) {
     return render(failure(e));
   }
@@ -964,6 +1053,7 @@ async function aboutView() {
       { class: "lede" },
       "InCatalog lists the SAML service providers published in the InCommon and eduGAIN metadata aggregates. Everything except fields marked curated is derived from that metadata; the federation list comes from the eduGAIN database.",
     ),
+    howToSearch(regions || [], exs || []),
     h(
       "section",
       { class: "panel" },

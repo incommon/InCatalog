@@ -41,7 +41,8 @@ type St = State<Arc<AppState>>;
         federations,
         regions,
         categories,
-        attributes
+        attributes,
+        examples
     ),
     components(schemas(
         Meta,
@@ -77,6 +78,7 @@ type St = State<Arc<AppState>>;
         catalog_core::sharing::Signals,
         catalog_core::sharing::Cluster,
         catalog_core::model::SharingLabel,
+        catalog_core::examples::Example,
         RegionView,
     ))
 )]
@@ -94,6 +96,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/providers/{id}", get(provider))
         .route("/federations", get(federations))
         .route("/regions", get(regions))
+        .route("/examples", get(examples))
         .route("/categories", get(categories))
         .route("/attributes", get(attributes))
         // Metadata is republished daily; five minutes of caching is plenty fresh.
@@ -311,6 +314,13 @@ async fn regions(State(s): St) -> Json<Vec<RegionView>> {
     Json(s.catalog().await.regions())
 }
 
+/// Example searches, one or more for each thing the search understands. Each is
+/// tested to read as the filters it shows.
+#[utoipa::path(get, path = "/v1/examples", responses((status = 200, body = Vec<catalog_core::examples::Example>)))]
+async fn examples() -> Json<&'static [catalog_core::examples::Example]> {
+    Json(catalog_core::examples::EXAMPLES)
+}
+
 /// Known entity categories with synonyms and counts, plus every raw tag value seen.
 #[utoipa::path(get, path = "/v1/categories", responses((status = 200, body = CategoryReport)))]
 async fn categories(State(s): St) -> Json<CategoryReport> {
@@ -391,6 +401,15 @@ mod tests {
         assert_eq!(st, StatusCode::OK);
         assert_eq!(a["total"], 1);
         assert!(a["relaxed"].as_str().unwrap().contains("Availability"));
+
+        let (st, ex) = get_json("/v1/examples").await;
+        assert_eq!(st, StatusCode::OK);
+        assert!(ex.as_array().unwrap().len() >= 8);
+        assert!(ex[0]["query"].is_string() && ex[0]["shows"].is_string());
+        assert!(
+            ex[0].get("reads_as").is_none(),
+            "the test's expectations stay private"
+        );
 
         let (st, _) = get_json("/v1/services/deadbeef").await;
         assert_eq!(st, StatusCode::NOT_FOUND);

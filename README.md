@@ -123,6 +123,7 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
 | `/v1/federations` | eduGAIN's federations joined to catalog counts, plus any registrars eduGAIN does not list |
 | `/v1/regions` | Regions a search can name, each with its countries, source, and service count |
+| `/v1/examples` | Example searches, one or more for each thing the search understands |
 | `/v1/categories` | Known categories with synonyms and counts, plus every raw tag value seen |
 | `/v1/attributes` | Requested attributes, most requested first |
 
@@ -220,6 +221,13 @@ results so the user can check it or search the literal words instead.
 | video conferencing, not institution-specific | `sharing=multilateral,unknown`, words `video conferencing` |
 | European Molecular Biology Laboratory | words only: a capitalized place followed by a capitalized word is read as part of a name, and the reading says so |
 | email marketing | words only (no "request" verb, so *email* is a subject, not an attribute) |
+
+The landing page offers three of the examples from `/v1/examples`
+(`catalog-core/src/examples.rs`), different on each visit. The About page lists them
+all, in a "How to search" section that also explains each filter, how regions are
+defined, and which labels Claude wrote. `crates/catalog-core/tests/examples.rs` reads
+every example with the rules and checks that it produces the filters it is meant to
+show and finds services without being loosened, so none can quietly stop working.
 
 Two readers do this work:
 
