@@ -218,6 +218,7 @@ form.busy button::after { content: " …"; }
 .facets { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding-right: 4px; }
 .facet { margin-bottom: 18px; }
 .facet h3 { font: 600 11px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.facet h3 .mode { font-weight: 400; letter-spacing: 0; text-transform: none; margin-left: 6px; }
 .facet button {
   display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left;
   background: none; border: 0; color: var(--ink); font: 13px var(--sans); padding: 4px 6px;

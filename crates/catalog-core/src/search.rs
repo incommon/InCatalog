@@ -29,7 +29,10 @@ pub struct ServiceQuery {
     /// Free text; every word must appear in the name, description, keywords,
     /// organization, entityID, federation, or curated tags.
     pub q: Option<String>,
-    /// eduGAIN federation code (e.g. `INCOMMON`) or registration authority URI.
+    /// eduGAIN federation codes (e.g. `INCOMMON`) or registration authority URIs,
+    /// comma-separated or as repeated parameters; a service registered by any of
+    /// them matches.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
     pub federation: Option<String>,
     /// ISO 3166 country code of the registering federation.
     pub country: Option<String>,
@@ -884,7 +887,8 @@ struct Filters {
     need: usize,
     /// Per-token weight: rarer words count for more (see [`Filters::weigh`]).
     weights: Vec<u32>,
-    federation: Option<String>,
+    /// Normalized codes or registration authorities; a service must match one.
+    federations: Vec<String>,
     country: Option<String>,
     categories: Vec<String>,
     /// `Some(None)` means an unrecognized availability key: match nothing.
@@ -914,16 +918,12 @@ impl Filters {
             need: need.min(tokens.len()),
             weights: vec![10; tokens.len()],
             tokens,
-            federation: nonempty(&q.federation),
+            federations: split_list(q.federation.as_deref())
+                .iter()
+                .map(|f| normalize_reg_auth(f))
+                .collect(),
             country: nonempty(&q.country).map(|c| c.to_uppercase()),
-            categories: nonempty(&q.category)
-                .map(|c| {
-                    c.split(',')
-                        .map(|s| s.trim().to_owned())
-                        .filter(|s| !s.is_empty())
-                        .collect()
-                })
-                .unwrap_or_default(),
+            categories: split_list(q.category.as_deref()),
             availability: nonempty(&q.availability).map(|a| Availability::from_key(&a)),
             attribute: nonempty(&q.attribute).map(|a| a.to_lowercase()),
             provider: nonempty(&q.provider),
@@ -963,15 +963,14 @@ impl Filters {
         let s = &c.snapshot.services[i];
         let e = &c.entries[i];
         let on = |d: Dim| except != Some(d);
-        if on(Dim::Federation) {
-            if let Some(f) = &self.federation {
-                let by_code = s
-                    .federation
-                    .as_deref()
-                    .is_some_and(|code| code.eq_ignore_ascii_case(f));
-                if !by_code && e.reg_auth_norm != normalize_reg_auth(f) {
-                    return false;
-                }
+        if on(Dim::Federation) && !self.federations.is_empty() {
+            let code = s.federation.as_deref().unwrap_or("");
+            if !self
+                .federations
+                .iter()
+                .any(|f| code.eq_ignore_ascii_case(f) || e.reg_auth_norm == *f)
+            {
+                return false;
             }
         }
         if on(Dim::Country) {
@@ -1063,6 +1062,17 @@ impl Filters {
         }
         score
     }
+}
+
+/// A comma-separated list, trimmed, without empty items or repeats.
+pub fn split_list(s: Option<&str>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for v in s.unwrap_or("").split(',').map(str::trim) {
+        if !v.is_empty() && !out.iter().any(|x| x == v) {
+            out.push(v.to_owned());
+        }
+    }
+    out
 }
 
 /// Words too common to require; they still count toward the exact-phrase bonus.
@@ -1249,4 +1259,135 @@ fn truncate(s: &str, max: usize) -> String {
     }
     let cut: String = s.chars().take(max).collect();
     format!("{}…", cut.trim_end())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fed(code: &str, ra: &str, cc: &str) -> Federation {
+        Federation {
+            code: code.into(),
+            name: code.into(),
+            registration_authority: ra.into(),
+            country_codes: vec![cc.into()],
+            ..Default::default()
+        }
+    }
+
+    fn catalog() -> Catalog {
+        // Build fills in `federation`, the code eduGAIN lists for the registrar.
+        let svc = |id: &str, ra: &str, cat: &str| {
+            let code = match ra {
+                "https://incommon.org" => "INCOMMON",
+                "http://www.swamid.se/" => "SWAMID",
+                "https://www.aai.dfn.de" => "DFN-AAI",
+                _ => "UK-FEDERATION",
+            };
+            let mut s = Service {
+                entity_id: id.into(),
+                id: crate::entity_hash(id),
+                categories: vec![cat.into()],
+                federation: Some(code.into()),
+                ..Default::default()
+            };
+            s.registration.authority = Some(ra.into());
+            s.display_names.insert("en".into(), id.into());
+            s
+        };
+        Catalog::new(Snapshot {
+            services: vec![
+                svc("https://a/", "https://incommon.org", "sirtfi"),
+                svc("https://b/", "https://incommon.org", "anonymous"),
+                svc("https://c/", "http://www.swamid.se/", "sirtfi"),
+                svc("https://d/", "https://www.aai.dfn.de", "sirtfi"),
+                svc("https://e/", "http://ukfederation.org.uk", "sirtfi"),
+            ],
+            federations: vec![
+                fed("INCOMMON", "https://incommon.org", "US"),
+                fed("SWAMID", "http://www.swamid.se/", "SE"),
+                fed("DFN-AAI", "https://www.aai.dfn.de", "DE"),
+                fed("UK-FEDERATION", "http://ukfederation.org.uk", "GB"),
+            ],
+            ..Default::default()
+        })
+    }
+
+    fn by_federation(c: &Catalog, federation: &str) -> ServicePage {
+        c.search(&ServiceQuery {
+            federation: Some(federation.into()),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn split_list_trims_and_drops_empties_and_repeats() {
+        assert_eq!(split_list(None), Vec::<String>::new());
+        assert_eq!(split_list(Some(" , ")), Vec::<String>::new());
+        assert_eq!(
+            split_list(Some(" INCOMMON, SWAMID,,INCOMMON ")),
+            vec!["INCOMMON", "SWAMID"]
+        );
+    }
+
+    #[test]
+    fn several_federations_match_any_of_them() {
+        let c = catalog();
+        assert_eq!(by_federation(&c, "SWAMID").total, 1);
+        assert_eq!(by_federation(&c, "INCOMMON,SWAMID,DFN-AAI").total, 4);
+        // Codes and registration authorities mix, in any case, with or without the slash.
+        assert_eq!(
+            by_federation(&c, "swamid, https://WWW.AAI.DFN.DE/").total,
+            2
+        );
+        // An unknown value adds nothing; on its own it matches nothing.
+        assert_eq!(by_federation(&c, "SWAMID,NOPE").total, 1);
+        assert_eq!(by_federation(&c, "NOPE").total, 0);
+        // Only separators is no filter at all.
+        assert_eq!(by_federation(&c, " , ").total, 5);
+    }
+
+    #[test]
+    fn federations_still_and_with_other_filters() {
+        let c = catalog();
+        let p = c.search(&ServiceQuery {
+            federation: Some("INCOMMON,SWAMID".into()),
+            category: Some("sirtfi".into()),
+            ..Default::default()
+        });
+        let ids: Vec<&str> = p.items.iter().map(|s| s.entity_id.as_str()).collect();
+        assert_eq!(ids, ["https://a/", "https://c/"]);
+
+        let p = c.search(&ServiceQuery {
+            federation: Some("INCOMMON,SWAMID".into()),
+            country: Some("SE".into()),
+            ..Default::default()
+        });
+        assert_eq!(p.total, 1);
+    }
+
+    #[test]
+    fn federation_facet_ignores_its_own_selection() {
+        let c = catalog();
+        let p = c.search(&ServiceQuery {
+            federation: Some("INCOMMON,SWAMID".into()),
+            category: Some("sirtfi".into()),
+            ..Default::default()
+        });
+        let count = |dim: &str, label: &str| {
+            p.facets[dim]
+                .iter()
+                .find(|v| v.label == label)
+                .map(|v| v.count)
+        };
+        // Every federation stays offered with what adding it would bring in...
+        assert_eq!(count("federation", "INCOMMON"), Some(1));
+        assert_eq!(count("federation", "SWAMID"), Some(1));
+        assert_eq!(count("federation", "DFN-AAI"), Some(1));
+        assert_eq!(count("federation", "UK-FEDERATION"), Some(1));
+        // ...while the other facets count only the selected federations.
+        assert_eq!(count("country", "DE"), None);
+        assert_eq!(count("country", "US"), Some(1));
+        assert_eq!(count("category", "Anonymous Access"), Some(1));
+    }
 }

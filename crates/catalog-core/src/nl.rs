@@ -17,12 +17,14 @@ use utoipa::ToSchema;
 
 use crate::categories::CATEGORIES;
 use crate::model::{Availability, Federation, Service};
+use crate::search::split_list;
 
 /// The filters a query was read as. Field names and values match `/v1/services`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct InterpretedParams {
     /// Words left over for free-text matching.
     pub q: Option<String>,
+    /// Comma-separated federation codes; a service registered by any of them matches.
     pub federation: Option<String>,
     pub country: Option<String>,
     /// Comma-separated category keys.
@@ -804,8 +806,8 @@ impl Vocab {
         }
     }
 
-    /// Fold matches into one value per field (categories combine; the rest take
-    /// the first match and note what was dropped).
+    /// Fold matches into one value per field (categories and federations combine;
+    /// the rest take the first match and note what was dropped).
     fn collect(
         &self,
         matched: &[MatchedTerm],
@@ -816,16 +818,23 @@ impl Vocab {
             q: (!keywords.is_empty()).then(|| keywords.to_owned()),
             ..Default::default()
         };
+        fn add<'a>(list: &mut Vec<&'a str>, v: &'a str) {
+            if !list.contains(&v) {
+                list.push(v);
+            }
+        }
         let mut cats: Vec<&str> = Vec::new();
+        let mut feds: Vec<&str> = Vec::new();
         for m in matched {
             let slot = match m.field.as_str() {
                 "category" => {
-                    if !cats.contains(&m.value.as_str()) {
-                        cats.push(&m.value);
-                    }
+                    add(&mut cats, &m.value);
                     continue;
                 }
-                "federation" => &mut p.federation,
+                "federation" => {
+                    add(&mut feds, &m.value);
+                    continue;
+                }
                 "country" => &mut p.country,
                 "availability" => &mut p.availability,
                 "attribute" => &mut p.attribute,
@@ -845,6 +854,9 @@ impl Vocab {
         }
         if !cats.is_empty() {
             p.category = Some(cats.join(","));
+        }
+        if !feds.is_empty() {
+            p.federation = Some(feds.join(","));
         }
         // An availability already says which aggregates; a source on top is redundant
         // and can contradict it ("not in InCommon" contains "in InCommon").
@@ -871,11 +883,13 @@ impl Vocab {
                 .collect::<Vec<_>>()
                 .join(",")
         });
+        let federations: Vec<String> = split_list(p.federation.as_deref())
+            .into_iter()
+            .filter_map(|v| keep("federation", Some(v), &|v| self.federations.contains_key(v)))
+            .collect();
         InterpretedParams {
             q: p.q.map(|q| q.trim().to_owned()).filter(|q| !q.is_empty()),
-            federation: keep("federation", p.federation, &|v| {
-                self.federations.contains_key(v)
-            }),
+            federation: (!federations.is_empty()).then(|| federations.join(",")),
             country: keep("country", p.country.map(|c| c.to_uppercase()), &|v| {
                 self.countries.contains_key(v)
             }),
@@ -1055,6 +1069,26 @@ mod tests {
     }
 
     #[test]
+    fn several_federations_combine() {
+        let i = vocab().interpret("R&S services registered by SWAMID or InCommon");
+        assert_eq!(i.params.federation.as_deref(), Some("SWAMID,INCOMMON"));
+        assert_eq!(
+            i.params.category.as_deref(),
+            Some("research-and-scholarship")
+        );
+        assert_eq!(i.params.q, None);
+        assert!(i.notes.is_empty(), "{:?}", i.notes);
+        assert_eq!(
+            i.matched.iter().filter(|m| m.field == "federation").count(),
+            2
+        );
+
+        // Naming one twice is still one.
+        let i = vocab().interpret("SWAMID wikis, swamid only");
+        assert_eq!(i.params.federation.as_deref(), Some("SWAMID"));
+    }
+
+    #[test]
     fn short_federation_codes_need_capitals_or_context() {
         let feds = vec![
             Federation {
@@ -1155,5 +1189,16 @@ mod tests {
         assert_eq!(p.federation, None);
         assert_eq!(p.category.as_deref(), Some("sirtfi"));
         assert_eq!(notes.len(), 1);
+
+        let mut notes = Vec::new();
+        let p = v.validate(
+            InterpretedParams {
+                federation: Some("SWAMID, NOPE,INCOMMON,SWAMID".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.federation.as_deref(), Some("SWAMID,INCOMMON"));
+        assert_eq!(notes, ["Dropped an unknown federation \"NOPE\"."]);
     }
 }
