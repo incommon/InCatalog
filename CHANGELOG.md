@@ -9,6 +9,8 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-29
+
 ### Added
 
 - **Several federations at once.** `federation` on `/v1/services` takes a comma list
@@ -62,11 +64,20 @@ section must be written before it is cut.
   timeouts, TLS) are retried after six hours instead of three days, a run stops
   looking up after twelve unreachable sites in a row, and the per-run cap rose from
   150 to 300. Ingest reports why each logo is missing. (#18)
+- "Library services" and "library SPs" now mean services run by libraries
+  (`sector=libraries`), and "museum services" and "museum SPs" services run by museums.
+  "Library" or "museum" alone still searches the word, so "library management system"
+  is a subject. "R&S library services in Sweden" changes meaning with this. (#26)
 - Dependencies: lambda_http 1.3, lambda_runtime 1.5, tower-http 0.7, utoipa 6, sha1
   0.11 and sha2 0.11. (#2, #3, #5–#8)
 
 ### Fixed
 
+- Every grouping in `regions.json` is now checked against a page read from its
+  source, and its `url` points at that page. Dates the source gives only to the month
+  or year are no longer given to the day. Corrections include the UK leaving the EU on
+  2020-01-31 (recorded in `left`), Morocco rejoining the African Union on 2017-01-31,
+  and the G7's current membership dating from Russia's suspension in March 2014. (#25)
 - The image's smoke test can read its snapshot on Linux runners. (#12)
 
 ### Security
@@ -88,5 +99,6 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.1.0...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.2.0...develop
+[0.2.0]: https://github.com/incommon/InCatalog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/incommon/InCatalog/tree/v0.1.0

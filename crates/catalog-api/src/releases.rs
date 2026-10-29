@@ -50,8 +50,9 @@ pub fn find(version: &str) -> Option<&'static Release> {
 }
 
 /// Read a Keep a Changelog file. `current` is the running version, which marks its
-/// release. Fails on a heading that is not a version (or `Unreleased`), a bad date, a
-/// release without one, or a version listed twice.
+/// release; an empty Unreleased section is left out. Fails on a heading that is not a
+/// version (or `Unreleased`), a bad date, a release without one, or a version listed
+/// twice.
 pub fn parse(markdown: &str, current: &str) -> Result<Vec<Release>, String> {
     let mut releases: Vec<Release> = Vec::new();
     let mut body: Vec<&str> = Vec::new();
@@ -71,6 +72,8 @@ pub fn parse(markdown: &str, current: &str) -> Result<Vec<Release>, String> {
         releases.push(release);
     }
     close(&mut releases, &mut body);
+    // Right after a release, Unreleased is an empty heading: nothing to show.
+    releases.retain(|r| r.version != UNRELEASED || !r.notes.is_empty());
     Ok(releases)
 }
 
@@ -258,6 +261,9 @@ Plain heading, no brackets.
             assert!(parse(bad, "1.0.0").is_err(), "{why}: {bad}");
         }
         assert_eq!(parse("# Only a title\n\ntext", "1.0.0").unwrap(), []);
+        let fresh = parse("## [Unreleased]\n\n## [1.0.0] - 2026-01-01\n\n- x", "1.0.0").unwrap();
+        assert_eq!(fresh.len(), 1, "an empty Unreleased is left out");
+        assert_eq!(fresh[0].version, "1.0.0");
     }
 
     #[test]
