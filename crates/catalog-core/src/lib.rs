@@ -16,6 +16,7 @@ pub mod build;
 pub mod categories;
 pub mod curation;
 pub mod environment;
+pub mod examples;
 pub mod extract;
 pub mod federations;
 pub mod model;
