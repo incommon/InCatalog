@@ -40,6 +40,7 @@ pub struct AskResult {
 const SOFTEST_FIRST: &[(&str, &str)] = &[
     ("attribute", "Requests"),
     ("country", "Country"),
+    ("region", "Region"),
     ("environment", "Environment"),
     ("source", "Seen in"),
     ("federation", "Registered by"),
@@ -142,6 +143,7 @@ impl Catalog {
             q: p.q.clone(),
             federation: p.federation.clone(),
             country: p.country.clone(),
+            region: p.region.clone(),
             environment: p.environment.clone(),
             category: p.category.clone(),
             availability: p.availability.clone(),
@@ -161,6 +163,7 @@ fn get<'a>(p: &'a InterpretedParams, field: &str) -> Option<&'a String> {
     match field {
         "federation" => p.federation.as_ref(),
         "country" => p.country.as_ref(),
+        "region" => p.region.as_ref(),
         "environment" => p.environment.as_ref(),
         "category" => p.category.as_ref(),
         "availability" => p.availability.as_ref(),
@@ -175,6 +178,7 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
     match field {
         "federation" => p.federation.take(),
         "country" => p.country.take(),
+        "region" => p.region.take(),
         "environment" => p.environment.take(),
         "category" => p.category.take(),
         "availability" => p.availability.take(),
@@ -185,18 +189,14 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
     }
 }
 
-/// Categories must all hold ("R&S + Sirtfi"); federations and environments are
-/// alternatives ("SWAMID or DFN-AAI", "Test or Staging").
+/// Categories must all hold ("R&S + Sirtfi"); the rest are alternatives
+/// ("SWAMID or DFN-AAI", "Sweden or Norway", "Test or Staging").
 fn describe(c: &Catalog, field: &str, value: &str) -> String {
     value
         .split(',')
         .map(|v| c.vocab().label(field, v))
         .collect::<Vec<_>>()
-        .join(if field == "federation" || field == "environment" {
-            " or "
-        } else {
-            " + "
-        })
+        .join(if field == "category" { " + " } else { " or " })
 }
 
 #[cfg(test)]
@@ -301,5 +301,19 @@ mod tests {
             .relaxed
             .unwrap()
             .contains("Environment: Test or Staging"));
+    }
+
+    #[test]
+    fn drops_a_region_that_finds_nothing() {
+        let c = catalog();
+        let mut r = reading(&c, "journal");
+        r.params.region = Some("brics,eu".into());
+        let a = c.ask(r);
+        assert_eq!(a.params.region, None);
+        assert_eq!(a.total, 1);
+        assert!(a
+            .relaxed
+            .unwrap()
+            .contains("Region: BRICS or the European Union"));
     }
 }

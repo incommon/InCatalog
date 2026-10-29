@@ -42,38 +42,6 @@ any IdP in eduGAIN in. Label each SP in ingest, and let people search on the lab
   collaboration SPs. Report precision for each label, and keep the sample as a
   regression test for prompt changes.
 
-## Search by region: "the Americas", "Europe", "the EU", "Asia", "Oceania", "BRICS"
-
-Today a search can name one country (`country=SE`, or "in Sweden" through the reading in
-`catalog-core/src/nl.rs`), matched against the country codes of the federation that
-registered the service. People also think in regions that span many registration
-authorities: "Research & Scholarship services in Europe", "SPs registered in the
-Americas", "anything from BRICS countries".
-
-- **Regions as named sets of countries.** Define each region as a list of ISO 3166
-  codes in `catalog-core`, with its source:
-  - **Geographic regions** (the Americas, North/Latin America, Europe, Asia, Africa,
-    Oceania, and subregions) from UN M49.
-  - **Political groupings** (the EU, the EEA, BRICS, …) with the date of their
-    membership list, since it changes. BRICS has grown well beyond its original five,
-    and the EU is not "Europe".
-- **Filter on a set of countries.** Make `country` accept several values (as the
-  multi-select federation work does for `federation`) and add `region=`, which expands
-  to its countries. Report the region and its expansion in the response, so a reader
-  can see what "Europe" meant.
-- **Multi-country federations.** Some federations list several country codes. Decide
-  whether one is in a region when any of its countries is, and document the choice.
-- **Natural-language search.** Teach the rules reading the region names and their
-  common forms ("European", "in the EU", "Asia-Pacific", "LatAm"), and let the Claude
-  reading in `catalog-api/src/nl.rs` produce a region rather than guessing a country
-  list. An ambiguous name should say how it was read. For example, "America" alone
-  more likely means the United States than the Americas.
-- **UI.** Show the active region as one chip, expandable to its countries, and keep it
-  in the URL state.
-- **Tests.** The expansion, membership dates, the multi-country rule, and the NL
-  phrasings, including false positives such as "European Molecular Biology Laboratory"
-  as an organization name.
-
 ## Rename the AWS resources from `catabasis` to `incatalog`
 
 The code and docs use `incatalog`, but the deployed AWS resources still carry the old

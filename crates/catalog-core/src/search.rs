@@ -7,7 +7,7 @@
 //! precomputed lowercase search text. That keeps the API stateless, fast enough on a
 //! cold Lambda, and free of an external search dependency.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
@@ -20,6 +20,7 @@ use crate::model::{
     pick, Availability, Curated, Federation, Service, Snapshot, Source, SourceInfo,
 };
 use crate::nl::{Interpretation, Vocab};
+use crate::regions::{self, RegionExpansion, REGIONS};
 use crate::INCOMMON_REGISTRAR;
 
 pub const MAX_PER_PAGE: usize = 100;
@@ -35,8 +36,17 @@ pub struct ServiceQuery {
     /// them matches.
     #[param(value_type = Option<Vec<String>>, style = Form, explode)]
     pub federation: Option<String>,
-    /// ISO 3166 country code of the registering federation.
+    /// ISO 3166 country codes of the registering federation, comma-separated or as
+    /// repeated parameters; a service registered in any of them matches.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
     pub country: Option<String>,
+    /// Region keys from `/v1/regions` (`europe`, `eu`, `brics`, …), comma-separated
+    /// or as repeated parameters. Each stands for its countries, so a service
+    /// registered in any of them, or in any `country`, matches; `regions` on the
+    /// results lists what each meant. A federation that lists several countries is
+    /// in a region when any of them is.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub region: Option<String>,
     /// `production`, `test`, `staging`, `development`, or `unknown`,
     /// comma-separated or as repeated parameters; a service in any of them
     /// matches. See `environment` on the results for how each was decided.
@@ -120,7 +130,10 @@ pub struct ServicePage {
     pub per_page: usize,
     pub items: Vec<ServiceSummary>,
     /// Counts per facet value, each computed with every *other* active filter applied.
+    /// `country` and `region` are one filter, so neither facet applies either.
     pub facets: BTreeMap<String, Vec<FacetValue>>,
+    /// Each known region in the query, with the countries it stood for.
+    pub regions: Vec<RegionExpansion>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -210,6 +223,14 @@ pub struct CategoryView {
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RegionView {
+    #[serde(flatten)]
+    pub region: RegionExpansion,
+    /// Services registered in one of its countries.
+    pub service_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct RawTag {
     pub attribute: String,
     pub value: String,
@@ -266,6 +287,8 @@ struct Entry {
     blob: String,
     provider: usize,
     countries: Vec<String>,
+    /// Indexes into [`REGIONS`] of the regions any of `countries` is in.
+    regions: Vec<usize>,
     reg_auth_norm: String,
     attrs_lc: Vec<String>,
 }
@@ -293,6 +316,10 @@ impl Catalog {
         let mut providers: Vec<Provider> = Vec::new();
         let mut provider_by_key: HashMap<String, usize> = HashMap::new();
         let mut entries = Vec::with_capacity(snapshot.services.len());
+        let region_sets: Vec<HashSet<&str>> = REGIONS
+            .iter()
+            .map(|r| r.countries().into_iter().collect())
+            .collect();
 
         for (i, s) in snapshot.services.iter().enumerate() {
             let fed = s
@@ -386,6 +413,16 @@ impl Catalog {
                 org_lc: pkey,
                 blob: normalize(&blob),
                 provider: pidx,
+                regions: {
+                    let countries = countries_for(s, fed);
+                    (0..REGIONS.len())
+                        .filter(|&r| {
+                            countries
+                                .iter()
+                                .any(|c| region_sets[r].contains(c.as_str()))
+                        })
+                        .collect()
+                },
                 countries: countries_for(s, fed),
                 reg_auth_norm: s.registrar().map(normalize_reg_auth).unwrap_or_default(),
                 attrs_lc: s
@@ -555,6 +592,7 @@ impl Catalog {
             per_page,
             items,
             facets,
+            regions: f.regions.iter().map(|r| r.expansion()).collect(),
         }
     }
 
@@ -586,6 +624,11 @@ impl Catalog {
                     Dim::Country => {
                         for c in &self.entries[i].countries {
                             bump(c, c);
+                        }
+                    }
+                    Dim::Region => {
+                        for &r in &self.entries[i].regions {
+                            bump(REGIONS[r].key, REGIONS[r].label);
                         }
                     }
                     Dim::Category => {
@@ -740,6 +783,23 @@ impl Catalog {
         out
     }
 
+    /// Every region with the countries it stands for and its service count.
+    pub fn regions(&self) -> Vec<RegionView> {
+        REGIONS
+            .iter()
+            .enumerate()
+            .map(|(r, region)| RegionView {
+                region: region.expansion(),
+                service_count: self
+                    .entries
+                    .iter()
+                    .zip(&self.snapshot.services)
+                    .filter(|(e, s)| !hidden(s) && e.regions.contains(&r))
+                    .count(),
+            })
+            .collect()
+    }
+
     pub fn categories(&self) -> CategoryReport {
         let visible = || self.snapshot.services.iter().filter(|s| !hidden(s));
         let categories = categories::CATEGORIES
@@ -862,6 +922,7 @@ impl Catalog {
 enum Dim {
     Federation,
     Country,
+    Region,
     Category,
     Availability,
     Environment,
@@ -871,9 +932,10 @@ enum Dim {
 }
 
 impl Dim {
-    const ALL: [Dim; 8] = [
+    const ALL: [Dim; 9] = [
         Dim::Federation,
         Dim::Country,
+        Dim::Region,
         Dim::Category,
         Dim::Availability,
         Dim::Environment,
@@ -886,6 +948,7 @@ impl Dim {
         match self {
             Dim::Federation => "federation",
             Dim::Country => "country",
+            Dim::Region => "region",
             Dim::Category => "category",
             Dim::Availability => "availability",
             Dim::Environment => "environment",
@@ -908,7 +971,13 @@ struct Filters {
     weights: Vec<u32>,
     /// Normalized codes or registration authorities; a service must match one.
     federations: Vec<String>,
-    country: Option<String>,
+    /// The countries named directly and through regions; a service must be
+    /// registered in one. Empty when neither filter is set.
+    countries: HashSet<String>,
+    /// Whether a country or region filter was given at all: one that names only
+    /// unknown regions matches nothing.
+    place_filter: bool,
+    regions: Vec<&'static regions::Region>,
     categories: Vec<String>,
     /// `Some(None)` means an unrecognized availability key: match nothing.
     availability: Option<Option<Availability>>,
@@ -929,6 +998,24 @@ impl Filters {
                 .filter(|s| !s.is_empty())
                 .map(str::to_owned)
         };
+        let region_keys = q.region.as_deref().map(str::to_lowercase);
+        let named_regions: Vec<&'static regions::Region> = split_list(region_keys.as_deref())
+            .iter()
+            .filter_map(|k| regions::get(&k.to_lowercase()))
+            .collect();
+        let named_countries = split_list(q.country.as_deref());
+        let place_filter =
+            !named_countries.is_empty() || !split_list(region_keys.as_deref()).is_empty();
+        let countries: HashSet<String> = named_countries
+            .iter()
+            .map(|c| c.to_uppercase())
+            .chain(
+                named_regions
+                    .iter()
+                    .flat_map(|r| r.countries())
+                    .map(str::to_owned),
+            )
+            .collect();
         let tokens = tokens(q.q.as_deref());
         let need = match q.match_mode.as_deref() {
             Some("some") => 1,
@@ -944,7 +1031,9 @@ impl Filters {
                 .iter()
                 .map(|f| normalize_reg_auth(f))
                 .collect(),
-            country: nonempty(&q.country).map(|c| c.to_uppercase()),
+            countries,
+            place_filter,
+            regions: named_regions,
             categories: split_list(q.category.as_deref()),
             availability: nonempty(&q.availability).map(|a| Availability::from_key(&a)),
             environments: split_list(q.environment.as_deref())
@@ -999,12 +1088,12 @@ impl Filters {
                 return false;
             }
         }
-        if on(Dim::Country) {
-            if let Some(cc) = &self.country {
-                if !e.countries.contains(cc) {
-                    return false;
-                }
-            }
+        if on(Dim::Country)
+            && on(Dim::Region)
+            && self.place_filter
+            && !e.countries.iter().any(|c| self.countries.contains(c))
+        {
+            return false;
         }
         if on(Dim::Category) && !self.categories.iter().all(|k| s.categories.contains(k)) {
             return false;
@@ -1588,6 +1677,145 @@ mod tests {
                 ("staging", "Staging", 1),
                 ("test", "Test", 1)
             ]
+        );
+    }
+
+    fn with_wayf() -> Catalog {
+        let mut snapshot = catalog().snapshot;
+        let mut s = Service {
+            entity_id: "https://f/".into(),
+            id: crate::entity_hash("https://f/"),
+            federation: Some("WAYF".into()),
+            ..Default::default()
+        };
+        s.registration.authority = Some("https://wayf.dk".into());
+        s.display_names.insert("en".into(), "https://f/".into());
+        snapshot.services.push(s);
+        snapshot.federations.push(Federation {
+            code: "WAYF".into(),
+            name: "WAYF".into(),
+            registration_authority: "https://wayf.dk".into(),
+            country_codes: vec!["DK".into(), "IS".into(), "GL".into()],
+            ..Default::default()
+        });
+        Catalog::new(snapshot)
+    }
+
+    fn places(c: &Catalog, country: Option<&str>, region: Option<&str>) -> Vec<String> {
+        c.search(&ServiceQuery {
+            country: country.map(str::to_owned),
+            region: region.map(str::to_owned),
+            ..Default::default()
+        })
+        .items
+        .into_iter()
+        .map(|s| s.entity_id)
+        .collect()
+    }
+
+    #[test]
+    fn several_countries_match_any_of_them() {
+        let c = catalog();
+        assert_eq!(places(&c, Some("SE"), None), ["https://c/"]);
+        assert_eq!(
+            places(&c, Some("se, de"), None),
+            ["https://c/", "https://d/"]
+        );
+        assert_eq!(places(&c, Some("SE,XX"), None).len(), 1);
+        assert_eq!(places(&c, Some("XX"), None).len(), 0);
+    }
+
+    #[test]
+    fn regions_expand_to_their_countries() {
+        let c = with_wayf();
+        // The UK is in Europe but not the EU.
+        assert_eq!(
+            places(&c, None, Some("europe")),
+            ["https://c/", "https://d/", "https://e/", "https://f/"]
+        );
+        assert_eq!(
+            places(&c, None, Some("EU")),
+            ["https://c/", "https://d/", "https://f/"]
+        );
+        // WAYF lists Greenland, which M49 puts in Northern America: a federation is
+        // in a region when any of its countries is.
+        assert_eq!(
+            places(&c, None, Some("northern-america")),
+            ["https://a/", "https://b/", "https://f/"]
+        );
+        // Regions and countries together are one set of places.
+        assert_eq!(
+            places(&c, Some("US"), Some("eu")).len(),
+            5,
+            "US, plus SE, DE and DK"
+        );
+        assert_eq!(places(&c, None, Some("europe,americas")).len(), 6);
+        // An unknown region adds nothing, and alone matches nothing.
+        assert_eq!(places(&c, None, Some("eu,atlantis")).len(), 3);
+        assert_eq!(places(&c, None, Some("atlantis")).len(), 0);
+        assert_eq!(places(&c, None, Some(" , ")).len(), 6);
+    }
+
+    #[test]
+    fn the_response_says_what_a_region_meant() {
+        let c = with_wayf();
+        let p = c.search(&ServiceQuery {
+            region: Some("eu,atlantis,eu".into()),
+            ..Default::default()
+        });
+        assert_eq!(p.regions.len(), 1, "once each, and unknown keys not at all");
+        let eu = &p.regions[0];
+        assert_eq!(eu.key, "eu");
+        assert_eq!(eu.as_of.as_deref(), Some("2020-02-01"));
+        assert_eq!(eu.countries.len(), 27);
+        assert!(c.search(&ServiceQuery::default()).regions.is_empty());
+    }
+
+    #[test]
+    fn place_facets_ignore_both_place_filters() {
+        let c = with_wayf();
+        let p = c.search(&ServiceQuery {
+            region: Some("eu".into()),
+            country: Some("US".into()),
+            ..Default::default()
+        });
+        let count = |dim: &str, value: &str| {
+            p.facets[dim]
+                .iter()
+                .find(|v| v.value == value)
+                .map(|v| v.count)
+        };
+        assert_eq!(count("country", "GB"), Some(1));
+        assert_eq!(count("region", "europe"), Some(4));
+        assert_eq!(count("region", "americas"), Some(3));
+        assert_eq!(count("region", "brics"), None);
+        assert_eq!(
+            p.facets["region"]
+                .iter()
+                .find(|v| v.value == "eu")
+                .unwrap()
+                .label,
+            "the European Union"
+        );
+        // Other facets count only the selected places.
+        assert_eq!(
+            p.facets["federation"]
+                .iter()
+                .map(|v| v.count)
+                .sum::<usize>(),
+            5
+        );
+
+        let all = c.regions();
+        let n = |k: &str| {
+            all.iter()
+                .find(|r| r.region.key == k)
+                .unwrap()
+                .service_count
+        };
+        assert_eq!(
+            (n("europe"), n("eu"), n("americas"), n("brics")),
+            (4, 3, 3, 0)
         );
     }
 }
