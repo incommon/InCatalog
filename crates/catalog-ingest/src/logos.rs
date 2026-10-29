@@ -20,9 +20,17 @@
 //!
 //! Results are cached (`logo-cache.json` beside the snapshot) so each URL and site is
 //! looked up once and rechecked on a schedule, not on every six-hourly ingest.
+//!
+//! A failed lookup is only as permanent as its cause. DNS, connection, timeout, 5xx,
+//! 429, and model failures are retried within the run with backoff and cached for
+//! hours; a 404 or a TLS failure is cached for days. When lookups keep failing to
+//! connect at all, the network is down rather than the sites: the run stops looking
+//! up and leaves the rest uncached for the next run. (On 2026-10-28 one local run
+//! cached 520 sites as DNS failures within ten seconds, and kept them for 3 days.)
 
 use std::collections::{BTreeMap, HashMap};
 use std::net::{IpAddr, SocketAddr};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,6 +43,7 @@ use futures::stream::{self, StreamExt};
 use reqwest::{StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tokio::sync::Semaphore;
 
 const USER_AGENT: &str = concat!(
     "Mozilla/5.0 (compatible; InCatalogLogoCheck/",
@@ -46,6 +55,16 @@ const MAX_IMAGE_BYTES: usize = 1 << 20;
 const MAX_CANDIDATES: usize = 25;
 /// Smaller than this (when the format declares a size) looks blurry in a 40px tile.
 const MIN_PIXELS: u32 = 32;
+/// Waits before each retry of a transient failure within a run.
+const RETRY_BACKOFF: [Duration; 2] = if cfg!(test) {
+    [Duration::ZERO, Duration::ZERO]
+} else {
+    [Duration::from_secs(3), Duration::from_secs(12)]
+};
+/// Lookups in a row that fail to connect at all before the run stops looking up.
+const NETWORK_DOWN_AFTER: usize = 12;
+/// Host names resolved at once. Lookups and image checks share it.
+const DNS_AT_ONCE: usize = 8;
 
 pub struct Options {
     pub cache: Location,
@@ -61,11 +80,125 @@ pub struct Options {
 pub struct Report {
     pub metadata_logos_checked: usize,
     pub metadata_logos_broken: usize,
+    /// Metadata logos that answered neither yes nor no (403, 429, timeouts, 5xx).
+    /// They are still shown; the page falls back to a monogram if they fail there too.
+    pub metadata_logos_inconclusive: usize,
     pub services_without_working_logo: usize,
     pub sites_looked_up: usize,
     pub sites_waiting: usize,
+    /// Lookups not attempted because the network looked down; they wait, uncached.
+    pub sites_skipped_network_down: usize,
     pub services_given_website_logo: usize,
     pub lookup_skipped_reason: Option<String>,
+    /// Services left with no logo at all, by why: `no_website`, `waiting`
+    /// (not looked up yet), `no_logo_on_site`, or the lookup's failure (`dns`,
+    /// `connect`, `timeout`, `tls`, `http`, `http_transient`, `model`, `other`).
+    pub services_without_logo: BTreeMap<String, usize>,
+    /// Of those, how many publish a metadata logo that is broken.
+    pub without_logo_with_broken_metadata_logo: usize,
+}
+
+/// Why a website lookup failed, read from its recorded detail, so entries cached
+/// before this was recorded are classified too.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Failure {
+    Dns,
+    Connect,
+    Timeout,
+    Tls,
+    /// 5xx or 429.
+    HttpTransient,
+    /// Any other status: 403, 404, 410, …
+    Http,
+    Model,
+    Other,
+}
+
+impl Failure {
+    pub(crate) fn of(detail: &str) -> Failure {
+        let d = detail.to_lowercase();
+        if let Some(code) = d
+            .strip_prefix("http ")
+            .and_then(|r| r.get(..3))
+            .and_then(|c| c.parse::<u16>().ok())
+        {
+            return if code == 429 || code >= 500 {
+                Failure::HttpTransient
+            } else {
+                Failure::Http
+            };
+        }
+        if d.starts_with("claude:") {
+            Failure::Model
+        } else if d.contains("dns error") || d.contains("failed to lookup address") {
+            Failure::Dns
+        } else if d.contains("timed out") || d.contains("timeout") {
+            Failure::Timeout
+        } else if ["certificate", "tls", "ssl", "handshake"]
+            .iter()
+            .any(|k| d.contains(k))
+        {
+            Failure::Tls
+        } else if d.contains("(connect)")
+            || d.contains("connection refused")
+            || d.contains("connection reset")
+        {
+            Failure::Connect
+        } else {
+            Failure::Other
+        }
+    }
+
+    pub(crate) fn key(self) -> &'static str {
+        match self {
+            Failure::Dns => "dns",
+            Failure::Connect => "connect",
+            Failure::Timeout => "timeout",
+            Failure::Tls => "tls",
+            Failure::HttpTransient => "http_transient",
+            Failure::Http => "http",
+            Failure::Model => "model",
+            Failure::Other => "other",
+        }
+    }
+
+    /// Likely to work on another try.
+    pub(crate) fn transient(self) -> bool {
+        matches!(
+            self,
+            Failure::Dns
+                | Failure::Connect
+                | Failure::Timeout
+                | Failure::HttpTransient
+                | Failure::Model
+        )
+    }
+
+    /// Never reached the site: what a network outage looks like.
+    fn unreachable(self) -> bool {
+        matches!(self, Failure::Dns | Failure::Connect)
+    }
+}
+
+/// Counts lookups in a row that could not reach their site. Many in a row means
+/// the network is down, not the sites.
+#[derive(Default)]
+pub(crate) struct Breaker {
+    in_a_row: AtomicUsize,
+}
+
+impl Breaker {
+    pub(crate) fn record(&self, failure: Option<Failure>) {
+        if failure.is_some_and(Failure::unreachable) {
+            self.in_a_row.fetch_add(1, Ordering::SeqCst);
+        } else {
+            self.in_a_row.store(0, Ordering::SeqCst);
+        }
+    }
+
+    pub(crate) fn open(&self) -> bool {
+        self.in_a_row.load(Ordering::SeqCst) >= NETWORK_DOWN_AFTER
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -107,13 +240,18 @@ impl Check {
 }
 
 impl Site {
+    fn failure(&self) -> Option<Failure> {
+        (self.outcome == "error").then(|| Failure::of(&self.detail))
+    }
+
     fn fresh(&self, now: DateTime<Utc>) -> bool {
-        let days = match self.outcome.as_str() {
-            "found" => 30,
-            "none" => 14,
-            _ => 3,
+        let ttl = match self.outcome.as_str() {
+            "found" => chrono::Duration::days(30),
+            "none" => chrono::Duration::days(14),
+            _ if self.failure().is_some_and(Failure::transient) => chrono::Duration::hours(6),
+            _ => chrono::Duration::days(3),
         };
-        now - self.checked_at < chrono::Duration::days(days)
+        now - self.checked_at < ttl
     }
 }
 
@@ -145,7 +283,12 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
         .map(|url| {
             let http = http.clone();
             async move {
-                let (status, detail) = match check_image(&http, &url, false).await {
+                let mut result = check_image(&http, &url, false).await;
+                if matches!(&result, ImageCheck::Unknown(d) if d == "timeout") {
+                    tokio::time::sleep(RETRY_BACKOFF[0]).await;
+                    result = check_image(&http, &url, false).await;
+                }
+                let (status, detail) = match result {
                     ImageCheck::Ok => ("ok", String::new()),
                     ImageCheck::Broken(d) => ("broken", d),
                     ImageCheck::Unknown(d) => ("unknown", d),
@@ -174,6 +317,11 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
         .checks
         .values()
         .filter(|c| c.status == "broken")
+        .count();
+    report.metadata_logos_inconclusive = cache
+        .checks
+        .values()
+        .filter(|c| c.status == "unknown")
         .count();
 
     // 2. Find website logos for services left without a working one.
@@ -216,19 +364,29 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
             stale.truncate(opts.max_lookups);
             report.sites_looked_up = stale.len();
             let claude = Arc::new(claude.clone());
-            let found: Vec<(String, Site)> = stream::iter(stale)
+            let breaker = Arc::new(Breaker::default());
+            let found: Vec<Option<(String, Site)>> = stream::iter(stale)
                 .map(|(origin, page, org, _)| {
-                    let (http, claude) = (http.clone(), claude.clone());
+                    let (http, claude, breaker) = (http.clone(), claude.clone(), breaker.clone());
                     async move {
-                        let site = lookup(&http, &claude, &page, &org).await;
+                        let site = with_retries(&breaker, || lookup(&http, &claude, &page, &org)).await?;
                         tracing::info!(%origin, outcome = %site.outcome, logo = ?site.logo, detail = %site.detail, "website logo");
-                        (origin, site)
+                        Some((origin, site))
                     }
                 })
                 .buffer_unordered(6)
                 .collect()
                 .await;
-            cache.sites.extend(found);
+            report.sites_skipped_network_down = found.iter().filter(|f| f.is_none()).count();
+            report.sites_looked_up -= report.sites_skipped_network_down;
+            report.sites_waiting += report.sites_skipped_network_down;
+            if report.sites_skipped_network_down > 0 {
+                tracing::warn!(
+                    skipped = report.sites_skipped_network_down,
+                    "website lookups stopped: {NETWORK_DOWN_AFTER} in a row could not reach their site, so the network looks down"
+                );
+            }
+            cache.sites.extend(found.into_iter().flatten());
         }
     }
     for (origin, (_, _, ids)) in &by_site {
@@ -249,6 +407,11 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
         }
     }
 
+    let (missing, broken) = without_logo(services, &cache.sites, now);
+    report.services_without_logo = missing;
+    report.without_logo_with_broken_metadata_logo = broken;
+    tracing::info!(by_reason = ?report.services_without_logo, "services without a logo");
+
     if let Err(e) = opts
         .cache
         .write(serde_json::to_vec(&cache)?, "application/json")
@@ -257,6 +420,63 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
         tracing::warn!(error = %e, "could not save the logo cache; the next run will repeat lookups");
     }
     Ok(report)
+}
+
+/// Run a lookup, and again after each backoff while it fails transiently. `None`
+/// when the network looked down before it started, so it is neither attempted nor
+/// cached.
+async fn with_retries<F, Fut>(breaker: &Breaker, mut attempt: F) -> Option<Site>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Site>,
+{
+    if breaker.open() {
+        return None;
+    }
+    let mut site = attempt().await;
+    for wait in RETRY_BACKOFF {
+        if !site.failure().is_some_and(Failure::transient) || breaker.open() {
+            break;
+        }
+        tokio::time::sleep(wait).await;
+        site = attempt().await;
+    }
+    breaker.record(site.failure());
+    Some(site)
+}
+
+/// Services with neither a working metadata logo nor a website logo, by why, and
+/// how many of them have a broken metadata logo.
+fn without_logo(
+    services: &[Service],
+    sites: &BTreeMap<String, Site>,
+    now: DateTime<Utc>,
+) -> (BTreeMap<String, usize>, usize) {
+    let mut by: BTreeMap<String, usize> = BTreeMap::new();
+    let mut broken = 0;
+    for s in services {
+        if catalog_core::search::best_logo(s).is_some() {
+            continue;
+        }
+        if !s.logos.is_empty() {
+            broken += 1;
+        }
+        let why = match site_of(s) {
+            None => "no_website",
+            Some((origin, _)) => match sites.get(&origin) {
+                None => "waiting",
+                Some(site) => match site.failure() {
+                    Some(f) => f.key(),
+                    // A fresh "none", or one due again: either way, nothing to show.
+                    None if site.outcome == "none" => "no_logo_on_site",
+                    None if !site.fresh(now) => "waiting",
+                    None => "other",
+                },
+            },
+        };
+        *by.entry(why.to_owned()).or_default() += 1;
+    }
+    (by, broken)
 }
 
 /// The organization's site: its OrganizationURL, else the service's InformationURL.
@@ -702,7 +922,9 @@ fn guarded_client() -> Result<reqwest::Client> {
         .user_agent(USER_AGENT)
         .connect_timeout(Duration::from_secs(6))
         .timeout(Duration::from_secs(12))
-        .dns_resolver(Arc::new(PublicOnly))
+        .dns_resolver(Arc::new(PublicOnly {
+            at_once: Arc::new(Semaphore::new(DNS_AT_ONCE)),
+        }))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
                 attempt.error("too many redirects")
@@ -758,11 +980,17 @@ pub(crate) fn is_public(ip: IpAddr) -> bool {
     }
 }
 
-struct PublicOnly;
+/// Resolves through the system, a few names at a time, and keeps only public
+/// addresses.
+struct PublicOnly {
+    at_once: Arc<Semaphore>,
+}
 
 impl reqwest::dns::Resolve for PublicOnly {
     fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let at_once = self.at_once.clone();
         Box::pin(async move {
+            let _permit = at_once.acquire_owned().await?;
             let host = name.as_str().to_owned();
             let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 0))
                 .await?
@@ -851,5 +1079,194 @@ mod tests {
         s.information_urls
             .insert("en".into(), "https://app.example.com/info".into());
         assert_eq!(site_of(&s).unwrap().0, "https://www.example.edu");
+    }
+
+    #[test]
+    fn failures_are_classified_from_their_detail() {
+        for (detail, f, transient) in [
+            ("error sending request for url (https://3rdmil.com/): client error (Connect): dns error: failed to lookup address information: nodename nor servname provided, or not known", Failure::Dns, true),
+            ("error sending request for url (https://x.org/): client error (Connect): tcp connect error: Connection refused (os error 61)", Failure::Connect, true),
+            ("error sending request for url (https://x.org/): operation timed out", Failure::Timeout, true),
+            ("error sending request for url (https://x.org/): client error (Connect): invalid peer certificate: Expired", Failure::Tls, false),
+            ("HTTP 403 Forbidden", Failure::Http, false),
+            ("HTTP 404 Not Found", Failure::Http, false),
+            ("HTTP 503 Service Unavailable", Failure::HttpTransient, true),
+            ("HTTP 429 Too Many Requests", Failure::HttpTransient, true),
+            ("Claude: throttled", Failure::Model, true),
+            ("error following redirect for url (https://pep-web.org/): too many redirects", Failure::Other, false),
+        ] {
+            assert_eq!(Failure::of(detail), f, "{detail}");
+            assert_eq!(f.transient(), transient, "{detail}");
+        }
+    }
+
+    fn site(outcome: &str, detail: &str, hours_ago: i64) -> Site {
+        Site {
+            logo: None,
+            page: "https://example.org/".into(),
+            chosen_by: None,
+            outcome: outcome.into(),
+            detail: detail.into(),
+            checked_at: Utc::now() - chrono::Duration::hours(hours_ago),
+        }
+    }
+
+    #[test]
+    fn transient_failures_are_retried_within_hours() {
+        let now = Utc::now();
+        let dns = "client error (Connect): dns error: failed to lookup address information";
+        assert!(site("error", dns, 5).fresh(now));
+        assert!(!site("error", dns, 7).fresh(now));
+        assert!(site("error", "HTTP 404 Not Found", 7).fresh(now));
+        assert!(!site("error", "HTTP 404 Not Found", 73).fresh(now));
+        assert!(site("none", "", 24 * 13).fresh(now));
+        assert!(site("found", "", 24 * 29).fresh(now));
+    }
+
+    #[tokio::test]
+    async fn retries_transient_failures_and_stops_when_the_network_is_down() {
+        let dns = "client error (Connect): dns error: failed to lookup address information";
+        // A transient failure is tried again; the third answer stands.
+        let breaker = Breaker::default();
+        let tries = AtomicUsize::new(0);
+        let s = with_retries(&breaker, || {
+            let n = tries.fetch_add(1, Ordering::SeqCst);
+            async move {
+                if n < 2 {
+                    site("error", "HTTP 503 Service Unavailable", 0)
+                } else {
+                    site("found", "", 0)
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            (s.outcome.as_str(), tries.load(Ordering::SeqCst)),
+            ("found", 3)
+        );
+
+        // A lasting failure is not.
+        let tries = AtomicUsize::new(0);
+        with_retries(&breaker, || {
+            tries.fetch_add(1, Ordering::SeqCst);
+            async { site("error", "HTTP 404 Not Found", 0) }
+        })
+        .await
+        .unwrap();
+        assert_eq!(tries.load(Ordering::SeqCst), 1);
+
+        // Twelve unreachable sites in a row open the breaker, and later lookups are
+        // not attempted; a site that answers in between resets the count.
+        let breaker = Breaker::default();
+        for _ in 0..NETWORK_DOWN_AFTER - 1 {
+            with_retries(&breaker, || async { site("error", dns, 0) })
+                .await
+                .unwrap();
+        }
+        with_retries(&breaker, || async {
+            site("error", "HTTP 404 Not Found", 0)
+        })
+        .await
+        .unwrap();
+        assert!(!breaker.open());
+        for _ in 0..NETWORK_DOWN_AFTER {
+            with_retries(&breaker, || async { site("error", dns, 0) })
+                .await
+                .unwrap();
+        }
+        assert!(breaker.open());
+        assert!(with_retries(&breaker, || async { site("found", "", 0) })
+            .await
+            .is_none());
+    }
+
+    fn svc(entity_id: &str, org_url: Option<&str>, broken_logo: bool) -> Service {
+        let mut s = Service {
+            entity_id: entity_id.into(),
+            ..Default::default()
+        };
+        if let Some(u) = org_url {
+            s.organization.urls.insert("en".into(), u.into());
+        }
+        if broken_logo {
+            s.logos.push(catalog_core::model::Logo {
+                url: "https://example.org/gone.png".into(),
+                broken: true,
+                ..Default::default()
+            });
+        }
+        s
+    }
+
+    #[test]
+    fn services_without_a_logo_are_counted_by_reason() {
+        let sites = BTreeMap::from([
+            (
+                "https://dns.example".to_owned(),
+                site("error", "client error (Connect): dns error: x", 1),
+            ),
+            (
+                "https://gone.example".to_owned(),
+                site("error", "HTTP 404 Not Found", 1),
+            ),
+            (
+                "https://plain.example".to_owned(),
+                site("none", "no candidate images on the page", 1),
+            ),
+        ]);
+        let mut with_logo = svc("https://e/", None, false);
+        with_logo.logos.push(catalog_core::model::Logo {
+            url: "https://example.org/ok.png".into(),
+            ..Default::default()
+        });
+        let services = vec![
+            svc("https://a/", Some("https://dns.example/"), true),
+            svc("https://b/", Some("http://DNS.example/about"), false),
+            svc("https://c/", Some("https://gone.example/"), false),
+            svc("https://d/", Some("https://plain.example/"), false),
+            svc("https://f/", Some("https://new.example/"), false),
+            svc("https://g/", None, true),
+            with_logo,
+        ];
+        let (by, broken) = without_logo(&services, &sites, Utc::now());
+        let want: BTreeMap<String, usize> = [
+            ("dns", 2),
+            ("http", 1),
+            ("no_logo_on_site", 1),
+            ("waiting", 1),
+            ("no_website", 1),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect();
+        assert_eq!(by, want);
+        assert_eq!(broken, 2);
+    }
+
+    #[tokio::test]
+    async fn without_claude_the_report_still_says_what_is_missing() {
+        let path =
+            std::env::temp_dir().join(format!("incatalog-logos-{}.json", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let mut services = vec![
+            svc("https://a/", Some("https://a.example/"), false),
+            svc("https://b/", None, false),
+        ];
+        let r = enrich(
+            &mut services,
+            Options {
+                cache: Location::parse(path.to_str().unwrap()).unwrap(),
+                max_checks: 10,
+                max_lookups: 10,
+                claude: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!((r.sites_waiting, r.sites_looked_up), (1, 0));
+        assert!(r.lookup_skipped_reason.is_some());
+        assert_eq!(r.services_without_logo.get("waiting"), Some(&1));
+        assert_eq!(r.services_without_logo.get("no_website"), Some(&1));
     }
 }

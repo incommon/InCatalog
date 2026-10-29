@@ -80,7 +80,7 @@ struct Args {
     logo_max_checks: usize,
 
     /// Most websites to look up per run (each is one page fetch and one Claude call).
-    #[arg(long, env = "CATALOG_LOGO_MAX_LOOKUPS", default_value_t = 150)]
+    #[arg(long, env = "CATALOG_LOGO_MAX_LOOKUPS", default_value_t = 300)]
     logo_max_lookups: usize,
 
     /// Generated summaries and keywords: `auto` (batch, or at once when 25 or fewer
@@ -311,6 +311,12 @@ async fn run(args: Args) -> Result<serde_json::Value> {
         )
         .await?;
         tracing::info!(?report, "logos");
+        if report.sites_skipped_network_down > 0 {
+            warnings.push(format!(
+                "website logo lookups stopped after repeated connection failures; {} sites wait for the next run",
+                report.sites_skipped_network_down
+            ));
+        }
         if let Some(why) = &report.lookup_skipped_reason {
             warnings.push(format!(
                 "{} services have no working logo; website lookup skipped: {why}",

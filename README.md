@@ -305,11 +305,25 @@ little:
 | Inconclusive logo URL | 3 days |
 | Website with a logo found | 30 days |
 | Website with no usable logo | 14 days |
-| Website that failed to load | 3 days |
+| Website that failed transiently (DNS, connection, timeout, 5xx, 429, the model) | 6 hours |
+| Website that failed otherwise (403, 404, TLS, redirect loops) | 3 days |
 
-Each run looks up at most `CATALOG_LOGO_MAX_LOOKUPS` websites (default 150),
+Each run looks up at most `CATALOG_LOGO_MAX_LOOKUPS` websites (default 300),
 starting with the sites behind the most services, so the first few runs fill the cache
-gradually. Website lookup needs an Anthropic key, the same one natural-language search
+gradually. A transient failure is retried twice within the run, after 3 and 12
+seconds. If 12 lookups in a row cannot reach their site at all, the network is down
+rather than the sites, so the run stops looking up and leaves the rest uncached for
+the next run, with a warning. One local run on 2026-10-28 shows why: it cached 520
+sites as DNS failures within ten seconds, and kept them for 3 days. Host names are
+resolved 8 at a time.
+
+The ingest report counts the services left without any logo by reason in
+`services_without_logo`: `no_website`, `waiting` (not looked up yet),
+`no_logo_on_site`, or the lookup's failure (`dns`, `connect`, `timeout`, `tls`,
+`http`, `http_transient`, `model`, `other`). It also reports how many of them publish
+a broken metadata logo, and how many metadata logos were inconclusive. A service
+with no logo shows a monogram of its name. A federation's or identity provider's logo
+would look like the service's own, so it is not used as a fallback. Website lookup needs an Anthropic key, the same one natural-language search
 uses (`ANTHROPIC_API_KEY`, or `anthropic_api_key_ssm_parameter` in Terraform).
 Without one, ingest still checks metadata logos and reports how many services are
 waiting. `CATALOG_LOGO_MODEL` (default `claude-opus-5-5` at `low` effort) chooses the
