@@ -1,0 +1,35 @@
+name: Security audit
+
+# Time-based RustSec advisory scan. Unlike the license check in ci.yml, this is
+# NOT a pull-request gate: advisories appear on their own schedule, not when
+# code changes, so a PR-triggered scan would go stale between merges and would
+# block unrelated work on a freshly published CVE. Instead it runs weekly (and
+# on demand) as a standing signal; Dependabot (.github/dependabot.yml) opens the
+# version-bump PRs that clear whatever this surfaces.
+#
+# Policy — the [advisories] and [sources] sections of deny.toml: a yanked crate,
+# an unignored advisory, or a crate from an unexpected registry/git source fails
+# the run.
+on:
+  schedule:
+    # Mondays at 07:00 UTC — a fresh signal at the start of the work week.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+# A scan reads the lockfile; it needs nothing else.
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    name: cargo-deny (advisories / sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same action and version as the license gate in ci.yml, pointed at the
+      # advisory and source-provenance policy instead.
+      - name: cargo-deny (advisories, sources)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories sources

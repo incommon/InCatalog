@@ -1,0 +1,4 @@
+# cargo-about embeds upstream license texts verbatim (some use CRLF). Store the
+# generated notices exactly as produced — no EOL normalization — so the CI
+# drift check (regenerate + diff) is byte-stable across platforms.
+THIRD-PARTY-LICENSES.html -text

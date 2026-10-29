@@ -1,7 +1,7 @@
 # Copyright 2026 Internet2
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: test lint ingest dev image test-image run-image state-bucket init push plan deploy seed first-ingest
+.PHONY: test lint notices ingest dev image test-image run-image state-bucket init push plan deploy seed first-ingest
 
 SNAPSHOT ?= data/catalog.json.gz
 
@@ -12,6 +12,11 @@ lint:
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-targets -- -D warnings
 	terraform -chdir=infra/terraform fmt -check
+	cargo deny check
+
+# Regenerate the dependencies' license notices after Cargo.lock changes (CI checks them).
+notices:
+	cargo about generate about.hbs -o THIRD-PARTY-LICENSES.html
 
 # Fetch InCommon + eduGAIN metadata and write a local snapshot (~10 s on a warm cache).
 ingest:
