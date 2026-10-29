@@ -39,10 +39,12 @@ AWS_REGION ?= us-east-2
 export AWS_PROFILE AWS_REGION
 TF := terraform -chdir=infra/terraform
 IMAGE := incatalog:local
+# The workspace version: the only unindented `version =` line in Cargo.toml.
+VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' Cargo.toml)
 TAG := $(shell date -u +%Y%m%d-%H%M%S)
 
 image:
-	docker buildx build --platform linux/arm64 --load -t $(IMAGE) .
+	docker buildx build --platform linux/arm64 --load --build-arg VERSION=$(VERSION) -t $(IMAGE) .
 
 # Smoke test for the image: contents, signatures, ingest from fixtures, serving.
 test-image: image

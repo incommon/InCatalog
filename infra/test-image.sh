@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Smoke test for the container image (`make test-image`; needs Docker):
-#   1. the image holds both programs, xmlsec1, and the pinned signing certificates
+#   1. the image holds both programs, xmlsec1, and the pinned signing certificates, and
+#      is labelled with the Cargo.toml version
 #   2. each certificate verifies its federation's aggregate and rejects the other's
 #      (uses the real aggregates in data/cache; skipped if they are not there)
 #   3. ingest builds a snapshot from the test fixtures
-#   4. the API serves the site and the snapshot from the image
+#   4. the API serves the site, the snapshot, and its version's release notes
 set -eu
 IMAGE=${IMAGE:-incatalog:local}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -28,6 +29,10 @@ run() { docker run --rm --platform linux/arm64 "$@"; }
 run --entrypoint /usr/local/bin/catalog-ingest "$IMAGE" --help >/dev/null || fail "catalog-ingest does not run"
 run --entrypoint xmlsec1 "$IMAGE" --version >/dev/null || fail "xmlsec1 is missing"
 ok "both programs and xmlsec1 run"
+want=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$ROOT/Cargo.toml")
+label=$(docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$IMAGE")
+[ -n "$want" ] && [ "$label" = "$want" ] || fail "the image is labelled version '$label', expected $want (Cargo.toml)"
+ok "the image is labelled version $label"
 run --entrypoint sh "$IMAGE" -c 'grep -q "<h2 id=\"MIT\"" /usr/share/doc/incatalog/THIRD-PARTY-LICENSES.html && test -s /usr/share/doc/incatalog/NOTICE && test -s /usr/share/doc/incatalog/LICENSE' ||
   fail "the license notices are missing from the image"
 ok "LICENSE, NOTICE and the third-party notices are in the image"
@@ -94,4 +99,8 @@ curl -fs "$URL/" | grep -q "<title>" || fail "the site is not served"
 total=$(curl -fs "$URL/v1/services?per_page=1" | python3 -c 'import json,sys; print(json.load(sys.stdin)["total"])')
 [ "$total" = "$services" ] || fail "the API lists $total services, the snapshot has $services"
 ok "the API serves the site and all $total services"
+served=$(curl -fs "$URL/v1/meta" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
+[ "$served" = "$want" ] || fail "the API reports version $served, expected $want"
+curl -fs -o /dev/null "$URL/v1/releases/$want" || fail "the API has no release notes for $want"
+ok "the API runs version $served and serves its release notes"
 echo "image smoke test passed"

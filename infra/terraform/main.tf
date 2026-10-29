@@ -94,15 +94,26 @@ resource "aws_ecr_repository" "app" {
 }
 
 # Deploys pin the image by digest, so old tags are only needed for rollback.
+# Release images (:v<semver>, from a release tag) are kept: an image a rule
+# matches cannot be expired by a lower-priority rule, and the first rule's
+# count is never reached.
 resource "aws_ecr_lifecycle_policy" "app" {
   repository = aws_ecr_repository.app.name
   policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Keep the last 10 images"
-      selection    = { tagStatus = "any", countType = "imageCountMoreThan", countNumber = 10 }
-      action       = { type = "expire" }
-    }]
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep every release image"
+        selection    = { tagStatus = "tagged", tagPatternList = ["v*"], countType = "imageCountMoreThan", countNumber = 9999 }
+        action       = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Keep the last 10 other images"
+        selection    = { tagStatus = "any", countType = "imageCountMoreThan", countNumber = 10 }
+        action       = { type = "expire" }
+      },
+    ]
   })
 }
 
