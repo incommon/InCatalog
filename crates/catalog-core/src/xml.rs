@@ -10,9 +10,10 @@
 use std::io::BufRead;
 
 use anyhow::{Context, Result};
+use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::name::{Namespace, ResolveResult};
-use quick_xml::NsReader;
+use quick_xml::{NsReader, XmlVersion};
 
 use crate::ns;
 
@@ -138,9 +139,23 @@ pub fn for_each_entity<R: BufRead>(
             }
             Event::Text(ref t) => {
                 if let Some(top) = stack.last_mut() {
-                    match t.unescape() {
+                    match t.xml10_content() {
                         Ok(s) => top.text.push_str(&s),
                         Err(_) => top.text.push_str(&String::from_utf8_lossy(t.as_ref())),
+                    }
+                }
+            }
+            // Text arrives split around `&…;` references; put each one back. An
+            // unknown entity is kept as written rather than dropped.
+            Event::GeneralRef(ref r) => {
+                if let Some(top) = stack.last_mut() {
+                    let name = String::from_utf8_lossy(r.as_ref());
+                    if let Ok(Some(c)) = r.resolve_char_ref() {
+                        top.text.push(c);
+                    } else if let Some(s) = resolve_predefined_entity(&name) {
+                        top.text.push_str(s);
+                    } else {
+                        top.text.push_str(&format!("&{name};"));
                     }
                 }
             }
@@ -172,7 +187,7 @@ fn element<R>(reader: &NsReader<R>, ns: Option<String>, name: String, e: &BytesS
         if raw == b"xmlns" || raw.starts_with(b"xmlns:") {
             continue;
         }
-        let (resolved, local) = reader.resolve_attribute(key);
+        let (resolved, local) = reader.resolver().resolve_attribute(key);
         let local = String::from_utf8_lossy(local.as_ref()).into_owned();
         // The `xml` prefix is bound by definition and never declared; handle it
         // explicitly rather than relying on resolver behavior.
@@ -181,7 +196,9 @@ fn element<R>(reader: &NsReader<R>, ns: Option<String>, name: String, e: &BytesS
         } else {
             owned_ns(resolved)
         };
-        let value = match a.unescape_value() {
+        // XML 1.0 attribute-value normalization: references resolved, and tab, CR
+        // and LF read as spaces.
+        let value = match a.normalized_value(XmlVersion::Implicit1_0) {
             Ok(v) => v.into_owned(),
             Err(_) => String::from_utf8_lossy(&a.value).into_owned(),
         };
@@ -197,5 +214,38 @@ fn element<R>(reader: &NsReader<R>, ns: Option<String>, name: String, e: &BytesS
         attrs,
         text: String::new(),
         children: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn one(xml: &str) -> Element {
+        let mut got = Vec::new();
+        for_each_entity(xml.as_bytes(), |e| got.push(e)).unwrap();
+        assert_eq!(got.len(), 1);
+        got.pop().unwrap()
+    }
+
+    #[test]
+    fn references_in_text_are_resolved_in_place() {
+        let e = one(&format!(
+            r#"<EntityDescriptor xmlns="{}">a &amp; b &#x263A;&#65; &lt;x&gt; &nbsp; c</EntityDescriptor>"#,
+            ns::MD
+        ));
+        assert_eq!(e.text, "a & b \u{263A}A <x> &nbsp; c");
+    }
+
+    #[test]
+    fn attribute_values_are_unescaped_and_normalized() {
+        let e = one(&format!(
+            "<EntityDescriptor xmlns=\"{}\" entityID=\"https://sp.example/?a=1&amp;b=2\" \
+             Name=\"two\nlines\" xml:lang=\"en\"/>",
+            ns::MD
+        ));
+        assert_eq!(e.attr("entityID"), Some("https://sp.example/?a=1&b=2"));
+        assert_eq!(e.attr("Name"), Some("two lines"));
+        assert_eq!(e.lang(), Some("en"));
     }
 }
