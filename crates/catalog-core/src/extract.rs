@@ -65,6 +65,7 @@ pub fn extract(entity: &Element) -> Extracted {
             ui_info(ui, &mut s);
         }
         s.supports_discovery_response = sp_ext.child(ns::IDPDISC, "DiscoveryResponse").is_some();
+        s.supports_request_initiator = sp_ext.child(ns::INIT, "RequestInitiator").is_some();
     }
 
     for kd in sp.children(ns::MD, "KeyDescriptor") {

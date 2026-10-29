@@ -21,6 +21,7 @@ use crate::model::{
 };
 use crate::nl::{Interpretation, Vocab};
 use crate::regions::{self, RegionExpansion, REGIONS};
+use crate::sharing::{self, Sharing, SharingReading};
 use crate::INCOMMON_REGISTRAR;
 
 pub const MAX_PER_PAGE: usize = 100;
@@ -52,6 +53,13 @@ pub struct ServiceQuery {
     /// matches. See `environment` on the results for how each was decided.
     #[param(value_type = Option<Vec<String>>, style = Form, explode)]
     pub environment: Option<String>,
+    /// `multilateral` (open to users of any identity provider in principle; access
+    /// still depends on the user's identity provider releasing the attributes the
+    /// service needs, and on any subscription), `bilateral` (registered for one
+    /// institution's users), or `unknown`, comma-separated or as repeated
+    /// parameters. See `sharing` on the results for how each was decided.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub sharing: Option<String>,
     /// Comma-separated category keys; a service must carry all of them.
     pub category: Option<String>,
     /// One of the availability keys, e.g. `incommon-and-edugain`.
@@ -99,6 +107,12 @@ pub struct ServiceSummary {
     /// (Claude's reading in the summary). Absent when neither said, and the
     /// environment is `unknown`.
     pub environment_source: Option<String>,
+    /// `multilateral`, `bilateral`, or `unknown`. Multilateral means open to users of
+    /// any identity provider in principle, not that any particular user gets in.
+    pub sharing: String,
+    /// What decided `sharing`: `metadata` (a rule over the signals) or `generated`
+    /// (Claude's reading). Absent when `sharing` is `unknown`.
+    pub sharing_source: Option<String>,
     pub organization: Option<String>,
     pub provider_id: String,
     /// An `https:` or `data:image/` logo URL; plain `http:` logos are omitted.
@@ -162,6 +176,8 @@ pub struct ServiceDetail {
     pub links: Links,
     /// The service's environment, what decided it, and the marker found.
     pub environment: EnvironmentReading,
+    /// Whether it is open to any institution, why, and the signals behind it.
+    pub sharing: SharingReading,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -281,6 +297,7 @@ struct Entry {
     keywords_n: String,
     /// Read from the metadata, else from the generated summary.
     environment: EnvironmentReading,
+    sharing: SharingReading,
     name: String,
     name_lc: String,
     org_lc: String,
@@ -316,6 +333,7 @@ impl Catalog {
         let mut providers: Vec<Provider> = Vec::new();
         let mut provider_by_key: HashMap<String, usize> = HashMap::new();
         let mut entries = Vec::with_capacity(snapshot.services.len());
+        let clusters = sharing::clusters(&snapshot.services);
         let region_sets: Vec<HashSet<&str>> = REGIONS
             .iter()
             .map(|r| r.countries().into_iter().collect())
@@ -407,6 +425,7 @@ impl Catalog {
                     .map(|e| e.keywords.iter().map(|k| normalize(k)).collect::<String>())
                     .unwrap_or_default(),
                 environment: environment::classify(s),
+                sharing: sharing::classify(s, clusters.get(&s.entity_id)),
                 org_n: normalize(&pkey),
                 name_lc: name.to_lowercase(),
                 name,
@@ -498,6 +517,8 @@ impl Catalog {
             description_source: description(s, lang).map(|(_, src)| src.to_owned()),
             environment: Some(e.environment.value.key().to_owned()),
             environment_source: e.environment.source.clone(),
+            sharing: e.sharing.value.key().to_owned(),
+            sharing_source: e.sharing.source.clone(),
             organization: pick(&s.organization.display_names, lang)
                 .or_else(|| pick(&s.organization.names, lang))
                 .map(str::to_owned),
@@ -539,6 +560,7 @@ impl Catalog {
             },
             links: links(s),
             environment: self.entries[i].environment.clone(),
+            sharing: self.entries[i].sharing.clone(),
         }
     }
 
@@ -644,6 +666,10 @@ impl Catalog {
                     Dim::Environment => {
                         let env = self.entries[i].environment.value;
                         bump(env.key(), env.label());
+                    }
+                    Dim::Sharing => {
+                        let v = self.entries[i].sharing.value;
+                        bump(v.key(), v.label());
                     }
                     Dim::Attribute => {
                         for a in &s.requested_attributes {
@@ -926,19 +952,21 @@ enum Dim {
     Category,
     Availability,
     Environment,
+    Sharing,
     Attribute,
     Source,
     ProviderType,
 }
 
 impl Dim {
-    const ALL: [Dim; 9] = [
+    const ALL: [Dim; 10] = [
         Dim::Federation,
         Dim::Country,
         Dim::Region,
         Dim::Category,
         Dim::Availability,
         Dim::Environment,
+        Dim::Sharing,
         Dim::Attribute,
         Dim::Source,
         Dim::ProviderType,
@@ -952,6 +980,7 @@ impl Dim {
             Dim::Category => "category",
             Dim::Availability => "availability",
             Dim::Environment => "environment",
+            Dim::Sharing => "sharing",
             Dim::Attribute => "attribute",
             Dim::Source => "source",
             Dim::ProviderType => "provider_type",
@@ -984,6 +1013,8 @@ struct Filters {
     /// Environment keys, lowercase; a service must be in one. An unknown key adds
     /// nothing, and on its own matches nothing.
     environments: Vec<String>,
+    /// Sharing keys, lowercase; like `environments`.
+    sharing: Vec<String>,
     attribute: Option<String>,
     provider: Option<String>,
     source: Option<String>,
@@ -1039,6 +1070,10 @@ impl Filters {
             environments: split_list(q.environment.as_deref())
                 .iter()
                 .map(|e| e.to_lowercase())
+                .collect(),
+            sharing: split_list(q.sharing.as_deref())
+                .iter()
+                .map(|v| v.to_lowercase())
                 .collect(),
             attribute: nonempty(&q.attribute).map(|a| a.to_lowercase()),
             provider: nonempty(&q.provider),
@@ -1114,6 +1149,12 @@ impl Filters {
         {
             return false;
         }
+        if on(Dim::Sharing)
+            && !self.sharing.is_empty()
+            && !self.sharing.iter().any(|k| k == e.sharing.value.key())
+        {
+            return false;
+        }
         if on(Dim::Attribute) {
             if let Some(a) = &self.attribute {
                 if !e.attrs_lc.contains(a) {
@@ -1183,6 +1224,11 @@ impl Filters {
         // Test and staging copies sit behind the live service they mirror.
         if e.environment.value.non_production() {
             score = score / 3 + 1;
+        }
+        // One campus's tenant sits a little behind a service anyone could use; an
+        // exact name still wins.
+        if e.sharing.value == Sharing::Bilateral {
+            score = score * 2 / 3 + 1;
         }
         score
     }
@@ -1816,6 +1862,84 @@ mod tests {
         assert_eq!(
             (n("europe"), n("eu"), n("americas"), n("brics")),
             (4, 3, 3, 0)
+        );
+    }
+
+    fn sharing_catalog() -> Catalog {
+        let svc = |id: &str, name: &str, org: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: crate::entity_hash(id),
+                sources: vec![Source::Incommon],
+                ..Default::default()
+            };
+            s.display_names.insert("en".into(), name.into());
+            s.organization.display_names.insert("en".into(), org.into());
+            s
+        };
+        let mut services: Vec<Service> = ["alaska", "baylor", "colby", "drexel", "elon"]
+            .iter()
+            .map(|c| {
+                svc(
+                    &format!("https://{c}.zoom.us"),
+                    &format!("Zoom - {c}"),
+                    "Zoom",
+                )
+            })
+            .collect();
+        let mut zoom = svc("https://zoom.us/sp", "Zoom", "Zoom");
+        zoom.sources.push(Source::Edugain);
+        zoom.categories = vec!["research-and-scholarship".into()];
+        services.push(zoom);
+        services.push(svc("https://wiki.example.edu/sp", "Wiki", "Example"));
+        Catalog::new(Snapshot {
+            services,
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn sharing_filter_facet_and_ranking() {
+        let c = sharing_catalog();
+        let total = |v: &str| {
+            c.search(&ServiceQuery {
+                sharing: Some(v.into()),
+                ..Default::default()
+            })
+            .total
+        };
+        assert_eq!(total("bilateral"), 5);
+        assert_eq!(total("multilateral"), 1);
+        assert_eq!(total("Multilateral, unknown"), 2);
+        assert_eq!(total("open"), 0);
+
+        // Tenants rank behind the service anyone can use.
+        let p = c.search(&ServiceQuery {
+            q: Some("zoom".into()),
+            ..Default::default()
+        });
+        assert_eq!(p.items[0].entity_id, "https://zoom.us/sp");
+        assert_eq!(p.items[0].sharing, "multilateral");
+        assert_eq!(p.items[0].sharing_source.as_deref(), Some("metadata"));
+        assert_eq!(p.items[1].sharing, "bilateral");
+        let facet: Vec<(&str, usize)> = p.facets["sharing"]
+            .iter()
+            .map(|v| (v.value.as_str(), v.count))
+            .collect();
+        assert_eq!(facet, [("bilateral", 5), ("multilateral", 1)]);
+
+        let d = c.service_by_entity_id("https://alaska.zoom.us").unwrap();
+        let cluster = d.sharing.signals.tenant_cluster.unwrap();
+        assert_eq!(
+            (cluster.pattern.as_str(), cluster.size),
+            ("https://*.zoom.us", 5)
+        );
+        let d = c
+            .service_by_entity_id("https://wiki.example.edu/sp")
+            .unwrap();
+        assert_eq!(
+            (d.sharing.value, d.sharing.source),
+            (Sharing::Unknown, None)
         );
     }
 }

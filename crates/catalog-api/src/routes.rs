@@ -72,6 +72,11 @@ type St = State<Arc<AppState>>;
         catalog_core::environment::EnvironmentReading,
         catalog_core::regions::RegionExpansion,
         catalog_core::regions::RegionKind,
+        catalog_core::sharing::Sharing,
+        catalog_core::sharing::SharingReading,
+        catalog_core::sharing::Signals,
+        catalog_core::sharing::Cluster,
+        catalog_core::model::SharingLabel,
         RegionView,
     ))
 )]
@@ -213,12 +218,15 @@ async fn read(
 }
 
 /// Search services with filters, paging, and facet counts. Filters combine with
-/// AND; several values of `federation`, `country`, `region`, or `environment`
-/// combine with OR, and `country` and `region` together are one set of places.
+/// AND; several values of `federation`, `country`, `region`, `environment`, or
+/// `sharing` combine with OR, and `country` and `region` together are one set of
+/// places. `sharing=multilateral` means open to users of any identity provider in
+/// principle: access still depends on the user's identity provider releasing the
+/// attributes the service needs, and on any subscription it requires.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
 async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
     let mut query = raw.unwrap_or_default();
-    for key in ["federation", "country", "region", "environment"] {
+    for key in ["federation", "country", "region", "environment", "sharing"] {
         query = join_repeated(&query, key);
     }
     // It came from a valid URI and only gained commas, so it parses again.
@@ -616,5 +624,62 @@ mod tests {
             ..Default::default()
         });
         router(AppState::from_catalog(catalog))
+    }
+
+    #[tokio::test]
+    async fn services_filter_by_sharing() {
+        let svc = |c: &str| {
+            let id = format!("https://{c}.zoom.us");
+            let mut s = Service {
+                id: catalog_core::entity_hash(&id),
+                entity_id: id,
+                ..Default::default()
+            };
+            s.organization
+                .display_names
+                .insert("en".into(), "Zoom Video Communications, Inc.".into());
+            s
+        };
+        let app = || {
+            let mut services: Vec<Service> = ["a", "b", "c", "d", "e"].map(svc).to_vec();
+            services.push(Service {
+                entity_id: "https://other.example.org/sp".into(),
+                id: catalog_core::entity_hash("https://other.example.org/sp"),
+                ..Default::default()
+            });
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services,
+                ..Default::default()
+            })))
+        };
+        let (_, page) = get_json_from(app(), "/v1/services?sharing=bilateral").await;
+        assert_eq!(page["total"], 5);
+        assert_eq!(page["items"][0]["sharing"], "bilateral");
+        assert_eq!(page["items"][0]["sharing_source"], "metadata");
+        let (_, page) =
+            get_json_from(app(), "/v1/services?sharing=multilateral&sharing=unknown").await;
+        assert_eq!(page["total"], 1);
+
+        let id = catalog_core::entity_hash("https://a.zoom.us");
+        let (_, d) = get_json_from(app(), &format!("/v1/services/{id}")).await;
+        assert_eq!(d["sharing"]["value"], "bilateral");
+        assert_eq!(
+            d["sharing"]["signals"]["tenant_cluster"]["pattern"],
+            "https://*.zoom.us"
+        );
+
+        let (_, spec) = get_json("/openapi.json").await;
+        assert!(spec["components"]["schemas"]["SharingReading"].is_object());
+        let doc = spec["paths"]["/v1/services"]["get"]["description"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+            + spec["paths"]["/v1/services"]["get"]["summary"]
+                .as_str()
+                .unwrap_or_default();
+        assert!(
+            doc.contains("releasing the"),
+            "the docs do not promise access"
+        );
     }
 }
