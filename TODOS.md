@@ -62,6 +62,46 @@ metadata filtering report.
 - **Tests.** Parsing the report, joining it to entities by entityID, the category and
   facet counts, the chip styling class, and an entity with no matching reason.
 
+## OFAC sanctions: countries in the Grouping filter, and entities
+
+Let someone find the services tied to US sanctions: those in countries under OFAC's
+country-wide programs, and those whose organization may be on OFAC's lists.
+
+- **Reverse a written decision first.** The README (§ Regions) and `about` in
+  `catalog-core/data/regions.json` both say sanctions lists are left out on purpose, as
+  groupings that label countries by a judgment. Decide that OFAC's lists are in because
+  the US government publishes them, not because we judge, and reword both places to say
+  so. Every label says whose list it is: "US sanctions (OFAC)", never "sanctioned
+  countries".
+- **Find and read the source first.** OFAC publishes sanctions programs, not one list
+  of countries, and most programs target named persons rather than whole countries.
+  Read the programs from OFAC itself, not from memory, and list only the country-wide
+  ones. Record the URL, the date it was read, `as_of` and, as programs are lifted,
+  `left`. Some programs cover part of a country (regions of Ukraine) with no ISO code of
+  their own: say in a `note` how that was handled, as the African Union's note does for
+  Western Sahara.
+- **Its own kind.** A sanctions program is not a treaty or an alliance, so give it a
+  `RegionKind` of its own rather than `political`, shown in the Grouping filter under a
+  heading of its own. Programs change faster than memberships: a year is too long
+  between checks, so give this kind a shorter limit in the `checked` test.
+- **Entities: the SDN and consolidated lists.** OFAC publishes them as files from its
+  Sanctions List Service. Fetch them at ingest beside the aggregates, with their
+  publication date, and compare entries against each provider's organization name and
+  domains. Compare only entries for entities, never individuals. A name is not an
+  identity, so the catalog never states that a provider is sanctioned. A name match is a
+  "possible match" and shows the list entry it matched. A match is confirmed or
+  dismissed only through the curation overlay, never automatically. Say in the ingest
+  report how many providers matched.
+- **Not a compliance check.** The About page and each label say that this is a pointer
+  to OFAC's own lists, as of a date, and not sanctions screening or legal advice.
+  Link OFAC's search tool for anyone who needs an answer.
+- **API and NL.** Add the API filter and an OpenAPI entry, and NL phrasings ("services
+  in OFAC countries", "sanctioned countries"), resolved to the OFAC grouping, so the
+  word "sanctioned" never searches service text.
+- **Tests.** Parsing both lists, a program that covers part of a country, the shorter
+  `checked` limit, a name collision that stays a possible match, the curation overlay
+  confirming and dismissing a match, and that no individual's entry is ever matched.
+
 ## Rename the AWS resources from `catabasis` to `incatalog`
 
 The code and docs use `incatalog`, but the deployed AWS resources still carry the old
