@@ -109,15 +109,16 @@ Also leave the state key `catabasis/terraform.tfstate` (move it only with the AW
 above, which moves the state anyway), past CHANGELOG entries, and the "never run
 `terraform`" warnings.
 
-## Label services alive or dead, and search only the alive ones by default
+## Label services alive or dead, and hide the dead ones by default
 
 Metadata outlives the services it describes. Check each service's hosts and label each
 service **alive** when it answers, or **dead** when it no longer does: a 404 or a 5xx,
 DNS that fails or no longer points at the service, or TLS that doesn't validate.
-Searches show only alive services unless asked for the rest. The logo fetcher
-(`catalog-ingest/src/logos.rs`) already has most of what this needs: the `PublicOnly` resolver that refuses private
-and cloud-metadata addresses, failure classification, retries with backoff, the
-network-down guard, a cache with recheck intervals, and the run's `Deadline`.
+Searches hide dead services unless asked for them. The logo fetcher
+(`catalog-ingest/src/logos.rs`) already has most of what this needs: the `PublicOnly`
+resolver that refuses private and cloud-metadata addresses, failure classification,
+retries with backoff, the network-down guard, a cache with recheck intervals, and the
+run's `Deadline`.
 
 - **What to check, and how.** Check the service's own front door: `endpoint_hosts`
   (the `AssertionConsumerService` hosts), and `information_urls`, the organization URL
@@ -168,20 +169,23 @@ network-down guard, a cache with recheck intervals, and the run's `Deadline`.
     campus-only).
 
   Show an alive indicator on each alive service's chip and card, with a text label
-  and an accessible name, not only a mark. Say on the About page what alive means and
-  how recent "recent" is.
-- **Searches show only alive services by default.** The site and the API filter to
-  alive unless asked otherwise: a "Show unreachable and unchecked services" toggle on the
-  site, and `status=dead`, `status=unknown` or `status=all` in the API, with an OpenAPI
-  entry. Facet counts and provider and federation counts follow the same filter, and
-  the landing page says which services its totals count. NL phrasings ("dead
-  services", "broken links", "services with bad certificates") turn the filter off by
-  themselves, and the reading of the query says so. The API's default results change,
-  so the CHANGELOG records it under Changed.
-- **Unknown at rollout.** At first nearly everything is unknown, so the default filter
-  would hide almost the whole catalog. Turn the default on only after `make backfill`
-  has checked every service, and decide whether unknown services show by default.
-  Showing them is safer, because hiding them makes a campus-only service vanish.
+  and an accessible name, not only a mark. An unknown service gets neither the alive
+  indicator nor the dead border, and its card says "not checked yet" or "no clear
+  answer yet". Say on the About page what alive means and how recent "recent" is.
+- **Searches show alive and unknown services by default, and hide dead ones.** The site
+  and the API filter out dead services unless asked otherwise: a "Show unreachable
+  services" toggle on the site, and `status=` in the API, taking `alive`, `dead` and
+  `unknown` (several at once, comma-separated) or `all`, defaulting to
+  `alive,unknown`, with an OpenAPI entry. Facet counts and provider and federation
+  counts follow the same filter, and the landing page says which services its totals
+  count. NL phrasings ("dead services", "broken links", "services with bad
+  certificates") turn the filter off by themselves, and the reading of the query says
+  so. The API's default results change, so the CHANGELOG records it under Changed.
+- **Nothing vanishes at rollout.** At first nearly everything is unknown, and unknown
+  shows, so the default can ship before the checks have covered the catalog. Dead
+  services drop out of default results only as checks find them, and a campus-only
+  service that never answers stays unknown and stays visible. Run `make backfill` to
+  check every service sooner.
 - **Dead services get a pulsing white-black border on their chip and card.** Make the
   white and black theme tokens so the border reads against both themes' backgrounds,
   and keep `button.chip:hover` from overriding it. With `prefers-reduced-motion`, show
@@ -198,7 +202,8 @@ network-down guard, a cache with recheck intervals, and the run's `Deadline`.
   - a broken information URL alone doesn't make a service dead
   - the failure threshold and recovery
   - each fingerprint
-  - the default filter and each `status` value, in the API and in facet counts
+  - the default filter keeps alive and unknown services and drops dead ones, and each
+    `status` value, in the API and in facet counts
   - NL turning the filter off
   - the chip's dead and alive classes, including under reduced motion
   - the private findings never reaching the public snapshot
