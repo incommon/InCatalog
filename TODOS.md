@@ -34,6 +34,34 @@ Questions to settle:
 - **Tests.** URL construction for each route, which button shows for each kind of SP,
   and that a crafted entityID or parameter can't send the browser anywhere else.
 
+## Show why InCommon filtered eduGAIN SPs out of its import
+
+The catalog already knows *which* eduGAIN SPs InCommon doesn't import: availability
+`edugain-only` ("in eduGAIN but not in InCommon's filtered import", `Availability::EdugainOnly`
+in `catalog-core/src/model.rs`). It doesn't know *why*. Add the reason from InCommon's
+metadata filtering report.
+
+- **Find and read the source first.** Locate the report InCommon publishes on its eduGAIN
+  import filtering, and check from the report itself, not from memory, what it gives
+  per entity. Record its URL, format and the date it was read, as the region data does.
+  If it gives only rules and not per-entity results, apply the rules in `catalog-core`
+  and label each reason as derived from the rules, not reported.
+- **Ingest it.** Fetch the report beside the aggregates, store each filtered entity's
+  reason(s) with the report's date, and say in the ingest report how many
+  `edugain-only` SPs have a reason and how many don't. Keep "filtered by InCommon"
+  distinct from "not in InCommon's import for some other reason", such as timing
+  between the two aggregates' publication.
+- **Their own category.** Show filtered SPs as a category of their own, "Filtered from
+  InCommon's import", with a facet on the reason. Add an API filter and an OpenAPI
+  entry, and NL phrasings ("services InCommon filtered out", "why isn't X in InCommon").
+  The service page states the reason, with a link to the report and its date.
+- **Red outline on their chips.** Outline these services' chips and cards in red. Define
+  the red as a theme token that also works in dark mode. Don't rely on color alone:
+  add a text label or icon and an accessible name, and explain the red in the legend
+  or on the About page.
+- **Tests.** Parsing the report, joining it to entities by entityID, the category and
+  facet counts, the chip styling class, and an entity with no matching reason.
+
 ## Rename the AWS resources from `catabasis` to `incatalog`
 
 The code and docs use `incatalog`, but the deployed AWS resources still carry the old
