@@ -33,9 +33,15 @@ section must be written before it is cut.
   Micronesia, and Polynesia were missing. Region is now the UN M49 tree, every region
   shown with its count even when that is 0, then the common names. Political
   groupings and research networks have their own Grouping filter.
+- **"+ N more" in the filters works.** Every filter list showed all of its values from
+  the start, because the list's style overrode `hidden`, so the button revealed
+  nothing. Each list now shows eight and the button the rest.
+- The "Requested attribute" filter lists every attribute services request (215
+  today), not only the 40 most requested.
+- The federations page links every policy and MRPS document a federation publishes,
+  not just the first. DFN-AAI's and RedIRIS's separate SP and IdP terms were hidden.
 - "West Asian", "Southern African", "Polynesian", and similar spellings now read as
   their regions, and "South Asia" says that M49's Southern Asia includes Iran.
-
 - Ingest in AWS can save its sharing and sector caches. It had no S3 access to them,
   so every run asked Claude for the same 800 labels again and kept none, and most
   services never got a label.

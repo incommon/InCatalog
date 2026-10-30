@@ -1067,8 +1067,14 @@ async function federationsView(params) {
               h(
                 "td",
                 {},
-                (f.policy_urls || []).slice(0, 1).map((u) => safeUrl(u) && h("a", { href: u, target: "_blank", rel: "noopener noreferrer" }, "policy ↗")),
-                (f.registration_practice_urls || []).slice(0, 1).map((u) => safeUrl(u) && [" ", h("a", { href: u, target: "_blank", rel: "noopener noreferrer" }, "MRPS ↗")]),
+                // Every link, not just the first: a federation may publish separate SP
+                // and IdP terms, or a policy in two languages. Numbered when there are several.
+                [
+                  ...(f.policy_urls || []).map((u, i, all) => [u, all.length > 1 ? `policy ${i + 1}` : "policy"]),
+                  ...(f.registration_practice_urls || []).map((u, i, all) => [u, all.length > 1 ? `MRPS ${i + 1}` : "MRPS"]),
+                ]
+                  .filter(([u]) => safeUrl(u))
+                  .map(([u, label], i) => [i ? " " : "", h("a", { href: u, target: "_blank", rel: "noopener noreferrer", title: u }, `${label} ↗`)]),
               ),
             ),
           ),

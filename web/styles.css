@@ -101,6 +101,9 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* `hidden` must win over any display rule (.facet button is display: flex), or a
+   list's "+ N more" items show from the start and the button reveals nothing. */
+[hidden] { display: none !important; }
 body {
   background: var(--bg);
   color: var(--ink);
