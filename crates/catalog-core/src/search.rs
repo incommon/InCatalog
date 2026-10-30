@@ -741,9 +741,6 @@ impl Catalog {
                 })
                 .collect();
             values.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.label.cmp(&b.label)));
-            if dim == Dim::Attribute {
-                values.truncate(40);
-            }
             out.insert(dim.key().to_owned(), values);
         }
         out
@@ -1855,6 +1852,22 @@ mod tests {
         assert_eq!(places(&c, None, Some("eu,atlantis")).len(), 3);
         assert_eq!(places(&c, None, Some("atlantis")).len(), 0);
         assert_eq!(places(&c, None, Some(" , ")).len(), 6);
+    }
+
+    #[test]
+    fn every_requested_attribute_is_a_facet_value() {
+        // More attributes than the site shows before "more": none is left out.
+        let mut snapshot = catalog().snapshot;
+        snapshot.services[0].requested_attributes = (0..60)
+            .map(|i| crate::model::RequestedAttribute {
+                name: format!("urn:example:attr:{i}"),
+                ..Default::default()
+            })
+            .collect();
+        let p = Catalog::new(snapshot).search(&ServiceQuery::default());
+        let attrs = &p.facets["attribute"];
+        assert!(attrs.len() >= 60, "{}", attrs.len());
+        assert!(attrs.iter().any(|v| v.value == "urn:example:attr:59"));
     }
 
     /// One federation and one service in every country any region names.
