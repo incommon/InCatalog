@@ -1,7 +1,7 @@
 # Copyright 2026 Internet2
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: test lint notices ingest dev image test-image run-image state-bucket init push plan deploy seed first-ingest
+.PHONY: test lint notices ingest dev image test-image run-image state-bucket init push plan deploy seed first-ingest backfill
 
 SNAPSHOT ?= data/catalog.json.gz
 
@@ -86,3 +86,9 @@ seed:
 
 first-ingest:
 	$$($(TF) output -raw first_ingest_command)
+
+# Run ingest in AWS until nothing is waiting: after a new field, a prompt change, or a
+# cleared cache, instead of waiting for the daily runs. Runs one at a time, never
+# overlapping the scheduled run; see infra/backfill.sh.
+backfill:
+	FUNCTION=$$($(TF) output -raw ingest_function_name) ./infra/backfill.sh
