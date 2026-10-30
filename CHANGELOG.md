@@ -11,6 +11,13 @@ section must be written before it is cut.
 
 ### Fixed
 
+- Ingest in AWS can save its sharing and sector caches. It had no S3 access to them,
+  so every run asked Claude for the same 800 labels again and kept none, and most
+  services never got a label.
+- Ingest stops starting Claude requests and website lookups before Lambda's 15-minute
+  limit, so it always saves its caches and writes the snapshot. A run that reached the
+  limit lost all of its work and wrote nothing. The first run of 0.2.0 took 753 of the
+  900 seconds.
 - A push to `develop` no longer cancels an image build for a release tag or a manual
   promotion run; each event and ref builds on its own.
 

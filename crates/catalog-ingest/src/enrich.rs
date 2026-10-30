@@ -32,6 +32,8 @@ use catalog_core::model::{Enrichment, Federation, LangMap, Service};
 use catalog_store::Location;
 use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
+
+use crate::budget::Deadline;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -71,6 +73,9 @@ pub struct Options {
     /// A batch submitted earlier that the cache has no record of (a submit whose
     /// reply was lost), to collect as if this run had recorded it.
     pub adopt_batch: Option<String>,
+    /// When to stop starting requests written during the run (see `budget`). A batch
+    /// is submitted in one request and is not affected.
+    pub deadline: Deadline,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -83,6 +88,8 @@ pub struct Report {
     pub pending_batch: Option<String>,
     pub failed: usize,
     pub waiting: usize,
+    /// Requests not started because the run's time ran out (also in `waiting`).
+    pub stopped_for_time: usize,
     pub skipped_reason: Option<String>,
     /// A Batches API call that failed this run. The snapshot is still written.
     pub batch_error: Option<String>,
@@ -286,7 +293,10 @@ pub async fn enrich(
             if take.is_empty() {
                 // Nothing to do.
             } else if sync {
-                let done: Vec<(usize, Result<Enrichment>)> = stream::iter(take)
+                let started = take.len();
+                let done: Vec<(usize, Result<Enrichment>)> = opts
+                    .deadline
+                    .until(stream::iter(take))
                     .map(|i| {
                         let req = request(&inputs[i].0);
                         async move {
@@ -300,6 +310,8 @@ pub async fn enrich(
                     .buffer_unordered(4)
                     .collect()
                     .await;
+                report.stopped_for_time = started - done.len();
+                report.waiting += report.stopped_for_time;
                 for (i, r) in done {
                     match r {
                         Ok(e) => {
@@ -741,6 +753,7 @@ mod runs {
             mode: Mode::Auto,
             max,
             adopt_batch: adopt.map(str::to_owned),
+            deadline: Deadline::none(),
         }
     }
 
@@ -766,6 +779,27 @@ mod runs {
             .is_some_and(|e| e.summary == "A test service.")));
         let c = counts.lock().unwrap();
         assert_eq!((c.messages, c.submits), (30, 0));
+    }
+
+    #[tokio::test]
+    async fn out_of_time_starts_nothing_and_the_next_run_catches_up() {
+        let (base, counts) = stub(vec![]).await;
+        let path = cache("late");
+        let mut svcs = services(30);
+        let late = Options {
+            deadline: Deadline::after(Duration::ZERO),
+            ..opts(&path, bedrock(&base), 1000, None)
+        };
+        let r = enrich(&mut svcs, &[], late).await.unwrap();
+        assert_eq!(
+            (r.generated_now, r.stopped_for_time, r.waiting),
+            (0, 30, 30)
+        );
+        assert_eq!(counts.lock().unwrap().messages, 0);
+        let r = enrich(&mut svcs, &[], opts(&path, bedrock(&base), 1000, None))
+            .await
+            .unwrap();
+        assert_eq!((r.generated_now, r.stopped_for_time), (30, 0));
     }
 
     #[tokio::test]

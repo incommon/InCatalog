@@ -21,6 +21,10 @@ locals {
   # Generated summaries, keyed by a hash of each entry's metadata, plus any batch
   # still being processed by the Message Batches API.
   summary_cache_key = "snapshots/summary-cache.json"
+  # Claude's multilateral/bilateral labels and organization sectors, keyed the same
+  # way. Without access to these, every run would request the same labels again.
+  sharing_cache_key = "snapshots/sharing-cache.json"
+  sector_cache_key  = "snapshots/sector-cache.json"
   # Every Claude task (search reading, logo choice, summaries) goes through Bedrock
   # InvokeModel, signed with the function's role: there is no API key to store. The
   # model is a cross-region inference profile (us.…), which routes to the same
@@ -234,6 +238,8 @@ resource "aws_iam_role_policy" "ingest_s3" {
       { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${aws_s3_bucket.data.arn}/${local.curation_key}" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.logo_cache_key}" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.summary_cache_key}" },
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.sharing_cache_key}" },
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.sector_cache_key}" },
     ]
   })
 }
@@ -291,7 +297,8 @@ resource "aws_lambda_function" "ingest" {
   # each aggregate's signature with xmlsec1 first peaks at ~700 MiB.
   memory_size = 2048
   # The first runs check ~1,900 logo URLs and look up websites; later runs mostly
-  # hit the logo cache and finish in about a minute.
+  # hit the logo cache and finish in about a minute. Ingest reads this deadline and
+  # stops starting new work two minutes before it (crates/catalog-ingest/src/budget.rs).
   timeout = 900
   ephemeral_storage {
     size = 1024

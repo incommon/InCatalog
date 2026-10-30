@@ -7,6 +7,7 @@
 //! set; configuration comes from flags or the matching `CATALOG_*` environment
 //! variables in both cases.
 
+mod budget;
 mod enrich;
 mod fetch;
 mod logos;
@@ -15,6 +16,7 @@ mod sharing;
 
 use std::io::BufReader;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use catalog_core::build::Builder;
@@ -24,6 +26,8 @@ use catalog_core::model::{Snapshot, Source};
 use catalog_core::SNAPSHOT_SCHEMA_VERSION;
 use catalog_store::Location;
 use clap::Parser;
+
+use crate::budget::Deadline;
 
 pub const INCOMMON_AGGREGATE_URL: &str = "https://mdq.incommon.org/entities";
 pub const EDUGAIN_AGGREGATE_URL: &str = "https://mds.edugain.org/edugain-v2.xml";
@@ -118,6 +122,12 @@ struct Args {
     /// Where sector labels are kept (default: `sector-cache.json` beside `--out`).
     #[arg(long, env = "CATALOG_SECTOR_CACHE")]
     sector_cache: Option<String>,
+
+    /// Stop starting Claude requests and website lookups so the run ends within this
+    /// many seconds (two minutes are kept back to finish). Under Lambda the function's
+    /// own timeout sets this.
+    #[arg(long, env = "CATALOG_TIME_LIMIT_SECS")]
+    time_limit_secs: Option<u64>,
 }
 
 #[tokio::main]
@@ -132,10 +142,11 @@ async fn main() -> Result<()> {
         // Scheduled invocation: the event payload carries nothing we need.
         let args = Args::parse_from(["catalog-ingest"]);
         return lambda_runtime::run(lambda_runtime::service_fn(
-            move |_: lambda_runtime::LambdaEvent<serde_json::Value>| {
+            move |event: lambda_runtime::LambdaEvent<serde_json::Value>| {
                 let args = args.clone();
+                let deadline = Deadline::lambda(event.context.deadline());
                 async move {
-                    let summary = run(args).await.map_err(|e| format!("{e:#}"))?;
+                    let summary = run(args, deadline).await.map_err(|e| format!("{e:#}"))?;
                     Ok::<_, lambda_runtime::Error>(summary)
                 }
             },
@@ -144,12 +155,19 @@ async fn main() -> Result<()> {
         .map_err(|e| anyhow::anyhow!(e));
     }
 
-    let summary = run(Args::parse()).await?;
+    let args = Args::parse();
+    let deadline = args
+        .time_limit_secs
+        .map_or_else(Deadline::none, |s| Deadline::after(Duration::from_secs(s)));
+    let summary = run(args, deadline).await?;
     println!("{}", serde_json::to_string_pretty(&summary)?);
     Ok(())
 }
 
-async fn run(args: Args) -> Result<serde_json::Value> {
+/// The steps that call out share the run's time: summaries may use a quarter of what
+/// is left when they start, sharing labels a third, sectors half, and logos the rest,
+/// so a large backlog in one step cannot starve the steps after it.
+async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
     let cache = args
         .cache_dir
         .clone()
@@ -246,10 +264,12 @@ async fn run(args: Args) -> Result<serde_json::Value> {
                 mode: enrich_mode,
                 max: args.enrich_max,
                 adopt_batch: args.enrich_adopt_batch.clone(),
+                deadline: deadline.share(0.25),
             },
         )
         .await?;
         tracing::info!(?report, "summaries");
+        stopped_for_time("summaries", report.stopped_for_time);
         if let Some(why) = &report.skipped_reason {
             warnings.push(format!(
                 "{} services are waiting for a generated summary: {why}",
@@ -282,10 +302,12 @@ async fn run(args: Args) -> Result<serde_json::Value> {
                 cache: Location::parse(&cache)?,
                 claude,
                 max: args.sharing_max,
+                deadline: deadline.share(1.0 / 3.0),
             },
         )
         .await?;
         tracing::info!(?report, "sharing");
+        stopped_for_time("sharing", report.stopped_for_time);
         if let Some(why) = &report.skipped_reason {
             warnings.push(format!(
                 "{} multilateral/bilateral requests are waiting: {why}",
@@ -315,10 +337,12 @@ async fn run(args: Args) -> Result<serde_json::Value> {
                 cache: Location::parse(&cache)?,
                 claude,
                 max: args.sector_max,
+                deadline: deadline.share(0.5),
             },
         )
         .await?;
         tracing::info!(?report, "sectors");
+        stopped_for_time("sectors", report.stopped_for_time);
         if let Some(why) = &report.skipped_reason {
             warnings.push(format!(
                 "{} organizations are waiting for a sector: {why}",
@@ -349,10 +373,12 @@ async fn run(args: Args) -> Result<serde_json::Value> {
                 max_checks: args.logo_max_checks,
                 max_lookups: args.logo_max_lookups,
                 claude,
+                deadline,
             },
         )
         .await?;
         tracing::info!(?report, "logos");
+        stopped_for_time("logos", report.stopped_for_time);
         if report.sites_skipped_network_down > 0 {
             warnings.push(format!(
                 "website logo lookups stopped after repeated connection failures; {} sites wait for the next run",
@@ -429,4 +455,16 @@ fn check_valid_until(
         warnings.push(msg);
     }
     Ok(())
+}
+
+/// A step that ran out of time is normal while a backlog is being worked off, so it
+/// is logged rather than published as a snapshot warning.
+fn stopped_for_time(step: &str, n: usize) {
+    if n > 0 {
+        tracing::warn!(
+            step,
+            not_started = n,
+            "out of time for this run; the rest waits for the next"
+        );
+    }
 }
