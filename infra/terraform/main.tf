@@ -9,6 +9,11 @@
 # Both functions run the one container image in ECR (see the Dockerfile); each picks
 # its program with an entry point. `make deploy` builds and pushes the image first.
 #
+# Applied with OpenTofu at the version in .opentofu-version, never with Terraform:
+# the state has been OpenTofu's since the move, and Terraform does not promise to
+# read it. The file names (.tf, .terraform.lock.hcl, the terraform {} block) are
+# OpenTofu's own.
+#
 # The API Lambda loads the snapshot on cold start and re-checks its ETag every few
 # minutes, so a new ingest goes live without a deploy.
 

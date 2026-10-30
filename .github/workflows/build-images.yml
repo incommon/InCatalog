@@ -15,8 +15,8 @@ name: Build image
 #     :latest to that image.
 # Every image carries the Cargo.toml version as its
 # org.opencontainers.image.version label.
-# Terraform deploys whatever :latest points at (var.image_tag, pinned by
-# digest), so `terraform apply` after a dispatch ships it. Promotion is a
+# OpenTofu deploys whatever :latest points at (var.image_tag, pinned by
+# digest), so `tofu apply` after a dispatch ships it. Promotion is a
 # deliberate act, as in `make deploy`; a merge never changes what is live.
 #
 # PREREQUISITES (one-time), on the GitHub Environment `dev`:
@@ -153,7 +153,7 @@ jobs:
           if [ "$PROMOTE" = "true" ]; then
             docker tag "$IMAGE" "$REPO:latest"
             docker push -q "$REPO:latest"
-            echo "Promoted $GITHUB_SHA to :latest — \`terraform apply\` deploys it." >> "$GITHUB_STEP_SUMMARY"
+            echo "Promoted $GITHUB_SHA to :latest — \`tofu apply\` deploys it." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Pushed :$GITHUB_SHA (not promoted; run this workflow manually to move :latest)." >> "$GITHUB_STEP_SUMMARY"
           fi
