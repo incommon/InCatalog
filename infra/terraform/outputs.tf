@@ -21,6 +21,11 @@ output "data_bucket" {
   value = aws_s3_bucket.data.id
 }
 
+output "ingest_function_name" {
+  description = "The ingest function, which `make backfill` runs until nothing is waiting."
+  value       = aws_lambda_function.ingest.function_name
+}
+
 output "first_ingest_command" {
   description = "The API needs one snapshot before it can start; run this once after the first apply."
   value       = "aws lambda invoke --region ${var.region} --function-name ${aws_lambda_function.ingest.function_name} /dev/stdout"

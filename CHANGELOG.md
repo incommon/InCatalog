@@ -9,6 +9,12 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Added
+
+- `make backfill` runs ingest in AWS until nothing is waiting, one run at a time and
+  never overlapping the scheduled run, for working off a backlog in hours rather than
+  days.
+
 ### Fixed
 
 - Ingest in AWS can save its sharing and sector caches. It had no S3 access to them,

@@ -565,6 +565,17 @@ requests in flight, save the caches, and write the snapshot. Each step's report 
 how many requests it did not start (`stopped_for_time`). Locally there is no limit
 unless `--time-limit-secs` (`CATALOG_TIME_LIMIT_SECS`) sets one.
 
+**Working off a backlog.** After a change that leaves many entries waiting (a new
+field, a prompt change, a cleared cache), `make backfill` runs ingest in AWS again and
+again until nothing is waiting, instead of leaving it to the daily runs. It runs one at
+a time and waits out the scheduled run, since two ingests at once would each save their
+own copy of the caches. It stops early when a run makes no progress or cannot do the
+work, for example without Claude credentials. It prints what is waiting after each run:
+
+```text
+run 1 (748s): waiting: summaries 0, sharing 3141, sectors 0, logo sites 0, logos out of time 0
+```
+
 The image includes `xmlsec1` and the two federations' signing certificates
 (`certs/`), so ingest in AWS verifies both aggregates' signatures and refuses to
 publish if either fails.
