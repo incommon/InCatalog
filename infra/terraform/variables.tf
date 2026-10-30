@@ -42,7 +42,7 @@ variable "site_domain" {
 }
 
 variable "site_zone" {
-  description = "Route 53 public hosted zone in this account that holds site_domain. Terraform validates the certificate and adds the alias records there."
+  description = "Route 53 public hosted zone in this account that holds site_domain. OpenTofu validates the certificate and adds the alias records there."
   type        = string
   default     = ""
 }
@@ -98,6 +98,12 @@ variable "github_repository" {
   description = "The GitHub repository (owner/name) whose image builds may assume the push role."
   type        = string
   default     = "incommon/InCatalog"
+}
+
+variable "github_subject_prefix" {
+  description = "The start of the OIDC token's `sub` claim for github_repository, before \":environment:\". Empty means \"repo:<github_repository>\". A repository on GitHub's immutable subjects sends \"repo:<owner>@<owner id>/<name>@<repo id>\" instead (gh api repos/<owner>/<name>/actions/oidc/customization/sub shows it)."
+  type        = string
+  default     = ""
 }
 
 variable "github_environment" {

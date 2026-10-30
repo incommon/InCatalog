@@ -27,6 +27,8 @@ use catalog_core::sector::{self, Sector};
 use catalog_store::Location;
 use chrono::Utc;
 use futures::stream::{self, StreamExt};
+
+use crate::budget::Deadline;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -42,6 +44,8 @@ pub struct Options {
     pub claude: Option<Claude>,
     /// Most organizations to send per run.
     pub max: usize,
+    /// When to stop starting requests (see `budget`).
+    pub deadline: Deadline,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -56,6 +60,8 @@ pub struct Report {
     pub failed: usize,
     /// Organizations left for a later run.
     pub waiting: usize,
+    /// Requests not started because the run's time ran out (also in `waiting`).
+    pub stopped_for_time: usize,
     pub skipped_reason: Option<String>,
 }
 
@@ -108,7 +114,10 @@ pub async fn classify(
         Some(claude) => {
             let take: Vec<&Unit> = needed.iter().copied().take(opts.max).collect();
             report.waiting = needed.len() - take.len();
-            let done: Vec<(&Unit, Result<SectorLabel>)> = stream::iter(take)
+            let started = take.len();
+            let done: Vec<(&Unit, Result<SectorLabel>)> = opts
+                .deadline
+                .until(stream::iter(take))
                 .map(|u| async move {
                     let r = claude
                         .structured(SYSTEM, &u.input, schema(), 1024)
@@ -119,6 +128,8 @@ pub async fn classify(
                 .buffer_unordered(4)
                 .collect()
                 .await;
+            report.stopped_for_time = started - done.len();
+            report.waiting += report.stopped_for_time;
             for (u, r) in done {
                 match r {
                     Ok(label) => {
@@ -409,6 +420,7 @@ mod tests {
             cache: Location::parse(cache.to_str().unwrap()).unwrap(),
             claude,
             max,
+            deadline: Deadline::none(),
         }
     }
 
@@ -501,6 +513,23 @@ mod tests {
             .await
             .unwrap();
         assert_eq!((r.generated_now, r.waiting), (1, 1));
+    }
+
+    #[tokio::test]
+    async fn out_of_time_starts_nothing_and_the_next_run_catches_up() {
+        let (base, _) = stub(json!({"sectors": [], "reason": ""})).await;
+        let path = cache("late");
+        let mut services = catalog();
+        let late = Options {
+            deadline: Deadline::after(Duration::ZERO),
+            ..opts(&path, Some(bedrock(&base)), 100)
+        };
+        let r = classify(&mut services, &[], late).await.unwrap();
+        assert_eq!((r.generated_now, r.stopped_for_time, r.waiting), (0, 2, 2));
+        let r = classify(&mut services, &[], opts(&path, Some(bedrock(&base)), 100))
+            .await
+            .unwrap();
+        assert_eq!((r.generated_now, r.stopped_for_time, r.waiting), (2, 0, 0));
     }
 
     #[test]

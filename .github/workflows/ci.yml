@@ -220,33 +220,57 @@ jobs:
           fi
           echo "Release $version has notes and is not tagged yet." >> "$GITHUB_STEP_SUMMARY"
 
-  # Also a required check on `main`, by this name.
-  terraform:
+  # Also a required check on `main`, by this name. The name is Terraform's,
+  # kept when the stack moved to OpenTofu (ADR-0013 in incommon-hyperdrive):
+  # renaming it means changing main's branch protection in the same moment,
+  # and any open PR into main would wait forever for a check that no longer
+  # reports.
+  opentofu:
     name: terraform fmt / validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      # Pinned to .terraform-version, the version that applies the stack
+      # Pinned to .opentofu-version, the version that applies the stack
       # (`make deploy`). Left to "latest", CI would eventually validate against
       # a binary no deploy runs.
-      - name: Read the pinned Terraform version
-        id: pin
-        run: echo "version=$(tr -d '[:space:]' < .terraform-version)" >> "$GITHUB_OUTPUT"
-      - uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: ${{ steps.pin.outputs.version }}
-          terraform_wrapper: false
+      #
+      # Installed from the release here rather than with
+      # opentofu/setup-opentofu, which the org's Actions policy blocks (it is
+      # neither GitHub-owned nor from a verified creator). The checksum is
+      # pinned in this file rather than read from the release's SHA256SUMS,
+      # so a replaced asset fails instead of matching its own checksum file.
+      # Bump it with .opentofu-version, from
+      # https://github.com/opentofu/opentofu/releases/download/v<version>/tofu_<version>_SHA256SUMS
+      - name: Install OpenTofu
+        env:
+          TOFU_SHA256_LINUX_AMD64: dade9650e6b74fc7a8b986bd8717497d32f9e09cf82e479afef4977fa3085536
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < .opentofu-version)"
+          asset="tofu_${version}_linux_amd64.zip"
+          curl -fsSL -o "$RUNNER_TEMP/$asset" \
+            "https://github.com/opentofu/opentofu/releases/download/v${version}/${asset}"
+          if ! echo "$TOFU_SHA256_LINUX_AMD64  $RUNNER_TEMP/$asset" | sha256sum -c -; then
+            echo "::error file=.opentofu-version::$asset does not match the checksum in ci.yml. If .opentofu-version changed, update TOFU_SHA256_LINUX_AMD64 too."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/tofu"
+          unzip -q "$RUNNER_TEMP/$asset" tofu -d "$RUNNER_TEMP/tofu"
+          echo "$RUNNER_TEMP/tofu" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/tofu/tofu" version
 
       - name: Format check
-        run: terraform fmt -check -recursive infra/
+        run: tofu fmt -check -recursive infra/
 
       # -lockfile=readonly: if the lock does not already satisfy the config,
-      # fail here rather than at apply time against live infrastructure.
+      # fail here rather than at apply time against live infrastructure. The
+      # lock pins registry.opentofu.org, so this also catches a lock
+      # regenerated with Terraform.
       - name: Validate
         run: |
-          terraform -chdir=infra/terraform init -backend=false -input=false -lockfile=readonly >/dev/null
-          terraform -chdir=infra/terraform validate
+          tofu -chdir=infra/terraform init -backend=false -input=false -lockfile=readonly >/dev/null
+          tofu -chdir=infra/terraform validate
 
   licenses:
     name: license policy / third-party notices

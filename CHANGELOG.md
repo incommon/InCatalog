@@ -9,6 +9,58 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+### Added
+
+- `make backfill` runs ingest in AWS until nothing is waiting, one run at a time and
+  never overlapping the scheduled run, for working off a backlog in hours rather than
+  days. (#33)
+- **Regions by their common names.** The Middle East, Central and Eastern Europe, the
+  Balkans, the Western Balkans, Scandinavia, the Baltic states, the Pacific Islands,
+  the Horn of Africa, the Sahel, and the Maghreb, each from one cited source with a
+  note on what it includes, and SAARC as a dated grouping. Asia-Pacific moves to
+  this new `common` region kind, since UN M49 does not define it. "Pacific Islands"
+  now means Melanesia, Micronesia, and Polynesia rather than all of Oceania. (#34)
+- `/v1/regions` gives each UN M49 sub-region its `parent`, so the regions form one
+  tree under the five continents. (#34)
+
+### Changed
+
+- Infrastructure is applied with OpenTofu 1.12.5 instead of Terraform, as
+  `.opentofu-version` pins; `make init` and everything after it refuse any other
+  version. The first `tofu apply` takes over the state, so `terraform` must not be run
+  against it again. (#35)
+
+### Fixed
+
+- **Every region can be found in the Region filter.** It listed regions, groupings,
+  and research networks together, ranked by service count, and dropped any with no
+  services. So the first eight were the OECD, NATO, the G20, the G7, Five Eyes, APEC,
+  the Americas, and Northern America. South America, Southern Asia, and Central Asia
+  were behind "more", and Central America, the Caribbean, Middle Africa, Melanesia,
+  Micronesia, and Polynesia were missing. Region is now the UN M49 tree, every region
+  shown with its count even when that is 0, then the common names. Political
+  groupings and research networks have their own Grouping filter. (#34)
+- **"+ N more" in the filters works.** Every filter list showed all of its values from
+  the start, because the list's style overrode `hidden`, so the button revealed
+  nothing. Each list now shows eight and the button the rest. (#36)
+- The "Requested attribute" filter lists every attribute services request (215
+  today), not only the 40 most requested. (#36)
+- The federations page links every policy and MRPS document a federation publishes,
+  not just the first. DFN-AAI's and RedIRIS's separate SP and IdP terms were hidden. (#36)
+- "West Asian", "Southern African", "Polynesian", and similar spellings now read as
+  their regions, and "South Asia" says that M49's Southern Asia includes Iran. (#34)
+- Ingest in AWS can save its sharing and sector caches. It had no S3 access to them,
+  so every run asked Claude for the same 800 labels again and kept none, and most
+  services never got a label. (#32)
+- Ingest stops starting Claude requests and website lookups before Lambda's 15-minute
+  limit, so it always saves its caches and writes the snapshot. A run that reached the
+  limit lost all of its work and wrote nothing. The first run of 0.2.0 took 753 of the
+  900 seconds. (#32)
+- A push to `develop` no longer cancels an image build for a release tag or a manual
+  promotion run; each event and ref builds on its own. (#29)
+
 ## [0.2.0] - 2026-10-29
 
 ### Added
@@ -99,6 +151,7 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.2.0...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.3.0...develop
+[0.3.0]: https://github.com/incommon/InCatalog/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/incommon/InCatalog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/incommon/InCatalog/tree/v0.1.0

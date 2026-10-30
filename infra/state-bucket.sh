@@ -2,7 +2,7 @@
 # Copyright 2026 Internet2
 # SPDX-License-Identifier: Apache-2.0
 
-# Create the S3 bucket that holds Terraform state for this account (once), and
+# Create the S3 bucket that holds OpenTofu state for this account (once), and
 # write infra/terraform/backend.hcl to point at it. Versioned, encrypted, private.
 set -eu
 account=$(aws sts get-caller-identity --query Account --output text)

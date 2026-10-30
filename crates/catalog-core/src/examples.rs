@@ -76,6 +76,19 @@ pub const EXAMPLES: &[Example] = &[
         ],
     },
     Example {
+        query: "services in Northern Europe",
+        shows: "a UN M49 sub-region",
+        reads_as: &[("region", "northern-europe")],
+    },
+    Example {
+        query: "R&S services in Scandinavia",
+        shows: "a region by its common name",
+        reads_as: &[
+            ("category", "research-and-scholarship"),
+            ("region", "scandinavia"),
+        ],
+    },
+    Example {
         query: "SPs in the EU that request email",
         shows: "a political grouping",
         reads_as: &[("region", "eu"), ("attribute", MAIL)],

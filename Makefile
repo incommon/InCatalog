@@ -1,7 +1,7 @@
 # Copyright 2026 Internet2
 # SPDX-License-Identifier: Apache-2.0
 
-.PHONY: test lint notices ingest dev image test-image run-image state-bucket init push plan deploy seed first-ingest
+.PHONY: test lint notices ingest dev image test-image run-image state-bucket tofu-version init push plan deploy seed first-ingest backfill
 
 SNAPSHOT ?= data/catalog.json.gz
 
@@ -11,7 +11,7 @@ test:
 lint:
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-targets -- -D warnings
-	terraform -chdir=infra/terraform fmt -check
+	tofu -chdir=infra/terraform fmt -check
 	cargo deny check
 
 # The dependencies' license notices, as the image build writes them (not committed).
@@ -32,12 +32,14 @@ $(SNAPSHOT):
 	$(MAKE) ingest
 
 # ---------- AWS ----------
-# One container image runs both Lambda functions. Terraform state lives in S3
+# One container image runs both Lambda functions. OpenTofu applies infra/terraform
+# (never Terraform: the state is OpenTofu's now). Its state lives in S3
 # (backend.hcl); `make state-bucket` creates the bucket once per account.
 AWS_PROFILE ?= incommon-hyperdrive-dev
 AWS_REGION ?= us-east-2
 export AWS_PROFILE AWS_REGION
-TF := terraform -chdir=infra/terraform
+TF := tofu -chdir=infra/terraform
+TOFU_VERSION := $(shell tr -d '[:space:]' < .opentofu-version)
 IMAGE := incatalog:local
 # The workspace version: the only unindented `version =` line in Cargo.toml.
 VERSION := $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' Cargo.toml)
@@ -57,7 +59,15 @@ run-image: image
 state-bucket:
 	./infra/state-bucket.sh
 
-init:
+# Applies must use the pinned OpenTofu, the one CI validates with: state written by
+# a newer binary may not be readable by an older one.
+tofu-version:
+	@v=$$(tofu version -json | sed -n 's/.*"terraform_version": *"\([^"]*\)".*/\1/p'); \
+	if [ "$$v" != "$(TOFU_VERSION)" ]; then \
+		echo "tofu is $$v, but .opentofu-version pins $(TOFU_VERSION): install that release" >&2; exit 1; \
+	fi
+
+init: tofu-version
 	$(TF) init -input=false -reconfigure -backend-config=backend.hcl
 
 # The repository has to exist before the first push, and the functions need an image.
@@ -86,3 +96,9 @@ seed:
 
 first-ingest:
 	$$($(TF) output -raw first_ingest_command)
+
+# Run ingest in AWS until nothing is waiting: after a new field, a prompt change, or a
+# cleared cache, instead of waiting for the daily runs. Runs one at a time, never
+# overlapping the scheduled run; see infra/backfill.sh.
+backfill:
+	FUNCTION=$$($(TF) output -raw ingest_function_name) ./infra/backfill.sh

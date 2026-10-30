@@ -741,9 +741,6 @@ impl Catalog {
                 })
                 .collect();
             values.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.label.cmp(&b.label)));
-            if dim == Dim::Attribute {
-                values.truncate(40);
-            }
             out.insert(dim.key().to_owned(), values);
         }
         out
@@ -1855,6 +1852,75 @@ mod tests {
         assert_eq!(places(&c, None, Some("eu,atlantis")).len(), 3);
         assert_eq!(places(&c, None, Some("atlantis")).len(), 0);
         assert_eq!(places(&c, None, Some(" , ")).len(), 6);
+    }
+
+    #[test]
+    fn every_requested_attribute_is_a_facet_value() {
+        // More attributes than the site shows before "more": none is left out.
+        let mut snapshot = catalog().snapshot;
+        snapshot.services[0].requested_attributes = (0..60)
+            .map(|i| crate::model::RequestedAttribute {
+                name: format!("urn:example:attr:{i}"),
+                ..Default::default()
+            })
+            .collect();
+        let p = Catalog::new(snapshot).search(&ServiceQuery::default());
+        let attrs = &p.facets["attribute"];
+        assert!(attrs.len() >= 60, "{}", attrs.len());
+        assert!(attrs.iter().any(|v| v.value == "urn:example:attr:59"));
+    }
+
+    /// One federation and one service in every country any region names.
+    fn everywhere() -> Catalog {
+        let mut ccs: Vec<&str> = REGIONS.iter().flat_map(|r| r.countries()).collect();
+        ccs.sort_unstable();
+        ccs.dedup();
+        let mut snapshot = Snapshot::default();
+        for cc in ccs {
+            let id = format!("https://{cc}/");
+            let mut s = Service {
+                entity_id: id.clone(),
+                id: crate::entity_hash(&id),
+                ..Default::default()
+            };
+            s.registration.authority = Some(format!("https://fed.{cc}"));
+            s.display_names.insert("en".into(), id);
+            snapshot.services.push(s);
+            snapshot.federations.push(Federation {
+                code: cc.into(),
+                name: cc.into(),
+                registration_authority: format!("https://fed.{cc}"),
+                country_codes: vec![cc.into()],
+                ..Default::default()
+            });
+        }
+        Catalog::new(snapshot)
+    }
+
+    #[test]
+    fn every_region_is_reachable_through_the_filter_and_the_facet() {
+        let c = everywhere();
+        let all = c.search(&ServiceQuery {
+            per_page: Some(1),
+            ..Default::default()
+        });
+        for r in REGIONS.iter() {
+            let n = r.countries().len();
+            assert!(n > 0, "{} stands for no country", r.key);
+            let p = c.search(&ServiceQuery {
+                region: Some(r.key.to_uppercase()),
+                per_page: Some(1),
+                ..Default::default()
+            });
+            assert_eq!(p.total, n, "{}: one service per country", r.key);
+            assert_eq!(p.regions.len(), 1, "{}", r.key);
+            assert_eq!(p.regions[0].key, r.key);
+            let facet = all.facets["region"].iter().find(|v| v.value == r.key);
+            assert_eq!(facet.map(|v| v.count), Some(n), "{} in the facet", r.key);
+        }
+        let listed: Vec<String> = c.regions().into_iter().map(|v| v.region.key).collect();
+        let keys: Vec<String> = REGIONS.iter().map(|r| r.key.clone()).collect();
+        assert_eq!(listed, keys, "/v1/regions lists every region in order");
     }
 
     #[test]

@@ -13,8 +13,13 @@
 //!   and the Americas, exactly as M49 lists them. So Cyprus and Turkey are in
 //!   Western Asia, Mexico is in Latin America rather than Northern America, and
 //!   Greenland is in Northern America. Areas M49 does not list (Taiwan, Kosovo) are
-//!   in no geographic region. "Asia-Pacific" is not an M49 region; it is defined as
-//!   a union of M49 regions and says so.
+//!   in no geographic region. Each sub-region has one `parent`, so they form a tree
+//!   under the five continents.
+//! - **Common names** that no standard defines (the Middle East, the Balkans,
+//!   Scandinavia, the Sahel, Asia-Pacific, …) follow one cited source each, and
+//!   their `note` says which countries were in or out where definitions differ.
+//!   "South Asia" and "Latin America" are not here: they read as M49's Southern Asia
+//!   and Latin America and the Caribbean.
 //! - **Political, security, and economic groupings** (the EU, Schengen, the euro
 //!   area, NATO, the OECD, ASEAN, BRICS, …) carry the date their listed membership
 //!   took effect, when recent members joined, and when former members left. The EU
@@ -43,8 +48,11 @@ use utoipa::ToSchema;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RegionKind {
-    /// A UN M49 region, or a union of them.
+    /// A UN M49 region, sub-region, or intermediate region.
     Geographic,
+    /// A region by a common name that no standard defines; its list follows the
+    /// cited source.
+    Common,
     /// A treaty, security, or economic grouping, dated.
     Political,
     /// The countries of a research and education network's member networks.
@@ -126,7 +134,20 @@ impl Region {
             joined: self.joined.clone(),
             left: self.left.clone(),
             countries: self.countries().into_iter().map(str::to_owned).collect(),
+            parent: self.parent().map(|p| p.key.clone()),
         }
+    }
+
+    /// The M49 region this one is a part of: Africa for Northern Africa, Latin
+    /// America and the Caribbean for South America. Continents have none, and
+    /// only geographic regions have one.
+    pub fn parent(&self) -> Option<&'static Region> {
+        if self.kind != RegionKind::Geographic {
+            return None;
+        }
+        REGIONS
+            .iter()
+            .find(|r| r.kind == RegionKind::Geographic && r.regions.contains(&self.key))
     }
 }
 
@@ -151,6 +172,8 @@ pub struct RegionExpansion {
     pub left: BTreeMap<String, String>,
     /// ISO 3166 alpha-2 codes, sorted.
     pub countries: Vec<String>,
+    /// For a UN M49 sub-region, the key of the region it is part of.
+    pub parent: Option<String>,
 }
 
 pub fn get(key: &str) -> Option<&'static Region> {
@@ -201,10 +224,13 @@ mod tests {
             }
             assert_eq!(
                 r.as_of.is_some(),
-                r.kind != RegionKind::Geographic,
-                "groupings are dated, geographic regions are not: {}",
+                matches!(r.kind, RegionKind::Political | RegionKind::Network),
+                "groupings are dated, regions are not: {}",
                 r.key
             );
+            if r.kind == RegionKind::Common {
+                assert!(r.note.is_some(), "{} says how its list was chosen", r.key);
+            }
             assert!(r.url.starts_with("https://"), "{}", r.key);
         }
     }
@@ -265,6 +291,137 @@ mod tests {
         assert_eq!(eu.as_of.as_deref(), Some("2020-01-31"));
         assert_eq!(eu.kind, RegionKind::Political);
         assert!(!eu.countries.contains(&"GB".to_owned()));
+    }
+
+    #[test]
+    fn m49_regions_form_one_tree_under_the_continents() {
+        let continents = ["africa", "americas", "asia", "europe", "oceania"];
+        for r in REGIONS.iter().filter(|r| r.kind == RegionKind::Geographic) {
+            let parents = REGIONS
+                .iter()
+                .filter(|p| p.kind == RegionKind::Geographic && p.regions.contains(&r.key))
+                .count();
+            match r.parent() {
+                None => assert!(
+                    continents.contains(&r.key.as_str()),
+                    "{} has no parent",
+                    r.key
+                ),
+                Some(p) => {
+                    assert_eq!(parents, 1, "{} is part of one region", r.key);
+                    for cc in r.countries() {
+                        assert!(
+                            p.countries().contains(&cc),
+                            "{cc} of {} is not in {}",
+                            r.key,
+                            p.key
+                        );
+                    }
+                }
+            }
+        }
+        let path = |k: &str| {
+            let mut out = vec![k.to_owned()];
+            while let Some(p) = get(out.last().unwrap()).unwrap().parent() {
+                out.push(p.key.clone());
+            }
+            out
+        };
+        assert_eq!(
+            path("south-america"),
+            ["south-america", "latin-america", "americas"]
+        );
+        assert_eq!(
+            path("central-america"),
+            ["central-america", "latin-america", "americas"]
+        );
+        assert_eq!(path("central-asia"), ["central-asia", "asia"]);
+        assert_eq!(
+            path("middle-africa"),
+            ["middle-africa", "sub-saharan-africa", "africa"]
+        );
+        // Common names and groupings sit outside the tree.
+        for k in ["asia-pacific", "middle-east", "eu"] {
+            assert!(get(k).unwrap().parent().is_none(), "{k}");
+            assert_eq!(get(k).unwrap().expansion().parent, None);
+        }
+        assert_eq!(
+            get("melanesia").unwrap().expansion().parent.as_deref(),
+            Some("oceania")
+        );
+    }
+
+    #[test]
+    fn common_names_follow_their_sources() {
+        let lens: Vec<(&str, usize)> = [
+            "asia-pacific",
+            "middle-east",
+            "central-and-eastern-europe",
+            "balkans",
+            "western-balkans",
+            "scandinavia",
+            "baltic-states",
+            "pacific-islands",
+            "horn-of-africa",
+            "sahel",
+            "maghreb",
+            "saarc",
+        ]
+        .into_iter()
+        .map(|k| (k, countries(k).len()))
+        .collect();
+        assert_eq!(
+            lens,
+            [
+                ("asia-pacific", 56),
+                ("middle-east", 17),
+                ("central-and-eastern-europe", 16),
+                ("balkans", 8),
+                ("western-balkans", 6),
+                ("scandinavia", 3),
+                ("baltic-states", 3),
+                ("pacific-islands", 23),
+                ("horn-of-africa", 4),
+                ("sahel", 15),
+                ("maghreb", 6),
+                ("saarc", 8),
+            ]
+        );
+        for k in ["asia-pacific", "middle-east", "balkans", "sahel"] {
+            assert_eq!(get(k).unwrap().kind, RegionKind::Common, "{k}");
+        }
+        // The Middle East is not M49's Western Asia: Egypt and Iran in, the Caucasus out.
+        let me = countries("middle-east");
+        assert!(me.contains(&"EG") && me.contains(&"IR") && !me.contains(&"GE"));
+        // M49's Southern Asia is SAARC plus Iran.
+        let mut south = countries("saarc");
+        south.push("IR");
+        south.sort_unstable();
+        assert_eq!(countries("southern-asia"), south);
+        assert!(get("southern-asia")
+            .unwrap()
+            .reading_note
+            .as_deref()
+            .unwrap()
+            .contains("Iran"));
+        // The Pacific Islands are Oceania without Australia and New Zealand.
+        let pacific = countries("pacific-islands");
+        assert!(!pacific.contains(&"AU") && !pacific.contains(&"NZ"));
+        assert_eq!(
+            pacific.len() + countries("australia-and-new-zealand").len(),
+            countries("oceania").len()
+        );
+        // Scandinavia is narrower than the Nordic Council; the Maghreb is wider than
+        // the Arab Maghreb Union by Western Sahara.
+        for cc in countries("scandinavia") {
+            assert!(countries("nordic-council").contains(&cc), "{cc}");
+        }
+        assert!(!countries("scandinavia").contains(&"FI"));
+        assert!(countries("maghreb").contains(&"EH") && !countries("amu").contains(&"EH"));
+        assert_eq!(
+            get("saarc").unwrap().joined.get("AF").map(String::as_str),
+            Some("2007-04")
+        );
     }
 
     /// Membership moves, so every list is rechecked at least once a year. When this
