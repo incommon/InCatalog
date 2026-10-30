@@ -40,6 +40,8 @@ use catalog_core::model::{DiscoveredLogo, Service};
 use catalog_store::Location;
 use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
+
+use crate::budget::Deadline;
 use reqwest::{StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -74,6 +76,8 @@ pub struct Options {
     pub max_lookups: usize,
     /// `None` when no Anthropic key is configured: checks still run, lookups do not.
     pub claude: Option<Claude>,
+    /// When to stop starting checks and lookups (see `budget`).
+    pub deadline: Deadline,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -90,6 +94,9 @@ pub struct Report {
     pub sites_skipped_network_down: usize,
     pub services_given_website_logo: usize,
     pub lookup_skipped_reason: Option<String>,
+    /// Checks and lookups not started because the run's time ran out. Lookups among
+    /// them are also in `sites_waiting`.
+    pub stopped_for_time: usize,
     /// Services left with no logo at all, by why: `no_website`, `waiting`
     /// (not looked up yet), `no_logo_on_site`, or the lookup's failure (`dns`,
     /// `connect`, `timeout`, `tls`, `http`, `http_transient`, `model`, `other`).
@@ -278,8 +285,10 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
         .filter(|u| !cache.checks.get(u).is_some_and(|c| c.fresh(now)))
         .take(opts.max_checks)
         .collect();
-    report.metadata_logos_checked = to_check.len();
-    let checked: Vec<(String, Check)> = stream::iter(to_check)
+    let started = to_check.len();
+    let checked: Vec<(String, Check)> = opts
+        .deadline
+        .until(stream::iter(to_check))
         .map(|url| {
             let http = http.clone();
             async move {
@@ -304,6 +313,8 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
         .buffer_unordered(24)
         .collect()
         .await;
+    report.metadata_logos_checked = checked.len();
+    report.stopped_for_time = started - checked.len();
     cache.checks.extend(checked);
     for s in services.iter_mut() {
         for l in &mut s.logos {
@@ -362,10 +373,12 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
         Some(claude) => {
             report.sites_waiting = stale.len().saturating_sub(opts.max_lookups);
             stale.truncate(opts.max_lookups);
-            report.sites_looked_up = stale.len();
+            let started = stale.len();
             let claude = Arc::new(claude.clone());
             let breaker = Arc::new(Breaker::default());
-            let found: Vec<Option<(String, Site)>> = stream::iter(stale)
+            let found: Vec<Option<(String, Site)>> = opts
+                .deadline
+                .until(stream::iter(stale))
                 .map(|(origin, page, org, _)| {
                     let (http, claude, breaker) = (http.clone(), claude.clone(), breaker.clone());
                     async move {
@@ -377,6 +390,10 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
                 .buffer_unordered(6)
                 .collect()
                 .await;
+            let stopped = started - found.len();
+            report.stopped_for_time += stopped;
+            report.sites_waiting += stopped;
+            report.sites_looked_up = found.len();
             report.sites_skipped_network_down = found.iter().filter(|f| f.is_none()).count();
             report.sites_looked_up -= report.sites_skipped_network_down;
             report.sites_waiting += report.sites_skipped_network_down;
@@ -1260,13 +1277,32 @@ mod tests {
                 max_checks: 10,
                 max_lookups: 10,
                 claude: None,
+                deadline: Deadline::none(),
             },
         )
         .await
         .unwrap();
         assert_eq!((r.sites_waiting, r.sites_looked_up), (1, 0));
         assert!(r.lookup_skipped_reason.is_some());
+        assert_eq!(r.stopped_for_time, 0);
+
         assert_eq!(r.services_without_logo.get("waiting"), Some(&1));
         assert_eq!(r.services_without_logo.get("no_website"), Some(&1));
+
+        // Out of time: the metadata logo is not checked now, and stays due.
+        let mut services = vec![svc("https://c/", None, true)];
+        let r = enrich(
+            &mut services,
+            Options {
+                cache: Location::parse(path.to_str().unwrap()).unwrap(),
+                max_checks: 10,
+                max_lookups: 10,
+                claude: None,
+                deadline: Deadline::after(std::time::Duration::ZERO),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!((r.metadata_logos_checked, r.stopped_for_time), (0, 1));
     }
 }

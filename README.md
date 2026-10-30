@@ -556,6 +556,15 @@ regions; `CATALOG_CLAUDE_PROVIDER=bedrock` uses that endpoint for models that ar
 has no Message Batches API, so summaries are written during each run, at most
 `summary_max_per_run` (default 500) at a time.
 
+**The 15-minute limit.** Lambda stops a run at the function's timeout (900 seconds)
+before it saves anything, so ingest watches the clock itself. Each step that calls out
+stops starting new requests at its deadline, keeps what it has, and leaves the rest for
+the next run. Summaries may use a quarter of the time left when they start, sharing
+labels a third, sectors half, and logos the rest. Two minutes are kept back to finish
+requests in flight, save the caches, and write the snapshot. Each step's report says
+how many requests it did not start (`stopped_for_time`). Locally there is no limit
+unless `--time-limit-secs` (`CATALOG_TIME_LIMIT_SECS`) sets one.
+
 The image includes `xmlsec1` and the two federations' signing certificates
 (`certs/`), so ingest in AWS verifies both aggregates' signatures and refuses to
 publish if either fails.
