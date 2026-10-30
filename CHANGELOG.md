@@ -34,6 +34,11 @@ section must be written before it is cut.
 
 ### Fixed
 
+- **A plural search word no longer matches longer words through its singular.**
+  "physics" was cut to "physic" and matched as a word beginning, so "physics journals"
+  found the New England Journal of Medicine through "physicians". The word as typed
+  still matches the start of a word, and its singular now matches only that whole
+  word: "journals" still finds "journal" and "clinics" finds "clinic".
 - **Every region can be found in the Region filter.** It listed regions, groupings,
   and research networks together, ranked by service count, and dropped any with no
   services. So the first eight were the OECD, NATO, the G20, the G7, Five Eyes, APEC,
