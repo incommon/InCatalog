@@ -50,9 +50,11 @@ on:
       - ".github/workflows/build-images.yml"
   workflow_dispatch:
 
-# One in-flight build; a newer push supersedes an older one.
+# One in-flight build per event and ref: a newer push to develop supersedes an
+# older one, but never cancels a release-tag build or a promotion run (which
+# a single shared group did: merging into develop cancelled v0.2.0's build).
 concurrency:
-  group: build-images
+  group: build-images-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
