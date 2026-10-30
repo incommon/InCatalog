@@ -84,6 +84,13 @@ async function fedIndex() {
   return fedIndexCache;
 }
 
+// Every region (/v1/regions): the UN M49 tree, the common names, and the groupings.
+let regionsCache = null;
+async function regionList() {
+  regionsCache ??= api("/v1/regions").catch(() => ((regionsCache = null), []));
+  return regionsCache;
+}
+
 // The same comparison the API makes: by registrar, ignoring case and a trailing slash.
 const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().replace(/\/+$/, "").toLowerCase();
 
@@ -409,11 +416,73 @@ const FACET_ORDER = [
   ["category", "Category"],
   ["federation", "Registered by"],
   ["region", "Region"],
+  ["grouping", "Grouping"],
   ["country", "Country"],
   ["attribute", "Requested attribute"],
   ["source", "Seen in"],
   ["provider_type", "Provider type"],
 ];
+
+// Every UN M49 region as a tree under the five continents, then the common names
+// (the Middle East, the Balkans), each with its count even when that is 0: a region
+// with no services is shown as empty rather than left out. Branches the reader opens
+// stay open for the visit; a branch holding a selected region opens by itself.
+const openRegions = new Set();
+function regionFacet(regions, values, selected, refine) {
+  const geo = regions.filter((r) => r.kind === "geographic");
+  const common = regions.filter((r) => r.kind === "common").sort((a, b) => bare(a.label).localeCompare(bare(b.label)));
+  if (!geo.length && !common.length) return null;
+  const counts = new Map(values.map((v) => [v.value, v.count]));
+  const isOn = (key) => selected.some((s) => s.toLowerCase() === key);
+  const children = (key) => geo.filter((r) => r.parent === key);
+  const holds = (r) => isOn(r.key) || children(r.key).some(holds);
+  const pick = (key) => refine({ region: (isOn(key) ? selected.filter((s) => s.toLowerCase() !== key) : [...selected, key]).join(",") });
+
+  const branch = (id, name, kids, startOpen) => {
+    const open = openRegions.has(id) || startOpen;
+    const list = h("div", { class: "region-branch", hidden: !open }, kids);
+    const twisty = h(
+      "button",
+      {
+        class: "twisty",
+        type: "button",
+        "aria-expanded": String(open),
+        "aria-label": `Show the parts of ${name}`,
+        onclick: () => {
+          const now = list.hidden;
+          list.hidden = !now;
+          twisty.setAttribute("aria-expanded", String(now));
+          now ? openRegions.add(id) : openRegions.delete(id);
+        },
+      },
+    );
+    return { twisty, list };
+  };
+  const pickButton = (r) => {
+    const n = counts.get(r.key) || 0;
+    return h(
+      "button",
+      { type: "button", class: n ? null : "zero", title: `${r.countries.length} countries`, "aria-pressed": isOn(r.key) ? "true" : "false", onclick: () => pick(r.key) },
+      h("span", {}, bare(r.label)),
+      h("span", { class: "n" }, fmt(n)),
+    );
+  };
+  const row = (r, depth) => {
+    const kids = children(r.key);
+    const b = kids.length > 0 && branch(r.key, bare(r.label), kids.map((k) => row(k, depth + 1)), kids.some(holds));
+    return [h("div", { class: "region-row", style: `--depth:${depth}` }, b ? b.twisty : h("span", { class: "twisty" }), pickButton(r)), b && b.list];
+  };
+
+  const tree = geo.filter((r) => !r.parent).map((r) => row(r, 0));
+  let names = null;
+  if (common.length) {
+    const b = branch("common", "the common names", common.map((r) => h("div", { class: "region-row", style: "--depth:1" }, h("span", { class: "twisty" }), pickButton(r))), common.some((r) => isOn(r.key)));
+    names = [h("div", { class: "region-row region-label" }, b.twisty, h("span", {}, "Common names")), b.list];
+  }
+  const geoSelected = selected.filter((s) => regions.some((r) => r.key === s.toLowerCase() && r.kind !== "political" && r.kind !== "network"));
+  const mode = selected.length > 1 && geoSelected.length && h("span", { class: "mode" }, "matching any");
+  return h("div", { class: "facet region-facet" }, h("h3", {}, "Region", mode), tree, names);
+}
 
 async function search(params) {
   setNav("search");
@@ -445,12 +514,13 @@ async function search(params) {
     h("div", { class: "layout" }, facetsEl, h("div", { class: "results-col" }, banner, results)),
   );
 
-  let page, feds;
+  let page, feds, regions;
   try {
     const { nl, ...query } = params;
-    [page, feds] = await Promise.all([
+    [page, feds, regions] = await Promise.all([
       api("/v1/services", { ...query, per_page: 24 }),
       params.federation ? fedIndex() : null,
+      regionList(),
       nl &&
         answer(nl)
           .then((r) => banner.replaceWith(readingBanner(params, r)))
@@ -461,17 +531,28 @@ async function search(params) {
     return;
   }
 
-  // Facets.
+  // Facets. Regions are listed in full from /v1/regions; the grouping facet is the
+  // region filter's political groupings and research networks, by count.
+  const regionKind = new Map(regions.map((r) => [r.key, r.kind]));
   for (const [key, label] of FACET_ORDER) {
-    const values = page.facets[key] || [];
+    if (key === "region") {
+      const el = regionFacet(regions, page.facets.region || [], listOf(params.region), refine);
+      if (el) facetsEl.append(el);
+      continue;
+    }
+    const param = key === "grouping" ? "region" : key;
+    const values =
+      key === "grouping"
+        ? (page.facets.region || []).filter((v) => !["geographic", "common"].includes(regionKind.get(v.value)))
+        : page.facets[key] || [];
     if (!values.length) continue;
-    const active = params[key];
+    const active = params[param];
     const selected = listOf(active);
     const same = key === "federation" ? (a, b) => fedKey(feds, a) === fedKey(feds, b) : (a, b) => a === b;
     const list = h("div", {});
     const limit = 8;
     values.forEach((v, i) => {
-      const on = key in MULTI ? selected.some((a) => same(a, v.value)) : active === v.value;
+      const on = param in MULTI ? selected.some((a) => same(a, v.value)) : active === v.value;
       const btn = h(
         "button",
         {
@@ -480,11 +561,11 @@ async function search(params) {
           hidden: i >= limit && !on,
           onclick: () => {
             let next = on ? "" : v.value;
-            if (key in MULTI) next = (on ? selected.filter((a) => !same(a, v.value)) : [...selected, v.value]).join(",");
-            refine({ [key]: next });
+            if (param in MULTI) next = (on ? selected.filter((a) => !same(a, v.value)) : [...selected, v.value]).join(",");
+            refine({ [param]: next });
           },
         },
-        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : key === "region" ? bare(v.label) : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
+        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : param === "region" ? bare(v.label) : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
         h("span", { class: "n" }, fmt(v.count)),
       );
       list.append(btn);
@@ -503,7 +584,7 @@ async function search(params) {
         },
         `+ ${values.length - limit} more`,
       );
-    const mode = key in MULTI && selected.length > 1 && h("span", { class: "mode" }, `matching ${MULTI[key]}`);
+    const mode = param in MULTI && selected.length > 1 && h("span", { class: "mode" }, `matching ${MULTI[param]}`);
     facetsEl.append(h("div", { class: "facet" }, h("h3", {}, label, mode), list, more));
   }
 
@@ -1011,7 +1092,9 @@ const FILTER_HELP = [
 ];
 
 function howToSearch(regions, exs) {
-  const kinds = { geographic: "UN M49 region", political: "Grouping", network: "Research network" };
+  const kinds = { geographic: "UN M49 region", common: "Common name", political: "Grouping", network: "Research network" };
+  const byKey = new Map(regions.map((r) => [r.key, r]));
+  const depth = (r) => (r.parent && byKey.has(r.parent) ? 1 + depth(byKey.get(r.parent)) : 0);
   return h(
     "section",
     { class: "panel" },
@@ -1046,7 +1129,7 @@ function howToSearch(regions, exs) {
         h(
           "p",
           {},
-          "Each stands for a list of countries with its source. Geographic regions follow UN M49. Groupings say when their membership took effect, and every list says when it was last checked against its source. Contested lists are left out on purpose.",
+          "Each stands for a list of countries with its source. Geographic regions follow UN M49, each indented under the region it is part of. Common names such as the Middle East or the Balkans have no standard definition: each follows one cited source and says what it includes. Groupings say when their membership took effect, and every list says when it was last checked against its source. Contested lists are left out on purpose.",
         ),
         h(
           "div",
@@ -1062,11 +1145,16 @@ function howToSearch(regions, exs) {
                 h(
                   "tr",
                   {},
-                  h("td", {}, h("a", { href: `#/search?region=${encodeURIComponent(r.key)}` }, bare(r.label)), r.note && h("div", { style: "color:var(--muted);font-size:12px" }, r.note)),
+                  h(
+                    "td",
+                    { style: `padding-left:${8 + depth(r) * 16}px` },
+                    h("a", { href: `#/search?region=${encodeURIComponent(r.key)}` }, bare(r.label)),
+                    r.note && h("div", { style: "color:var(--muted);font-size:12px" }, r.note),
+                  ),
                   h("td", {}, kinds[r.kind] || r.kind),
                   h("td", { class: "num" }, fmt(r.countries.length)),
                   h("td", {}, h("a", { href: r.url, target: "_blank", rel: "noopener noreferrer" }, r.source)),
-                  h("td", {}, r.kind === "geographic" ? "\u2014" : r.as_of || "\u2014"),
+                  h("td", {}, r.as_of || "\u2014"),
                   h("td", {}, r.checked),
                 ),
               ),
@@ -1082,7 +1170,7 @@ async function aboutView() {
   render(loading());
   let m, cats, regions, exs;
   try {
-    [m, cats, regions, exs] = await Promise.all([meta(), api("/v1/categories"), api("/v1/regions").catch(() => []), examples()]);
+    [m, cats, regions, exs] = await Promise.all([meta(), api("/v1/categories"), regionList(), examples()]);
   } catch (e) {
     return render(failure(e));
   }

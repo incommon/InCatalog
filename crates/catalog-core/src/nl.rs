@@ -1879,6 +1879,66 @@ mod tests {
         assert_eq!(i.params.region.as_deref(), Some("eea"));
     }
 
+    /// Every region's label and aliases read as that region, alone and in a query.
+    #[test]
+    fn every_region_reads_by_its_label_and_aliases() {
+        let v = vocab();
+        for r in REGIONS.iter() {
+            for name in
+                std::iter::once(r.label.as_str()).chain(r.aliases.iter().map(String::as_str))
+            {
+                for q in [name.to_owned(), format!("wikis in {name}")] {
+                    let i = v.interpret(&q);
+                    assert_eq!(i.params.region.as_deref(), Some(r.key.as_str()), "{q:?}");
+                    assert_eq!(
+                        i.params.q.as_deref(),
+                        Some("wikis").filter(|_| q != name),
+                        "{q:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn regions_by_the_names_people_use() {
+        let v = vocab();
+        for (q, region) in [
+            ("services in South America", "south-america"),
+            ("Central American universities", "central-america"),
+            ("services in Central America", "central-america"),
+            ("South Asian journals", "southern-asia"),
+            ("services in Central Asia", "central-asia"),
+            ("Caribbean libraries", "caribbean"),
+            ("universities in the Middle East", "middle-east"),
+            ("services in the Balkans", "balkans"),
+            ("Western Balkans universities", "western-balkans"),
+            ("CEE universities", "central-and-eastern-europe"),
+            (
+                "services in central and eastern europe",
+                "central-and-eastern-europe",
+            ),
+            ("Scandinavian libraries", "scandinavia"),
+            ("the Nordics", "nordic-council"),
+            ("services in the Baltics", "baltic-states"),
+            ("Pacific Islands services", "pacific-islands"),
+            ("services in the Horn of Africa", "horn-of-africa"),
+            ("Sahel research", "sahel"),
+            ("universities in the Maghreb", "maghreb"),
+            ("the arab maghreb union", "amu"),
+            ("west asian journals", "western-asia"),
+            ("Polynesian services", "polynesia"),
+            ("SAARC countries", "saarc"),
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.region.as_deref(), Some(region), "{q}");
+        }
+        // M49's Southern Asia includes Iran, and the reading says so.
+        let i = v.interpret("services in South Asia");
+        assert_eq!(i.params.region.as_deref(), Some("southern-asia"));
+        assert!(i.notes.iter().any(|n| n.contains("Iran")), "{:?}", i.notes);
+    }
+
     #[test]
     fn ambiguous_place_names_say_how_they_were_read() {
         let v = vocab();
