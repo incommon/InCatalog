@@ -98,7 +98,7 @@ and on every push to `develop` and `main`. **A red build blocks merge — no exc
 | Check | What it does | Runs |
 |---|---|---|
 | `fmt / clippy / test / coverage` | `cargo fmt --check`, `clippy -D warnings`, `cargo test`, coverage gates | Rust-relevant changes; reports on every PR |
-| `terraform fmt / validate` | `fmt -check`, `validate` with `-lockfile=readonly`, at `.terraform-version` | Always |
+| `terraform fmt / validate` | OpenTofu `fmt -check`, `validate` with `-lockfile=readonly`, at `.opentofu-version` | Always |
 | `license policy / third-party notices` | `cargo deny check licenses`; the third-party notices generate | Always |
 | `release notes / version` | On a PR into `main`: `CHANGELOG.md` has a dated section for the `Cargo.toml` version, and that version is not tagged yet (§ Versioning) | Always; checks only PRs into `main` |
 
@@ -118,6 +118,11 @@ Two rules for anyone editing `ci.yml`:
   `main`'s branch protection.
 - **Never convert it to a workflow-level `paths:` filter.** A required check that never
   reports leaves the PR permanently unmergeable.
+- **The OpenTofu job is still named `terraform fmt / validate`,** the name `main`'s
+  branch protection requires. Renaming it needs that protection changed in the same
+  change. It installs `tofu` from the release with a checksum pinned in `ci.yml`
+  (the org's Actions policy blocks `opentofu/setup-opentofu`), so bumping
+  `.opentofu-version` means bumping that checksum too.
 
 `make lint` and `make test` run the same checks locally.
 
@@ -144,10 +149,10 @@ One `linux/arm64` image runs both Lambda functions. `.github/workflows/build-ima
 builds it on a native arm64 runner, runs the smoke test, and pushes it to ECR:
 
 - **Push to `develop`** → pushes `:<sha>`. Nothing deploys.
-- **Run workflow** (manual) → also moves `:latest`. Terraform deploys the digest
-  `:latest` points at, so the next `terraform apply` ships it.
+- **Run workflow** (manual) → also moves `:latest`. OpenTofu deploys the digest
+  `:latest` points at, so the next `tofu apply` ships it.
 
-It authenticates **keyless via GitHub OIDC**, assuming the role Terraform creates when
+It authenticates **keyless via GitHub OIDC**, assuming the role OpenTofu creates when
 `github_oidc_provider_arn` is set, scoped to this repository's `dev` GitHub Environment.
 That environment holds two variables: `AWS_ROLE_ARN` (the `github_image_push_role_arn`
 output) and `ECR_REPOSITORY`. Until both are set the workflow builds and tests but does

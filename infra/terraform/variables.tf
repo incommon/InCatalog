@@ -42,7 +42,7 @@ variable "site_domain" {
 }
 
 variable "site_zone" {
-  description = "Route 53 public hosted zone in this account that holds site_domain. Terraform validates the certificate and adds the alias records there."
+  description = "Route 53 public hosted zone in this account that holds site_domain. OpenTofu validates the certificate and adds the alias records there."
   type        = string
   default     = ""
 }
