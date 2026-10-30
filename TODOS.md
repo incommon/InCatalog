@@ -289,3 +289,69 @@ run's `Deadline`.
   - NL turning the filter off
   - the chip's dead and alive classes, including under reduced motion
   - the private findings never reaching the public snapshot
+
+## WCAG 2.2 AA as a standing CI check, with a VPAT kept current
+
+Make WCAG 2.2 Level AA something CI checks on every change to the site, not a one-off
+audit. Keep the result as an Accessibility Conformance Report (ACR) on ITI's VPAT
+template (the WCAG edition), in the repository and linked from the About page. Nothing
+checks accessibility today, and `web/` has no build or Node tooling.
+
+- **Automated tools find only some failures.** Most criteria need a person: whether
+  alt text is meaningful, whether focus order makes sense, how a screen reader reads a
+  card. So the check has two halves. An automated scan fails CI on what tools can
+  detect. The ACR records each criterion's conformance level, how it was tested
+  (automated rule IDs or a manual procedure), and the date. Check axe's own figure for
+  how much it catches before quoting one.
+- **The automated scan.** Use axe-core with its WCAG 2.2 AA tags, through Playwright,
+  against `catalog-api` serving a fixture snapshot, so the run never fetches live
+  metadata and gives the same answer every time.
+  - Pin the Node tooling in its own directory (for example `tests/a11y/`), with a
+    lockfile. It never ships in the image.
+  - Add it to Dependabot, and give its licenses the same review `deny.toml` gives
+    crates.
+  - The org allows only GitHub-owned and verified-creator Actions, so install with
+    `actions/setup-node` and `npm ci`, not a third-party axe Action.
+- **What it scans.** Scan each page and the states that matter, in light and dark mode,
+  at desktop width and at 320 CSS px (reflow, 1.4.10):
+  - the landing globe
+  - results with facets expanded and "+ N more" opened
+  - a service page, a provider page and a federation page
+  - the About page
+  - the chip markings: the red outline, alive and dead, and OFAC
+  - the floating key, open and collapsed
+
+  Add keyboard-only Playwright tests that tab through each page. They check that every
+  control can be reached and operated, and that the floating key never covers the
+  focused element (2.4.11, Focus Not Obscured).
+- **Criteria the planned work runs into.** Settle these in the TODOs that add them,
+  not after:
+  - **Pause, Stop, Hide (2.2.2).** The dead services' pulsing border and the landing
+    globe both move. Honoring `prefers-reduced-motion` may not be enough on its own,
+    so give the page a control that stops animation, for example in the floating key.
+  - **Three flashes (2.3.1).** Keep the pulse well under the flash thresholds.
+  - **Target size (2.5.8).** Chips, facet buttons and "+ N more" need a 24×24 CSS px
+    target, or the spacing that exception allows.
+  - **Contrast (1.4.3, 1.4.11).** Check every marking's colors as a pair in both
+    themes: the red outline, the white-black border and the amber stripe.
+- **It reports on every PR, so it can be required.** Follow the `rust-gate` pattern: a
+  change-detection step decides whether `web/`, the fixture or the scan changed, and a
+  gate job with a fixed name always reports. Never use a workflow-level `paths:`
+  filter. Pushes to `develop` and `main` always run it, and a weekly scheduled run also
+  scans the deployed site, as the security audit does. Once it is stable, add it to
+  `main`'s branch protection, and update CONTRIBUTING's CI table and its rules.
+- **Ratchet, don't block on day one.** The first run will find existing failures. Fix
+  them, or list each in a known-failures file with the rule, the page, a reason and a
+  re-review date, the way `deny.toml` ignores advisories. A new failure fails CI, and
+  so does a listed one past its date. The list only shrinks, like the coverage gate.
+- **The ACR stays current.** Each criterion's entry carries the date it was last
+  checked, and a test fails once any is more than a year old, as `regions.json`'s do.
+  A criterion marked "Supports" while the scan reports a failure under it fails CI.
+  Manual checks follow a written procedure in the repository: keyboard only,
+  VoiceOver and NVDA, and 200% and 400% zoom. The ACR's date and version match the
+  release it describes.
+- **`make a11y`** runs the scan locally, like `make test`.
+- **Tests of the check itself.** A deliberately broken fixture page (an image with no
+  alt text, low-contrast text, a focus trap) must fail the scan, so a misconfigured
+  run can't pass by scanning nothing. Also test that the gate fails when change
+  detection fails, as `rust-gate` does.
