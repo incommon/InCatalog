@@ -82,3 +82,29 @@ working name. These must change together, as a planned migration:
 - **The `catabasis-*` ARNs** in `infra/deploy-policy.json`. Update the policy in IAM
   wherever it is attached, before the first deploy under the new names, or deploys lose
   permission.
+
+## Finish removing Terraform's name from the OpenTofu setup
+
+OpenTofu has applied the stack since #35. Some references still say Terraform. Do the
+first two in one PR into `develop`, and the third separately, later:
+
+- **One stale comment.** `crates/catalog-claude/src/lib.rs` says "Terraform state". Under
+  `crates/`, so the PR runs the Rust suite.
+- **`infra/terraform/` → `infra/opentofu/`**, as hyperdrive did. About 20 references
+  change: Makefile, README, TODOS, CONTRIBUTING, `ci.yml`, `build-images.yml`,
+  `infra/state-bucket.sh`, `web/config.js` and `.dockerignore`. Nothing changes in AWS,
+  since the backend settings stay the same, but every checkout runs `make init` again.
+  The `web/config.js` edit starts an image build on `develop` (a push, no deploy).
+- **The CI job `terraform fmt / validate` → `tofu fmt / validate`.** `main`'s branch
+  protection requires the job by its exact name, so the timing matters. The rename
+  reaches `develop` first, while `main` keeps the old job until the next release merges.
+  Switch the protection while the next release PR into `main` is open, after its CI has
+  reported the new name. Switched earlier, a hotfix PR into `main` would wait forever
+  for a check that never reports; switched later, the release PR would. Then update
+  CONTRIBUTING's CI table and its rule about this name.
+
+Leave alone: `.terraform/`, `.terraform.lock.hcl`, the `terraform {}` block and the
+`terraform_version` key that `make tofu-version` parses, which are OpenTofu's own names.
+Also leave the state key `catabasis/terraform.tfstate` (move it only with the AWS rename
+above, which moves the state anyway), past CHANGELOG entries, and the "never run
+`terraform`" warnings.
