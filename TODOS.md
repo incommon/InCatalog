@@ -355,3 +355,73 @@ checks accessibility today, and `web/` has no build or Node tooling.
   alt text, low-contrast text, a focus trap) must fail the scan, so a misconfigured
   run can't pass by scanning nothing. Also test that the gate fails when change
   detection fails, as `rust-gate` does.
+
+## Center logos and fill their tiles, with a small even margin
+
+Every logo should sit centered in its tile and fill it as fully as its shape allows,
+with only a small, even margin around the artwork. Two examples to start from:
+- **Penn State.** Its metadata logos are broken, so its cards show `psu-mark.svg`,
+  which the logo fetcher found on psu.edu.
+- **Data Intensive Research Initiative of South Africa (DIRISA)**
+  (`https://dirisa.ac.za/dirisa-sp`, registered by SAFIRE). Its only logo is a
+  649×240 metadata PNG served from SAFIRE's MDUI cache, a wordmark about 2.7 times as
+  wide as it is tall. It works, so the website lookup never runs for it.
+
+The tile already centers the image (`.logo img` in `web/styles.css`: `object-fit:
+contain` inside a 4px inset). So a logo that looks small or off-center has the problem
+inside the file:
+- **Built-in margins.** Transparent or white space baked into the image makes the
+  mark small, and lopsided when the space is uneven.
+- **SVG geometry.** A `viewBox` larger than the artwork does the same. So do `width`
+  and `height` that don't match the `viewBox`'s shape, combined with a
+  `preserveAspectRatio` such as `xMinYMid`, which pins the artwork to one side.
+- **Wide wordmarks.** A 456×150 banner in a 40px square can only fill a third of it.
+
+The fix:
+- **Measure the artwork at ingest.** `check_image` in `catalog-ingest/src/logos.rs`
+  already downloads each logo, up to 1 MiB, but `sniff` reads only its size. Decode
+  rasters (PNG, JPEG, GIF, WebP, ICO) and find the bounding box of pixels that aren't
+  background. Background is alpha below a threshold, or a near-uniform color along
+  the border, usually white. For SVG, read the root's `viewBox`, `width`, `height`
+  and `preserveAspectRatio`, and render it to find the artwork's box.
+  - SVG comes from thousands of registrants, so render with no external references or
+    fonts fetched, and cap the size and time.
+  - New crates need `deny.toml`'s license review.
+- **Store the box, not a new image.** Store the box on `Logo` and `DiscoveredLogo`, as
+  fractions of the image's own size, and in `logo-cache.json`. Bump the cache's schema
+  so existing entries are measured once. The site keeps loading the logo from its own
+  URL, so nothing about rights, hosting or the CSP changes.
+- **Crop and fit in the front end.** `logoEl` gets the box and positions the `<img>`
+  inside the tile's `overflow: hidden`: scale the box to fit the tile minus the
+  margin, center it, and offset the image so the box lands in the middle. Keep that
+  arithmetic in one small pure function. `object-view-box` would do it in CSS, but
+  not every browser supports it.
+- **The margin.** Make it one value, a share of the tile (about 8% to 10%), so the
+  40px card tile and the 64px service-page tile look alike. A logo with a full-bleed
+  opaque background, such as a colored square, fills the tile edge to edge, clipped by
+  its rounded corners, rather than floating in white.
+- **Prefer a mark that fits the tile.**
+  - **Among metadata logos.** `best_logo` in `catalog-core/src/search.rs` picks the
+    largest area, which favors a wide banner over a square mark. Rank instead by how
+    large the measured artwork would render in the tile, among logos big enough to
+    look sharp.
+  - **From the website lookup.** When it finds both a square mark and a wide
+    wordmark, prefer the square one. Say so in the candidate list Claude picks from,
+    and check the shape after the pick, as the size is checked now.
+  - **When the only working logo is wide, as DIRISA's is.** Decide whether to also run
+    the website lookup for a square mark. A working metadata logo always wins today,
+    because it is the registrant's own choice. Whatever is decided, crop DIRISA's
+    PNG to its artwork, so the wordmark is at least as large as its shape allows.
+- **No box, no change.** A logo that couldn't be measured renders as today.
+- **Tests.**
+  - Fixtures: a PNG with transparent margins, one with white margins, artwork off to
+    one side, an SVG with a padded `viewBox`, an SVG with `xMinYMid` and mismatched
+    dimensions, a wide wordmark, a full-bleed opaque square, and an image that is all
+    background.
+  - Ingest: the stored box for each fixture, and an SVG with external references and
+    an oversized SVG both refused safely.
+  - Front end: the positioning function for each fixture, once the Playwright setup
+    from the WCAG TODO exists.
+  - `best_logo` choosing a square metadata mark over a larger wide banner.
+  - Visual: a contact sheet of real logos (Penn State's and DIRISA's among them) in
+    both tile sizes, to check by eye before and after.
