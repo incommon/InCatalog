@@ -100,6 +100,12 @@ variable "github_repository" {
   default     = "incommon/InCatalog"
 }
 
+variable "github_subject_prefix" {
+  description = "The start of the OIDC token's `sub` claim for github_repository, before \":environment:\". Empty means \"repo:<github_repository>\". A repository on GitHub's immutable subjects sends \"repo:<owner>@<owner id>/<name>@<repo id>\" instead (gh api repos/<owner>/<name>/actions/oidc/customization/sub shows it)."
+  type        = string
+  default     = ""
+}
+
 variable "github_environment" {
   description = "The GitHub Environment the image build runs in. The push role trusts only that environment's jobs."
   type        = string
