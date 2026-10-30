@@ -57,8 +57,8 @@ metadata filtering report.
   The service page states the reason, with a link to the report and its date.
 - **Red outline on their chips.** Outline these services' chips and cards in red. Define
   the red as a theme token that also works in dark mode. Don't rely on color alone:
-  add a text label or icon and an accessible name, and explain the red in the legend
-  or on the About page.
+  add a text label or icon and an accessible name, and explain the red in the floating
+  key and on the About page.
 - **Tests.** Parsing the report, joining it to entities by entityID, the category and
   facet counts, the chip styling class, and an entity with no matching reason.
 
@@ -95,12 +95,54 @@ country-wide programs, and those whose organization may be on OFAC's lists.
 - **Not a compliance check.** The About page and each label say that this is a pointer
   to OFAC's own lists, as of a date, and not sanctions screening or legal advice.
   Link OFAC's search tool for anyone who needs an answer.
+- **A marginally menacing chip and card for OFAC entities.** Make it noticeable at a
+  glance and a little ominous, without looking like an alarm. For example, a near-black
+  fill with a thin amber hazard-stripe edge, and a small warning glyph. It has to stay
+  distinct from the other markings, so no red (InCommon-filtered) and no motion (dead
+  services' pulsing border). Make its colors theme tokens that work in dark mode.
+  - **Only a confirmed match gets the full style.** A possible match is a name
+    collision until curation confirms it, so it gets only a quiet mark (the glyph, no
+    stripe or dark fill). Services merely in an OFAC country get neither.
+  - **Not by color alone.** Add a text label ("On OFAC's SDN list, confirmed <date>"
+    or "Possible OFAC match") and an accessible name, and explain both in the
+    floating key (see below).
+  - **Settle combinations.** Say how it sits with the dead border and the red outline
+    when a chip has more than one.
 - **API and NL.** Add the API filter and an OpenAPI entry, and NL phrasings ("services
   in OFAC countries", "sanctioned countries"), resolved to the OFAC grouping, so the
   word "sanctioned" never searches service text.
 - **Tests.** Parsing both lists, a program that covers part of a country, the shorter
   `checked` limit, a name collision that stays a possible match, the curation overlay
-  confirming and dismissing a match, and that no individual's entry is ever matched.
+  confirming and dismissing a match, that no individual's entry is ever matched, and
+  the chip's classes for a confirmed match, a possible match and an OFAC-country
+  service.
+
+## A floating key to the chips' markings, in the lower right of the chip view
+
+The service chips and cards are gaining markings: the red outline for services
+InCommon filtered from its import, the alive indicator and the dead services' pulsing
+white-black border, and the OFAC style. Each TODO says to explain its marking in a
+legend. Make that one legend: a key floating in the lower-right corner of the chip
+view (the `.grid` of `serviceCard`s in `web/app.js`, on the results page and on the
+provider and federation pages).
+
+- **What it lists.** One row per marking: a small sample swatch drawn with the same
+  classes as the chips, so the two can't drift, a short label, and a link to the
+  About page's longer explanation. List only the markings on the chips currently
+  shown, and hide the key when there are none. A new marking adds its row as part of
+  its own change.
+- **Where it floats.** Pin it to the lower right of the chip view, not the window, so it
+  never covers the facets. Leave room under the last row of chips so the key never
+  hides one, nor the paging controls.
+- **It can be collapsed.** It can collapse to a small "Key" button. Remember the choice
+  in the browser (`localStorage`, wrapped in try/catch, defaulting to open when
+  storage is unavailable). On narrow screens, start collapsed.
+- **Accessible.** A labelled region with a heading, reachable by keyboard, with each
+  swatch's meaning in text. Under `prefers-reduced-motion`, show the dead border's
+  static version, as the chips do. Both themes.
+- **Tests.** The key lists exactly the markings present on the page, hides when there
+  are none, doesn't cover the last chip, keeps its collapsed state across reloads, and
+  swatches use the chips' own classes.
 
 ## Rename the AWS resources from `catabasis` to `incatalog`
 
@@ -232,7 +274,7 @@ run's `Deadline`.
   a static alternating white-black border instead, as `network.js` already respects
   that setting. Don't rely on the border alone: add the text label "unreachable from
   InCatalog since <date>" and an accessible name, and explain the border in the
-  legend or on the About page. Settle how it sits with the red outline from the
+  floating key and on the About page. Settle how it sits with the red outline from the
   InCommon-filtered TODO when a chip has both.
 - **Report it.** The ingest report counts services alive, dead and unknown, and each
   kind of failure.
