@@ -76,6 +76,13 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    # Both keep target/, and so the cache, small. Incremental state is never
+    # reused between CI runs, and full debug info is most of a debug build's
+    # size; line tables keep file:line in panics and backtraces. Neither
+    # changes what is compiled, tested or measured.
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v7
 
@@ -87,22 +94,54 @@ jobs:
           rustup show
           rustup component add llvm-tools-preview
 
-      # BEFORE the cache restore: the cache saved at the end of a successful run
-      # contains the instrumented llvm-cov target directory too, and restoring it
-      # on a fresh runner can overflow the disk before any step runs. That
-      # failure is invisible — the runner dies writing its own log, leaving only
-      # "No space left on device" in the run's annotations.
-      - name: Free up disk space
+      # BEFORE the cache restore, which unpacks target/ (the instrumented
+      # llvm-cov build included) onto the runner's disk. Running out of room
+      # there is invisible: the runner dies writing its own log, leaving only
+      # "No space left on device" in the run's annotations. Deleting the
+      # preinstalled SDKs takes 2-4 minutes, so it happens only when the runner
+      # is short of room; the hosted runners usually have far more than this
+      # job uses (85 GB free on 2026-10-30). The job used about 5 GB then: a
+      # 3.9 GB target/ with both builds, 0.4 GB of registry, and the 1 GB
+      # archive while it unpacks. NEED_GB is three times that. If target/
+      # grows, raise it.
+      - name: Make sure there is disk space
+        env:
+          NEED_GB: 15
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+          set -euo pipefail
+          avail_gb() { df --output=avail -BG / | tail -1 | tr -dc '0-9'; }
+          df -h /
+          if [ "$(avail_gb)" -ge "$NEED_GB" ]; then
+            echo "$(avail_gb) GB free; no cleanup needed."
+            exit 0
+          fi
+          echo "Under $NEED_GB GB free; deleting preinstalled SDKs this job does not use."
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
             /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
           df -h /
+          if [ "$(avail_gb)" -lt "$NEED_GB" ]; then
+            echo "::error::Only $(avail_gb) GB free after cleanup; the Rust suite needs $NEED_GB GB."
+            exit 1
+          fi
 
       # The org allows only GitHub-owned and verified-creator actions, so this is
       # actions/cache rather than a Rust-specific cache action. ~/.cargo/bin
       # holds cargo-llvm-cov between runs (but not cargo's install records, so
       # the install step checks the version itself).
-      - uses: actions/cache@v6
+      #
+      # Restore and save are separate steps so that only pushes to develop and
+      # main save (the last step). A PR's cache is visible to that PR alone, and
+      # saving one after a Cargo.lock change costs minutes; every PR restores
+      # its base branch's instead. Pushes restore the exact key only: after a
+      # Cargo.lock change they build from scratch and save a clean target/,
+      # where falling back to the previous key would carry its stale builds
+      # into the new cache, which would then only ever grow.
+      #
+      # Keep the path list identical in both steps. The key's "v2" stands for
+      # the job's CARGO_* env; change it when that env changes what target/ holds.
+      - name: Restore cache
+        id: cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/bin/cargo-llvm-cov
@@ -110,8 +149,8 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: rust-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
-          restore-keys: rust-${{ runner.os }}-
+          key: rust-v2-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: ${{ github.event_name == 'pull_request' && format('rust-v2-{0}-', runner.os) || '' }}
 
       - name: Format
         run: cargo fmt --all --check
@@ -155,6 +194,18 @@ jobs:
             --fail-under-lines "$lines" \
             --fail-under-regions "$regions" \
             --fail-under-functions "$functions"
+
+      - name: Save cache
+        if: github.event_name == 'push' && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-llvm-cov
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
 
   # The branch-protection check. Its NAME is what `main` requires, so it must
   # not be renamed without updating branch protection. It always runs, so the
