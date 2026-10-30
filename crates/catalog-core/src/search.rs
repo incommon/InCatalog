@@ -751,7 +751,7 @@ impl Catalog {
         let mut hits: Vec<&Provider> = self
             .providers
             .iter()
-            .filter(|p| p.service_count > 0 && tokens.iter().all(|t| p.search.contains(t.as_str())))
+            .filter(|p| p.service_count > 0 && tokens.iter().all(|t| t.found_in(&p.search)))
             .collect();
         match q.sort.as_deref() {
             Some("name") => hits.sort_by(|a, b| a.search.cmp(&b.search)),
@@ -1025,9 +1025,8 @@ impl Dim {
 }
 
 struct Filters {
-    /// Query words, stemmed, each with a leading space so `contains` means "a word
-    /// starts with this".
-    tokens: Vec<String>,
+    /// Query words (see [`Token`]).
+    tokens: Vec<Token>,
     /// The whole query, normalized, for the exact-phrase bonus.
     phrase: String,
     /// How many tokens must match.
@@ -1132,10 +1131,7 @@ impl Filters {
             .tokens
             .iter()
             .map(|t| {
-                let df = entries
-                    .iter()
-                    .filter(|e| e.blob.contains(t.as_str()))
-                    .count() as f64;
+                let df = entries.iter().filter(|e| t.found_in(&e.blob)).count() as f64;
                 (((n + 1.0) / (df + 1.0)).ln() * 10.0) as u32 + 1
             })
             .collect();
@@ -1143,12 +1139,7 @@ impl Filters {
 
     fn text_match(&self, e: &Entry) -> bool {
         self.tokens.is_empty()
-            || self
-                .tokens
-                .iter()
-                .filter(|t| e.blob.contains(t.as_str()))
-                .count()
-                >= self.need
+            || self.tokens.iter().filter(|t| t.found_in(&e.blob)).count() >= self.need
     }
 
     fn matches(&self, c: &Catalog, i: usize, except: Option<Dim>) -> bool {
@@ -1260,16 +1251,16 @@ impl Filters {
             score += 100;
         }
         for (t, w) in self.tokens.iter().zip(&self.weights) {
-            if e.blob.contains(t.as_str()) {
+            if t.found_in(&e.blob) {
                 score += w * 2;
             }
-            if e.name_n.contains(t.as_str()) {
+            if t.found_in(&e.name_n) {
                 score += w;
             }
-            if e.org_n.contains(t.as_str()) {
+            if t.found_in(&e.org_n) {
                 score += w / 2;
             }
-            if e.keywords_n.contains(t.as_str()) {
+            if t.found_in(&e.keywords_n) {
                 score += w;
             }
         }
@@ -1302,24 +1293,42 @@ const FILLER: &[&str] = &[
     "a", "an", "the", "of", "for", "and", "or", "to", "in", "on", "at", "by", "with", "from",
 ];
 
-fn tokens(q: Option<&str>) -> Vec<String> {
-    let words: Vec<String> = normalize(q.unwrap_or(""))
-        .split_whitespace()
-        .map(stem)
-        .collect();
-    let content: Vec<&String> = words
+/// One query word, matched against normalized text.
+#[derive(Debug, PartialEq)]
+struct Token {
+    /// The word as typed, with a leading space: matches the start of a word.
+    prefix: String,
+    /// Its singular, space on both sides: matches only that whole word, so
+    /// "journals" finds "journal" but "physics" does not find "physicians".
+    singular: Option<String>,
+}
+
+impl Token {
+    fn new(word: &str) -> Self {
+        Self {
+            prefix: format!(" {word}"),
+            singular: singular(word).map(|s| format!(" {s} ")),
+        }
+    }
+
+    fn found_in(&self, text: &str) -> bool {
+        text.contains(&self.prefix) || self.singular.as_ref().is_some_and(|s| text.contains(s))
+    }
+}
+
+fn tokens(q: Option<&str>) -> Vec<Token> {
+    let normalized = normalize(q.unwrap_or(""));
+    let words: Vec<&str> = normalized.split_whitespace().collect();
+    let content: Vec<&str> = words
         .iter()
-        .filter(|w| !FILLER.contains(&w.as_str()))
+        .copied()
+        .filter(|w| !FILLER.contains(w))
         .collect();
     // A query made only of filler ("the who") is searched as typed.
-    let keep: Vec<&String> = if content.is_empty() {
-        words.iter().collect()
-    } else {
-        content
-    };
-    let mut out: Vec<String> = Vec::new();
+    let keep = if content.is_empty() { words } else { content };
+    let mut out: Vec<Token> = Vec::new();
     for w in keep {
-        let t = format!(" {w}");
+        let t = Token::new(w);
         if !out.contains(&t) {
             out.push(t);
         }
@@ -1355,15 +1364,15 @@ pub(crate) fn normalize(s: &str) -> String {
     out
 }
 
-/// Just enough stemming that "journals" finds "journal" and "libraries" finds
-/// "library". Tokens match word beginnings, so a shorter stem only widens.
-fn stem(t: &str) -> String {
+/// Just enough singularizing that "journals" finds "journal" and "libraries"
+/// finds "library". `None` when the word does not look plural.
+fn singular(t: &str) -> Option<String> {
     if t.len() > 4 && t.ends_with("ies") {
-        t[..t.len() - 3].to_owned()
+        Some(format!("{}y", &t[..t.len() - 3]))
     } else if t.len() > 3 && t.ends_with('s') && !t.ends_with("ss") && !t.ends_with("us") {
-        t[..t.len() - 1].to_owned()
+        Some(t[..t.len() - 1].to_owned())
     } else {
-        t.to_owned()
+        None
     }
 }
 
@@ -1549,6 +1558,53 @@ mod tests {
         assert_eq!(
             split_list(Some(" INCOMMON, SWAMID,,INCOMMON ")),
             vec!["INCOMMON", "SWAMID"]
+        );
+    }
+
+    #[test]
+    fn plurals_find_the_singular_word_but_not_longer_words() {
+        let svc = |id: &str, description: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: crate::entity_hash(id),
+                ..Default::default()
+            };
+            s.display_names.insert("en".into(), id.into());
+            s.descriptions.insert("en".into(), description.into());
+            s
+        };
+        let c = Catalog::new(Snapshot {
+            services: vec![
+                svc("https://aip/", "Publisher of physics journals"),
+                svc("https://nejm/", "A journal for physicians"),
+                svc("https://clinic/", "Booking for the clinic"),
+                svc("https://library/", "The university library"),
+                svc("https://librarian/", "Tools for librarians"),
+            ],
+            ..Default::default()
+        });
+        let hits = |q: &str| {
+            let mut ids: Vec<String> = c
+                .search(&ServiceQuery {
+                    q: Some(q.into()),
+                    ..Default::default()
+                })
+                .items
+                .into_iter()
+                .map(|s| s.entity_id)
+                .collect();
+            ids.sort();
+            ids
+        };
+        assert_eq!(hits("physics journals"), vec!["https://aip/"]);
+        assert_eq!(hits("journals"), vec!["https://aip/", "https://nejm/"]);
+        assert_eq!(hits("clinics"), vec!["https://clinic/"]);
+        assert_eq!(hits("libraries"), vec!["https://library/"]);
+        // A word as typed still matches the start of longer words.
+        assert_eq!(hits("physic"), vec!["https://aip/", "https://nejm/"]);
+        assert_eq!(
+            hits("librar"),
+            vec!["https://librarian/", "https://library/"]
         );
     }
 
