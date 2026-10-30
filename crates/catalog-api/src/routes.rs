@@ -324,8 +324,10 @@ async fn federations(State(s): St) -> Json<Vec<FederationView>> {
     Json(s.catalog().await.federations())
 }
 
-/// Regions a search can name: UN M49 geographic regions and dated political
-/// groupings (the EU, the EEA, BRICS), each with its countries and service count.
+/// Regions a search can name: UN M49 geographic regions (each sub-region with
+/// its `parent`, so they form a tree under the continents), regions by common
+/// name (the Middle East, the Balkans), and dated political groupings (the EU, the
+/// EEA, BRICS), each with its countries and service count.
 /// A federation that lists several countries is in a region when any of them is.
 #[utoipa::path(get, path = "/v1/regions", responses((status = 200, body = Vec<RegionView>)))]
 async fn regions(State(s): St) -> Json<Vec<RegionView>> {
@@ -692,6 +694,43 @@ mod tests {
                 .clone();
             assert_eq!(param["schema"]["type"], "array", "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn every_region_is_reachable_by_its_key() {
+        use catalog_core::regions::REGIONS;
+        let (_, listed) = get_json_from(two_federations_with_countries(), "/v1/regions").await;
+        let listed = listed.as_array().unwrap();
+        assert_eq!(listed.len(), REGIONS.len());
+        for r in REGIONS.iter() {
+            let path = format!("/v1/services?region={}&per_page=1", r.key);
+            let (st, page) = get_json_from(two_federations_with_countries(), &path).await;
+            assert_eq!(st, StatusCode::OK, "{path}");
+            assert_eq!(page["regions"][0]["key"], r.key.as_str(), "{path}");
+            assert!(!page["regions"][0]["countries"]
+                .as_array()
+                .unwrap()
+                .is_empty());
+            let view = listed.iter().find(|v| v["key"] == r.key.as_str()).unwrap();
+            assert_eq!(
+                view["parent"],
+                serde_json::json!(r.parent().map(|p| p.key.clone()))
+            );
+        }
+        let south = listed.iter().find(|v| v["key"] == "south-america").unwrap();
+        assert_eq!(south["parent"], "latin-america");
+        let me = listed.iter().find(|v| v["key"] == "middle-east").unwrap();
+        assert_eq!(
+            (&me["kind"], &me["parent"]),
+            (&"common".into(), &serde_json::Value::Null)
+        );
+
+        let (_, spec) = get_json("/openapi.json").await;
+        let kinds = &spec["components"]["schemas"]["RegionKind"]["enum"];
+        assert!(
+            kinds.as_array().unwrap().contains(&"common".into()),
+            "{kinds}"
+        );
     }
 
     fn two_federations_with_countries() -> Router {

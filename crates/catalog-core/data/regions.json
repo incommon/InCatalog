@@ -5,8 +5,8 @@
    "key": "africa",
    "label": "Africa",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "african",
@@ -21,12 +21,13 @@
    "key": "northern-africa",
    "label": "Northern Africa",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "north africa",
-    "north african"
+    "north african",
+    "northern african"
    ],
    "countries": [
     "DZ",
@@ -42,8 +43,8 @@
    "key": "sub-saharan-africa",
    "label": "Sub-Saharan Africa",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "subsaharan africa",
@@ -60,12 +61,13 @@
    "key": "eastern-africa",
    "label": "Eastern Africa",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "east africa",
-    "east african"
+    "east african",
+    "eastern african"
    ],
    "countries": [
     "IO",
@@ -96,8 +98,8 @@
    "key": "middle-africa",
    "label": "Middle Africa",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "central africa",
@@ -119,9 +121,12 @@
    "key": "southern-africa",
    "label": "Southern Africa",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
+   "aliases": [
+    "southern african"
+   ],
    "countries": [
     "BW",
     "SZ",
@@ -134,12 +139,13 @@
    "key": "western-africa",
    "label": "Western Africa",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Africa",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "west africa",
-    "west african"
+    "west african",
+    "western african"
    ],
    "countries": [
     "BJ",
@@ -165,8 +171,8 @@
    "key": "americas",
    "label": "the Americas",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "the americas",
@@ -181,8 +187,8 @@
    "key": "northern-america",
    "label": "Northern America",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "north america",
@@ -201,8 +207,8 @@
    "key": "latin-america",
    "label": "Latin America and the Caribbean",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "latin america",
@@ -219,11 +225,13 @@
    "key": "caribbean",
    "label": "the Caribbean",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
-    "caribbean"
+    "caribbean",
+    "the caribbean",
+    "caribbean islands"
    ],
    "countries": [
     "AI",
@@ -260,8 +268,8 @@
    "key": "central-america",
    "label": "Central America",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "central american"
@@ -281,8 +289,8 @@
    "key": "south-america",
    "label": "South America",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_the_Americas",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "south american"
@@ -310,8 +318,8 @@
    "key": "asia",
    "label": "Asia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "asian"
@@ -328,8 +336,8 @@
    "key": "central-asia",
    "label": "Central Asia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "central asian"
@@ -346,12 +354,13 @@
    "key": "eastern-asia",
    "label": "Eastern Asia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "east asia",
-    "east asian"
+    "east asian",
+    "eastern asian"
    ],
    "countries": [
     "CN",
@@ -367,14 +376,16 @@
    "key": "south-eastern-asia",
    "label": "South-eastern Asia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "southeast asia",
     "south-east asia",
     "south east asia",
-    "southeast asian"
+    "southeast asian",
+    "south-east asian",
+    "south east asian"
    ],
    "countries": [
     "BN",
@@ -394,8 +405,8 @@
    "key": "southern-asia",
    "label": "Southern Asia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "south asia",
@@ -411,17 +422,20 @@
     "NP",
     "PK",
     "LK"
-   ]
+   ],
+   "reading_note": "South Asia was read as UN M49's Southern Asia, which includes Iran; SAARC's eight members are South Asia without it."
   },
   {
    "key": "western-asia",
    "label": "Western Asia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
-    "west asia"
+    "west asia",
+    "west asian",
+    "western asian"
    ],
    "countries": [
     "AM",
@@ -445,31 +459,11 @@
    ]
   },
   {
-   "key": "asia-pacific",
-   "label": "Asia-Pacific",
-   "kind": "geographic",
-   "source": "Not an M49 region: the union of M49 Eastern, South-eastern, and Southern Asia and Oceania",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Asia",
-   "checked": "2026-10-29",
-   "aliases": [
-    "asia-pacific",
-    "asia pacific",
-    "apac"
-   ],
-   "reading_note": "Asia-Pacific has no standard definition; it was read as Eastern, South-eastern, and Southern Asia plus Oceania (UN M49).",
-   "regions": [
-    "eastern-asia",
-    "south-eastern-asia",
-    "southern-asia",
-    "oceania"
-   ]
-  },
-  {
    "key": "europe",
    "label": "Europe",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "european",
@@ -486,8 +480,8 @@
    "key": "eastern-europe",
    "label": "Eastern Europe",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "east europe",
@@ -511,8 +505,8 @@
    "key": "northern-europe",
    "label": "Northern Europe",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "north europe",
@@ -541,8 +535,8 @@
    "key": "southern-europe",
    "label": "Southern Europe",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "south europe",
@@ -571,8 +565,8 @@
    "key": "western-europe",
    "label": "Western Europe",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Europe",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "west europe",
@@ -594,12 +588,11 @@
    "key": "oceania",
    "label": "Oceania",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
-    "oceanian",
-    "pacific islands"
+    "oceanian"
    ],
    "regions": [
     "australia-and-new-zealand",
@@ -612,12 +605,13 @@
    "key": "australia-and-new-zealand",
    "label": "Australia and New Zealand",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
    "aliases": [
     "australasia",
-    "australia and new zealand"
+    "australia and new zealand",
+    "australasian"
    ],
    "countries": [
     "AU",
@@ -632,9 +626,12 @@
    "key": "melanesia",
    "label": "Melanesia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
+   "aliases": [
+    "melanesian"
+   ],
    "countries": [
     "FJ",
     "NC",
@@ -647,9 +644,12 @@
    "key": "micronesia",
    "label": "Micronesia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
+   "aliases": [
+    "micronesian"
+   ],
    "countries": [
     "GU",
     "KI",
@@ -659,15 +659,19 @@
     "MP",
     "PW",
     "UM"
-   ]
+   ],
+   "reading_note": "Micronesia was read as the M49 region, which includes the Federated States of Micronesia (FM)."
   },
   {
    "key": "polynesia",
    "label": "Polynesia",
    "kind": "geographic",
-   "source": "UN M49, as listed in Wikipedia's UN geoscheme articles",
-   "url": "https://en.wikipedia.org/wiki/United_Nations_geoscheme_for_Oceania",
+   "source": "UN M49 (UN Statistics Division)",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
    "checked": "2026-10-29",
+   "aliases": [
+    "polynesian"
+   ],
    "countries": [
     "AS",
     "CK",
@@ -679,6 +683,285 @@
     "TO",
     "TV",
     "WF"
+   ]
+  },
+  {
+   "key": "asia-pacific",
+   "label": "Asia-Pacific",
+   "kind": "common",
+   "source": "Not an M49 region: the union of M49 Eastern, South-eastern, and Southern Asia and Oceania",
+   "url": "https://unstats.un.org/unsd/methodology/m49/overview/",
+   "checked": "2026-10-29",
+   "aliases": [
+    "asia-pacific",
+    "asia pacific",
+    "apac"
+   ],
+   "reading_note": "Asia-Pacific has no standard definition; it was read as Eastern, South-eastern, and Southern Asia plus Oceania (UN M49).",
+   "note": "No standard definition: the union of UN M49 Eastern, South-eastern, and Southern Asia and Oceania. APEC is a different list.",
+   "regions": [
+    "eastern-asia",
+    "south-eastern-asia",
+    "southern-asia",
+    "oceania"
+   ]
+  },
+  {
+   "key": "middle-east",
+   "label": "the Middle East",
+   "kind": "common",
+   "source": "Wikipedia: countries usually considered within the Middle East",
+   "url": "https://en.wikipedia.org/wiki/Middle_East",
+   "checked": "2026-10-29",
+   "aliases": [
+    "middle east",
+    "the middle east",
+    "middle eastern",
+    "mideast"
+   ],
+   "note": "No standard definition. The 17 countries Wikipedia lists as usually included: M49 Western Asia without Armenia, Azerbaijan, and Georgia, plus Egypt and Iran. Akrotiri and Dhekelia has no ISO 3166 code. Broader uses add the Maghreb; that is not included.",
+   "countries": [
+    "BH",
+    "CY",
+    "EG",
+    "IR",
+    "IQ",
+    "IL",
+    "JO",
+    "KW",
+    "LB",
+    "OM",
+    "PS",
+    "QA",
+    "SA",
+    "SY",
+    "TR",
+    "AE",
+    "YE"
+   ]
+  },
+  {
+   "key": "central-and-eastern-europe",
+   "label": "Central and Eastern Europe",
+   "kind": "common",
+   "source": "Wikipedia: Central and Eastern Europe, Definitions",
+   "url": "https://en.wikipedia.org/wiki/Central_and_Eastern_Europe",
+   "checked": "2026-10-29",
+   "aliases": [
+    "central and eastern europe",
+    "central eastern europe",
+    "central-eastern europe",
+    "cee",
+    "cee countries",
+    "ceec",
+    "ceecs"
+   ],
+   "note": "The former Eastern Bloc west of the Soviet Union's border, the states of former Yugoslavia, and the three Baltic states, as Wikipedia defines it. Former Soviet states further east (Belarus, Moldova, Russia, Ukraine, and the Caucasus) are left out. Kosovo is listed too but has no ISO 3166 code.",
+   "countries": [
+    "AL",
+    "BA",
+    "BG",
+    "HR",
+    "CZ",
+    "EE",
+    "HU",
+    "LV",
+    "LT",
+    "ME",
+    "MK",
+    "PL",
+    "RO",
+    "RS",
+    "SK",
+    "SI"
+   ]
+  },
+  {
+   "key": "balkans",
+   "label": "the Balkans",
+   "kind": "common",
+   "source": "Wikipedia: Balkans, Definitions and boundaries",
+   "url": "https://en.wikipedia.org/wiki/Balkans",
+   "checked": "2026-10-29",
+   "aliases": [
+    "balkans",
+    "the balkans",
+    "balkan countries",
+    "balkan states",
+    "balkan peninsula"
+   ],
+   "note": "Definitions vary. These are the countries most definitions fully or largely include. Romania (only Northern Dobruja) and Turkey (only East Thrace) are left out, and so is Slovenia, which only broader definitions include. Kosovo is listed too but has no ISO 3166 code.",
+   "countries": [
+    "AL",
+    "BA",
+    "BG",
+    "HR",
+    "GR",
+    "ME",
+    "MK",
+    "RS"
+   ]
+  },
+  {
+   "key": "western-balkans",
+   "label": "the Western Balkans",
+   "kind": "common",
+   "source": "Wikipedia: Balkans, Western Balkans",
+   "url": "https://en.wikipedia.org/wiki/Balkans#Western_Balkans",
+   "checked": "2026-10-29",
+   "aliases": [
+    "western balkans",
+    "the western balkans",
+    "western balkan countries"
+   ],
+   "note": "Albania and former Yugoslavia except Slovenia. EU institutions often mean only the countries not yet in the EU, without Croatia (a member since 2013). Kosovo is listed too but has no ISO 3166 code.",
+   "countries": [
+    "AL",
+    "BA",
+    "HR",
+    "ME",
+    "MK",
+    "RS"
+   ]
+  },
+  {
+   "key": "scandinavia",
+   "label": "Scandinavia",
+   "kind": "common",
+   "source": "Wikipedia: Scandinavia",
+   "url": "https://en.wikipedia.org/wiki/Scandinavia",
+   "checked": "2026-10-29",
+   "aliases": [
+    "scandinavia",
+    "scandinavian",
+    "scandinavian countries"
+   ],
+   "note": "Denmark, Norway, and Sweden, its most common meaning. Finland, Iceland, and the Faroe Islands are sometimes included; say \"the Nordics\" for all of them.",
+   "countries": [
+    "DK",
+    "NO",
+    "SE"
+   ]
+  },
+  {
+   "key": "baltic-states",
+   "label": "the Baltic states",
+   "kind": "common",
+   "source": "Wikipedia: Baltic states",
+   "url": "https://en.wikipedia.org/wiki/Baltic_states",
+   "checked": "2026-10-29",
+   "aliases": [
+    "baltic states",
+    "the baltic states",
+    "baltics",
+    "the baltics",
+    "baltic countries",
+    "the baltic countries"
+   ],
+   "note": "Estonia, Latvia, and Lithuania, the term's meaning since the Second World War. Countries that merely border the Baltic Sea are not included.",
+   "countries": [
+    "EE",
+    "LV",
+    "LT"
+   ]
+  },
+  {
+   "key": "pacific-islands",
+   "label": "the Pacific Islands",
+   "kind": "common",
+   "source": "Wikipedia: Pacific Islands, groupings (after Encyclopaedia Britannica)",
+   "url": "https://en.wikipedia.org/wiki/List_of_islands_in_the_Pacific_Ocean#Name_ambiguity_and_groupings",
+   "checked": "2026-10-29",
+   "aliases": [
+    "pacific islands",
+    "the pacific islands",
+    "pacific island countries",
+    "pacific island nations",
+    "pacific island states"
+   ],
+   "note": "Melanesia, Micronesia, and Polynesia (UN M49): Oceania without Australia and New Zealand. Broader political uses add Australia, New Zealand, and other Pacific territories; say \"Oceania\" for those.",
+   "regions": [
+    "melanesia",
+    "micronesia",
+    "polynesia"
+   ]
+  },
+  {
+   "key": "horn-of-africa",
+   "label": "the Horn of Africa",
+   "kind": "common",
+   "source": "Wikipedia: Horn of Africa",
+   "url": "https://en.wikipedia.org/wiki/Horn_of_Africa",
+   "checked": "2026-10-29",
+   "aliases": [
+    "horn of africa",
+    "the horn of africa",
+    "somali peninsula"
+   ],
+   "note": "Djibouti, Eritrea, Ethiopia, and Somalia; Somaliland has no ISO 3166 code of its own. Some broader definitions add Kenya and Sudan; they are not included.",
+   "countries": [
+    "DJ",
+    "ER",
+    "ET",
+    "SO"
+   ]
+  },
+  {
+   "key": "sahel",
+   "label": "the Sahel",
+   "kind": "common",
+   "source": "Wikipedia: Sahel, the countries it spans",
+   "url": "https://en.wikipedia.org/wiki/Sahel",
+   "checked": "2026-10-29",
+   "aliases": [
+    "sahel",
+    "the sahel",
+    "sahel region",
+    "sahelian",
+    "sahel countries"
+   ],
+   "note": "An ecological belt, not a political region: these are the 15 countries Wikipedia lists it crossing, wholly or in part.",
+   "countries": [
+    "DZ",
+    "BF",
+    "CM",
+    "CV",
+    "CF",
+    "TD",
+    "ER",
+    "GM",
+    "ML",
+    "MR",
+    "NE",
+    "NG",
+    "SN",
+    "SS",
+    "SD"
+   ]
+  },
+  {
+   "key": "maghreb",
+   "label": "the Maghreb",
+   "kind": "common",
+   "source": "Wikipedia: Maghreb",
+   "url": "https://en.wikipedia.org/wiki/Maghreb",
+   "checked": "2026-10-29",
+   "aliases": [
+    "maghreb",
+    "the maghreb",
+    "greater maghreb",
+    "maghrebi",
+    "northwest africa",
+    "north west africa"
+   ],
+   "note": "Algeria, Libya, Mauritania, Morocco, Tunisia, and Western Sahara. The Arab Maghreb Union is the same five states without Western Sahara.",
+   "countries": [
+    "DZ",
+    "LY",
+    "MR",
+    "MA",
+    "TN",
+    "EH"
    ]
   },
   {
@@ -1793,6 +2076,36 @@
     "SA",
     "AE"
    ]
+  },
+  {
+   "key": "saarc",
+   "label": "SAARC",
+   "kind": "political",
+   "source": "SAARC member states",
+   "url": "https://en.wikipedia.org/wiki/South_Asian_Association_for_Regional_Cooperation",
+   "checked": "2026-10-29",
+   "as_of": "2007-04",
+   "aliases": [
+    "saarc",
+    "saarc countries",
+    "saarc members",
+    "saarc member states",
+    "south asian association for regional cooperation"
+   ],
+   "note": "Founded by seven states in 1985; Afghanistan joined as the eighth in April 2007. Observers are not members.",
+   "countries": [
+    "AF",
+    "BD",
+    "BT",
+    "IN",
+    "MV",
+    "NP",
+    "PK",
+    "LK"
+   ],
+   "joined": {
+    "AF": "2007-04"
+   }
   },
   {
    "key": "commonwealth",

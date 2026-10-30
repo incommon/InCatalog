@@ -230,6 +230,19 @@ form.busy button::after { content: " …"; }
 .facet button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 .facet button .n { font-family: var(--ui); font-size: 11px; color: var(--muted); }
 .facet button[aria-pressed="true"] .n { color: inherit; opacity: 0.7; }
+.facet button.zero:not([aria-pressed="true"]), .facet button.zero:not([aria-pressed="true"]) .n { color: var(--muted); }
+.region-row { display: flex; align-items: center; padding-left: calc(var(--depth, 0) * 14px); }
+.facet .region-row .twisty {
+  flex: none; width: 18px; height: 22px; align-items: center; justify-content: center; padding: 0;
+  color: var(--muted); transition: transform 0.15s;
+}
+.facet .region-row button.twisty::before {
+  content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+.facet .region-row .twisty[aria-expanded="true"] { transform: rotate(90deg); }
+.region-row.region-label { font: 13px var(--sans); color: var(--muted); padding: 4px 0; }
+.region-row.region-label .twisty + span { padding-left: 6px; }
 .facet .more { font: 12px var(--ui); color: var(--muted); background: none; border: 0; cursor: pointer; padding: 4px 6px; }
 .active-filters { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; margin-bottom: 12px; }
 .chip {

@@ -14,8 +14,27 @@ section must be written before it is cut.
 - `make backfill` runs ingest in AWS until nothing is waiting, one run at a time and
   never overlapping the scheduled run, for working off a backlog in hours rather than
   days.
+- **Regions by their common names.** The Middle East, Central and Eastern Europe, the
+  Balkans, the Western Balkans, Scandinavia, the Baltic states, the Pacific Islands,
+  the Horn of Africa, the Sahel, and the Maghreb, each from one cited source with a
+  note on what it includes, and SAARC as a dated grouping. Asia-Pacific moves to
+  this new `common` region kind, since UN M49 does not define it. "Pacific Islands"
+  now means Melanesia, Micronesia, and Polynesia rather than all of Oceania.
+- `/v1/regions` gives each UN M49 sub-region its `parent`, so the regions form one
+  tree under the five continents.
 
 ### Fixed
+
+- **Every region can be found in the Region filter.** It listed regions, groupings,
+  and research networks together, ranked by service count, and dropped any with no
+  services. So the first eight were the OECD, NATO, the G20, the G7, Five Eyes, APEC,
+  the Americas, and Northern America. South America, Southern Asia, and Central Asia
+  were behind "more", and Central America, the Caribbean, Middle Africa, Melanesia,
+  Micronesia, and Polynesia were missing. Region is now the UN M49 tree, every region
+  shown with its count even when that is 0, then the common names. Political
+  groupings and research networks have their own Grouping filter.
+- "West Asian", "Southern African", "Polynesian", and similar spellings now read as
+  their regions, and "South Asia" says that M49's Southern Asia includes Iran.
 
 - Ingest in AWS can save its sharing and sector caches. It had no S3 access to them,
   so every run asked Claude for the same 800 labels again and kept none, and most
