@@ -97,7 +97,7 @@ const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().repla
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
 // a service must carry every category, and may be registered by any of the federations,
 // in any of the countries or regions, or be in any of the environments.
-const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any" };
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any", filter_reason: "any", ofac: "any", status: "any" };
 // Region names read "the European Union" in a sentence and "European Union" in a list.
 const bare = (label) => label.replace(/^the /, "");
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -142,6 +142,58 @@ const AVAILABILITY_HELP = {
   "edugain-only": "Registered by another federation and in eduGAIN, but not in InCommon's (filtered) import.",
   "incommon-aggregate-only": "Registered by another federation and present in InCommon's aggregate, but not in eduGAIN's.",
 };
+// InCommon's own reasons for filtering a service out of its eduGAIN import, grouped
+// by the rule in its import policy (catalog-core/src/import_filter.rs).
+const FILTER_REASON = {
+  saml1: "Inconsistent SAML 1.x support",
+  saml2: "No SAML 2 login endpoint",
+  https: "An endpoint not on HTTPS",
+  "requested-attributes": "Errors in requested attributes",
+  bindings: "Nonstandard endpoint bindings",
+  "entity-id": "entityID prefix not accepted",
+  sirtfi: "Doesn't meet Sirtfi",
+  "research-and-scholarship": "Doesn't meet REFEDS R&S",
+  "algorithm-support": "Doesn't meet the algorithm-support profile",
+  mdui: "Errors in display information (MDUI)",
+  "registration-info": "Errors in registration information",
+  "entity-attributes": "Misplaced entity attributes",
+  "saml-metadata": "Doesn't meet the SAML 2.0 metadata spec",
+  certificate: "A certificate or key failed validation",
+  scope: "Faulty identity-provider scope",
+  other: "Another import check",
+};
+// Whether a service still answers, from the catalog's own checks of its login hosts.
+const STATUS_DEFAULT = ["alive", "unknown"];
+const UNREACHABLE_CAVEAT =
+  "Its login hosts failed the catalog's checks several times over several days. Some services answer only from their own campus network, so this isn't proof it's gone.";
+const HOST_FAILURE = {
+  dns: "the name doesn't exist",
+  connect: "the connection was refused",
+  tls_expired: "its certificate has expired",
+  tls_name: "its certificate is for another name",
+  tls_untrusted: "its certificate isn't from a trusted authority",
+  tls: "TLS failed",
+  dns_transient: "name lookup failed for now",
+  private_address: "the name resolves only inside a private network",
+  timeout: "it didn't answer in time",
+  other: "the check failed",
+};
+const IMPORT_POLICY_URL = "https://spaces.at.internet2.edu/spaces/federation/pages/168691916/Interfederation+Technical+Policy";
+// OFAC's sanctions lists (catalog-core/src/ofac.rs). Every label says whose list it
+// is, and a possible match never reads as a finding.
+const OFAC_LIST = { sdn: "OFAC\u2019s SDN list", consolidated: "OFAC\u2019s consolidated list" };
+const OFAC_STATUS = { confirmed: "On an OFAC list, confirmed", possible: "Possible OFAC match" };
+const OFAC_SEARCH_URL = "https://sanctionssearch.ofac.treas.gov/";
+const OFAC_CAVEAT = "A pointer to OFAC\u2019s own lists as of their publication date, not sanctions screening or legal advice.";
+const ofacGlyph = () => h("span", { class: "ofac-glyph", "aria-hidden": "true" }, "\u26a0\ufe0e ");
+// The badge for a service's strongest match: which list and when, once confirmed;
+// only "possible" until then.
+function ofacBadge(o) {
+  if (!o) return null;
+  if (o.status === "confirmed")
+    return h("span", { class: "badge ofac", title: OFAC_CAVEAT }, ofacGlyph(), `On ${OFAC_LIST[o.list] || o.list}, confirmed${o.decided ? ` ${o.decided}` : ""}`);
+  return h("span", { class: "badge ofac-possible", title: `A name or domain matched an entry on ${OFAC_LIST[o.list] || o.list}; nobody has confirmed it is the same organization. ${OFAC_CAVEAT}` }, ofacGlyph(), OFAC_STATUS.possible);
+}
 // Sirtfi is near-universal and the InCommon tag is implied by the registrar, so
 // cards leave them off to keep the meaningful tags visible.
 const ENVIRONMENT = { production: "Production", test: "Test", staging: "Staging", development: "Development", unknown: "Unknown" };
@@ -190,12 +242,44 @@ function monogram(name) {
   return (name || "?").replace(/^(the|university of)\s+/i, "").trim().charAt(0).toUpperCase() || "?";
 }
 
+// The margin around a logo's artwork, as a share of its tile, so the 40px and 64px
+// tiles look alike.
+const LOGO_MARGIN = 0.09;
+
+// Where a logo's image goes in its square tile, from the box ingest measured around
+// its artwork (`LogoBox` in crates/catalog-core/src/model.rs, in fractions of the
+// image): the artwork scaled to fit the tile less the margin, and centered. In
+// percentages of the tile, so one answer serves every tile size. An image opaque to
+// its edges fills the tile; a square mark is clipped to its box, leaving out the
+// words beside it. Null for a box that isn't usable, so the logo shows whole.
+function logoPlacement(b) {
+  const ok = (v) => typeof v === "number" && Number.isFinite(v);
+  if (!b || ![b.x, b.y, b.w, b.h, b.aspect].every(ok) || b.w <= 0 || b.h <= 0 || b.aspect <= 0) return null;
+  const pct = (v) => `${+(v * 100).toFixed(3)}%`;
+  const fit = 1 - 2 * (b.bleed ? 0 : LOGO_MARGIN);
+  const width = fit / Math.max(b.w, b.h / b.aspect);
+  const height = width / b.aspect;
+  return {
+    width: pct(width),
+    height: pct(height),
+    left: pct(0.5 - (b.x + b.w / 2) * width),
+    top: pct(0.5 - (b.y + b.h / 2) * height),
+    clip: b.mark ? `inset(${pct(b.y)} ${pct(1 - b.x - b.w)} ${pct(1 - b.y - b.h)} ${pct(b.x)})` : null,
+  };
+}
+
 // The monogram shows until the image has loaded, and stays if it never does. The
 // image has to be in the page from the start: a lazy image outside the page never loads.
-function logoEl(url, name, large, note) {
+function logoEl(url, name, large, note, artBox) {
   const box = h("div", { class: `logo${large ? " lg" : ""}`, "aria-hidden": "true", title: note }, h("span", {}, monogram(name)));
   if (safeImg(url)) {
     const img = h("img", { src: url, alt: "", loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" });
+    const place = logoPlacement(artBox);
+    if (place) {
+      img.classList.add("placed");
+      for (const k of ["width", "height", "left", "top"]) img.style[k] = place[k];
+      if (place.clip) img.style.clipPath = place.clip;
+    }
     img.addEventListener("load", () => box.classList.add("loaded"));
     img.addEventListener("error", () => img.remove());
     box.append(img);
@@ -203,12 +287,279 @@ function logoEl(url, name, large, note) {
   return box;
 }
 
+// What the catalog's own checks found: the status, each login host's latest check,
+// and any information, organization or privacy page that has gone missing.
+function healthNote(hl) {
+  const day = (t) => (t ? t.slice(0, 10) : "");
+  if (!hl) return "Not checked yet.";
+  const lead = {
+    alive: `Reachable: a login host answered on ${day(hl.last_ok)}.`,
+    dead: `Unreachable from InCatalog since ${day(hl.since)}. ${UNREACHABLE_CAVEAT}`,
+    unknown: (hl.hosts || []).some((x) => x.checked_at) ? "No clear answer yet." : "Not checked yet.",
+  }[hl.status];
+  const hosts = (hl.hosts || []).filter((x) => x.checked_at);
+  return [
+    lead,
+    hosts.length > 0 &&
+      h(
+        "ul",
+        { class: "health-hosts" },
+        hosts.map((x) =>
+          h(
+            "li",
+            {},
+            h("code", {}, x.host),
+            x.failure
+              ? ` \u2014 ${HOST_FAILURE[x.failure] || x.failure} (checked ${day(x.checked_at)}${x.failures_in_a_row > 1 ? `, ${x.failures_in_a_row} times in a row` : ""})`
+              : ` \u2014 answered on ${day(x.last_ok)}`,
+          ),
+        ),
+      ),
+    (hl.broken_links || []).length > 0 &&
+      h(
+        "p",
+        { class: "gen-note" },
+        "Pages that have gone missing: ",
+        hl.broken_links.map((l, i) => [i ? ", " : "", h("a", { href: l.url, rel: "noopener" }, l.kind), ` (${l.detail} since ${day(l.since)})`]),
+        ". A missing page doesn\u2019t make the service unreachable.",
+      ),
+  ];
+}
+
+// Why InCommon's import left an eduGAIN-only service out, in InCommon's words: each
+// failed check under the policy rule it falls under, with the report it came from.
+function importFilterNote(s) {
+  if (s.availability !== "edugain-only") return null;
+  const f = s.import_filter;
+  if (!f)
+    return h(
+      "p",
+      { class: "gen-note" },
+      "InCommon's newest import filter report doesn't mention this service, so it may be out of the import for another reason, such as the two aggregates being published at different times.",
+    );
+  const byReason = new Map();
+  for (const x of f.findings) byReason.set(x.reason, [...(byReason.get(x.reason) || []), x]);
+  return h(
+    "div",
+    { class: "filter-note" },
+    h("h3", {}, h("span", { class: "badge filtered" }, "Filtered by InCommon"), " What InCommon's import filter reported"),
+    h(
+      "ul",
+      {},
+      [...byReason].map(([reason, xs]) =>
+        h(
+          "li",
+          {},
+          h("a", { href: `#/search?filter_reason=${encodeURIComponent(reason)}` }, FILTER_REASON[reason] || reason),
+          h("ul", {}, xs.map((x) => h("li", {}, x.check && h("code", {}, x.check), x.check ? ": " : "", x.message))),
+        ),
+      ),
+    ),
+    h(
+      "p",
+      { class: "gen-note" },
+      "As stated in ",
+      h("a", { href: f.report_url, rel: "noopener" }, "InCommon's report"),
+      ` of ${f.reported_at.slice(0, 16).replace("T", " ")} UTC, under its `,
+      h("a", { href: IMPORT_POLICY_URL, rel: "noopener" }, "import policy"),
+      ". InCommon's checks, not this catalog's.",
+    ),
+  );
+}
+
+// Each entry on OFAC's lists the organization's name or domain matched, what matched,
+// and whether the catalog's curators confirmed it. Never a finding of the catalog's own.
+function ofacNote(s) {
+  const ms = s.ofac || [];
+  if (!ms.length) return null;
+  const confirmed = ms[0].status === "confirmed";
+  const basis = (b) =>
+    b.on === "domain"
+      ? ["the host ", h("code", {}, b.ours), b.ours === b.theirs ? " is the website it lists" : [" is under the website it lists, ", h("code", {}, b.theirs)]]
+      : ["the organization name \u201c", b.ours, "\u201d equals its name or a.k.a. \u201c", b.theirs, "\u201d"];
+  return h(
+    "section",
+    { class: `panel ofac-note${confirmed ? " ofac" : ""}` },
+    h("h2", {}, "US sanctions lists (OFAC)"),
+    h(
+      "ul",
+      {},
+      ms.map((m) =>
+        h(
+          "li",
+          {},
+          ofacBadge(m),
+          " ",
+          h("strong", {}, m.name),
+          ` on ${OFAC_LIST[m.list] || m.list} (entry ${m.uid}${m.programs.length ? `; programs ${m.programs.join(", ")}` : ""}${m.list_published ? `; list of ${m.list_published}` : ""}). Matched because `,
+          m.matched_on.map((b, i) => [i ? "; and " : "", basis(b)]),
+          ".",
+          m.status === "confirmed"
+            ? ` The catalog\u2019s curators confirmed on ${m.decided} that this is the same organization.${m.note ? ` ${m.note}` : ""}`
+            : " Nobody has confirmed that this is the same organization: a name is not an identity.",
+        ),
+      ),
+    ),
+    h(
+      "p",
+      { class: "gen-note" },
+      `${OFAC_CAVEAT} For an answer, use `,
+      h("a", { href: OFAC_SEARCH_URL, target: "_blank", rel: "noopener noreferrer" }, "OFAC\u2019s own search"),
+      ".",
+    ),
+  );
+}
+
+// The markings a chip can carry, in the order the key lists them. The chips and the
+// key both test a service with these, so the key lists exactly what the chips show.
+const MARKINGS = [
+  {
+    key: "dead",
+    on: (s) => s.status === "dead",
+    swatch: () => h("span", { class: "card dead key-swatch" }),
+    label: "Unreachable from InCatalog: zebra-striped ring",
+    about: "reachability",
+  },
+  {
+    key: "filtered",
+    on: (s) => (s.filter_reasons || []).length > 0,
+    swatch: () => h("span", { class: "card filtered key-swatch" }),
+    label: "Filtered by InCommon\u2019s import: red outline",
+    about: "filtered",
+  },
+  {
+    key: "ofac",
+    on: (s) => s.ofac?.status === "confirmed",
+    swatch: () => h("span", { class: "card ofac key-swatch" }),
+    label: "On an OFAC list, confirmed: near-black card, amber stripe",
+    about: "ofac",
+  },
+  {
+    key: "ofac-possible",
+    on: (s) => s.ofac?.status === "possible",
+    swatch: () => h("span", { class: "badge ofac-possible key-swatch-badge" }, ofacGlyph()),
+    label: "Possible OFAC match: \u26a0\ufe0e alone",
+    about: "ofac",
+  },
+];
+const marked = (key, s) => MARKINGS.find((m) => m.key === key).on(s);
+
+// Whether the key is open, remembered in this browser only. Without storage it starts
+// open, except on narrow screens, where it starts collapsed.
+const KEY_STORE = "incatalog.chip-key";
+function keyOpen() {
+  try {
+    const v = localStorage.getItem(KEY_STORE);
+    if (v === "open" || v === "closed") return v === "open";
+  } catch {}
+  return !window.matchMedia("(max-width: 520px)").matches;
+}
+function rememberKey(open) {
+  try {
+    localStorage.setItem(KEY_STORE, open ? "open" : "closed");
+  } catch {}
+}
+
+// A view of service chips, with the key to their markings floating in its lower right.
+// The key follows the grid in the page, so it rests below the last row (never over a
+// chip or the pager) and floats only while the grid scrolls past; it never leaves the
+// grid's box, so it never covers the facets.
+function chipView(services) {
+  const grid = h("div", { class: "grid" }, services.map(serviceCard));
+  const rows = MARKINGS.filter((m) => services.some(m.on));
+  if (!rows.length) return h("div", { class: "chip-view" }, grid);
+  let open = keyOpen();
+  const list = h(
+    "ul",
+    { id: "chip-key-rows", hidden: !open },
+    rows.map((m) =>
+      h(
+        "li",
+        { "data-marking": m.key },
+        h("span", { class: "key-sample", "aria-hidden": "true" }, m.swatch()),
+        h("span", {}, m.label),
+        h("a", { href: `#/about/${m.about}`, "aria-label": `About: ${m.label}` }, "about"),
+      ),
+    ),
+  );
+  const toggle = h("button", { type: "button", class: "chip-key-toggle", "aria-expanded": String(open), "aria-controls": "chip-key-rows" }, "Key");
+  const key = h("section", { class: `chip-key${open ? " open" : ""}`, "aria-labelledby": "chip-key-title" }, h("h2", { id: "chip-key-title" }, toggle), list);
+  toggle.addEventListener("click", () => {
+    open = !open;
+    list.hidden = !open;
+    key.classList.toggle("open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    rememberKey(open);
+  });
+  const view = h("div", { class: "chip-view" }, grid, key);
+  // Focus Not Obscured (WCAG 2.4.11): a chip that takes focus under the floating key
+  // scrolls up clear of it.
+  grid.addEventListener("focusin", (e) => {
+    const r = e.target.getBoundingClientRect();
+    const k = key.getBoundingClientRect();
+    const overlap = r.bottom - k.top;
+    if (overlap > 0 && r.right > k.left && r.left < k.right) window.scrollBy(0, overlap + 12);
+  });
+  return view;
+}
+
+// The Log in button, as catalog-core/src/login.rs decides it: only on a service that
+// is multilateral, reachable, not filtered by InCommon and with no OFAC match. It goes
+// through InCommon Wayfinder, else to the service's own login handler, else to its
+// website, labelled as the site.
+//
+// The two that ask for an institution are SeamlessAccess's "Access through your
+// institution" button (Wayfinder is built on SeamlessAccess), drawn to its static
+// button specification: SeamlessAccess asks that the wording never change, and keeps
+// "log in" for accounts held with the service itself. Only the Wayfinder one carries
+// SeamlessAccess's logomark (web/brand/README.md), since only it leads to
+// SeamlessAccess's discovery.
+const LOGIN_ACCESS = "Whether you get in depends on your institution releasing the attributes the service needs, and on any subscription it requires.";
+const LOGIN_ROUTE = {
+  wayfinder: {
+    access: true,
+    logo: true,
+    note: `Opens InCommon Wayfinder, which asks for your institution, remembers it on its own site, and sends you to the service\u2019s login. Some services only accept a login they start themselves; if this one doesn\u2019t, use its own site. ${LOGIN_ACCESS}`,
+  },
+  "sp-initiated": { access: true, logo: false, note: `Opens the service\u2019s own login page, which asks for your institution. ${LOGIN_ACCESS}` },
+  website: { access: false, note: "It publishes no login link, so this opens its own site, not a login." },
+};
+// The logomark is this site's own file, so it is set directly: h() lets an <img> load
+// only https: and data: URLs, because every other image comes from metadata.
+function saLogo() {
+  const img = h("img", { class: "sa-button-logo", alt: "" });
+  img.setAttribute("src", "brand/sa-white.svg");
+  return img;
+}
+function loginEl(login) {
+  const t = login?.target;
+  const r = t && LOGIN_ROUTE[t.route];
+  if (!r || !t.url?.startsWith("https://") || !safeUrl(t.url)) return null;
+  const link = { href: t.url, target: "_blank", rel: "noopener noreferrer" };
+  return h(
+    "div",
+    { class: "login" },
+    r.access
+      ? h(
+          "a",
+          { ...link, class: `sa-button${r.logo ? "" : " no-logo"}` },
+          r.logo && h("span", { class: "sa-button-logo-wrap" }, saLogo()),
+          h("span", { class: "sa-button-text" }, "Access through your institution", h("span", { class: "visually-hidden" }, " (opens in a new tab)")),
+        )
+      : h("a", { ...link, class: "btn" }, "Go to the service\u2019s site \u2197"),
+    h("p", { class: "login-note" }, r.note, " ", h("a", { href: "#/about/log-in" }, "When this shows")),
+  );
+}
+
 function serviceCard(s) {
   const cats = s.categories.filter((c) => !QUIET_CATEGORIES.has(c));
+  const filtered = marked("filtered", s);
+  const dead = marked("dead", s);
+  const ofac = marked("ofac", s);
   return h(
     "a",
-    { class: "card", href: `#/services/${s.id}` },
-    h("div", { class: "card-top" }, logoEl(s.logo, s.name, false, s.logo_source === "website" ? "Logo from the organization's website" : null), h("div", { style: "min-width:0" }, h("h2", {}, s.name), s.organization && h("div", { class: "org" }, s.organization))),
+    { class: `card${filtered ? " filtered" : ""}${dead ? " dead" : ""}${ofac ? " ofac" : ""}`, href: `#/services/${s.id}` },
+    h("div", { class: "card-top" }, logoEl(s.logo, s.name, false, s.logo_source === "website" ? "Logo from the organization's website" : null, s.logo_box), h("div", { style: "min-width:0" }, h("h2", {}, s.name), s.organization && h("div", { class: "org" }, s.organization))),
     s.description &&
       h(
         "p",
@@ -219,6 +570,7 @@ function serviceCard(s) {
     h(
       "div",
       { class: "badges" },
+      ofacBadge(s.ofac),
       NON_PRODUCTION[s.environment] && h("span", { class: "badge env", title: ENVIRONMENT_SOURCE[s.environment_source] }, NON_PRODUCTION[s.environment]),
       SHARING_BADGE[s.sharing] &&
         h(
@@ -230,7 +582,10 @@ function serviceCard(s) {
           s.sharing_source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "),
           SHARING_BADGE[s.sharing],
         ),
-      s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
+      dead && h("span", { class: "badge dead", title: UNREACHABLE_CAVEAT }, `Unreachable from InCatalog${s.unreachable_since ? ` since ${s.unreachable_since.slice(0, 10)}` : ""}`),
+      filtered
+        ? h("span", { class: "badge filtered", title: `InCommon's report: ${s.filter_reasons.map((r) => FILTER_REASON[r] || r).join("; ")}` }, "Filtered by InCommon")
+        : s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
       cats.map((c) => h("span", { class: "badge cat" }, CATEGORY_LABELS[c] || c)),
       s.federation_name && h("span", { class: "badge" }, `${flag(s.countries[0])} ${s.federation_name}`.trim()),
       s.curated?.provider_type && h("span", { class: "badge cur" }, s.curated.provider_type),
@@ -391,7 +746,7 @@ async function landing() {
 
   try {
     const [m, feds] = await Promise.all([meta(), api("/v1/federations")]);
-    hint.textContent = `${fmt(m.counts.services)} services · ${fmt(m.counts.providers)} providers · ${fmt(feds.filter((f) => f.listed_in_edugain).length)} federations`;
+    hint.textContent = `${fmt(m.counts.services)} services${m.counts.by_status?.dead ? ` (${fmt(m.counts.by_status.dead)} unreachable)` : ""} · ${fmt(m.counts.providers)} providers · ${fmt(feds.filter((f) => f.listed_in_edugain).length)} federations`;
     globe?.setFederations(
       feds
         .filter((f) => (f.listed_in_edugain || f.code === "INCOMMON") && f.catalog_services + f.catalog_identity_providers > 0)
@@ -410,6 +765,9 @@ async function landing() {
 
 const FACET_ORDER = [
   ["availability", "Availability"],
+  ["filter_reason", "Filtered by InCommon for"],
+  ["ofac", "OFAC list match"],
+  ["status", "Reachability"],
   ["environment", "Environment"],
   ["sharing", "Open to"],
   ["sector", "Run by"],
@@ -417,6 +775,7 @@ const FACET_ORDER = [
   ["federation", "Registered by"],
   ["region", "Region"],
   ["grouping", "Grouping"],
+  ["sanctions", "US sanctions (OFAC)"],
   ["country", "Country"],
   ["attribute", "Requested attribute"],
   ["source", "Seen in"],
@@ -479,7 +838,7 @@ function regionFacet(regions, values, selected, refine) {
     const b = branch("common", "the common names", common.map((r) => h("div", { class: "region-row", style: "--depth:1" }, h("span", { class: "twisty" }), pickButton(r))), common.some((r) => isOn(r.key)));
     names = [h("div", { class: "region-row region-label" }, b.twisty, h("span", {}, "Common names")), b.list];
   }
-  const geoSelected = selected.filter((s) => regions.some((r) => r.key === s.toLowerCase() && r.kind !== "political" && r.kind !== "network"));
+  const geoSelected = selected.filter((s) => regions.some((r) => r.key === s.toLowerCase() && ["geographic", "common"].includes(r.kind)));
   const mode = selected.length > 1 && geoSelected.length && h("span", { class: "mode" }, "matching any");
   return h("div", { class: "facet region-facet" }, h("h3", {}, "Region", mode), tree, names);
 }
@@ -532,22 +891,28 @@ async function search(params) {
   }
 
   // Facets. Regions are listed in full from /v1/regions; the grouping facet is the
-  // region filter's political groupings and research networks, by count.
+  // region filter's political groupings and research networks, by count. OFAC's
+  // country-wide programs have a heading of their own and show even at 0.
   const regionKind = new Map(regions.map((r) => [r.key, r.kind]));
+  const regionCount = new Map((page.facets.region || []).map((v) => [v.value, v.count]));
   for (const [key, label] of FACET_ORDER) {
     if (key === "region") {
       const el = regionFacet(regions, page.facets.region || [], listOf(params.region), refine);
       if (el) facetsEl.append(el);
       continue;
     }
-    const param = key === "grouping" ? "region" : key;
+    const param = key === "grouping" || key === "sanctions" ? "region" : key;
     const values =
       key === "grouping"
-        ? (page.facets.region || []).filter((v) => !["geographic", "common"].includes(regionKind.get(v.value)))
-        : page.facets[key] || [];
+        ? (page.facets.region || []).filter((v) => ["political", "network"].includes(regionKind.get(v.value)))
+        : key === "sanctions"
+          ? regions.filter((r) => r.kind === "sanctions").map((r) => ({ value: r.key, label: "Countries in its programs", count: regionCount.get(r.key) || 0 }))
+          : page.facets[key] || [];
     if (!values.length) continue;
     const active = params[param];
-    const selected = listOf(active);
+    // Searches leave out unreachable services unless asked, so with no status chosen
+    // the facet shows the default as chosen.
+    const selected = key === "status" && !active ? STATUS_DEFAULT : listOf(active);
     const same = key === "federation" ? (a, b) => fedKey(feds, a) === fedKey(feds, b) : (a, b) => a === b;
     const list = h("div", {});
     const limit = 8;
@@ -558,6 +923,7 @@ async function search(params) {
         {
           type: "button",
           "aria-pressed": on ? "true" : "false",
+          class: v.count ? null : "zero",
           hidden: i >= limit && !on,
           onclick: () => {
             let next = on ? "" : v.value;
@@ -565,7 +931,7 @@ async function search(params) {
             refine({ [param]: next });
           },
         },
-        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : param === "region" ? bare(v.label) : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
+        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : param === "region" ? bare(v.label) : key === "category" ? v.label : key === "ofac" ? OFAC_STATUS[v.value] || v.label : AVAILABILITY[v.value] || v.label),
         h("span", { class: "n" }, fmt(v.count)),
       );
       list.append(btn);
@@ -592,6 +958,8 @@ async function search(params) {
   const chipLabel = (k, v) =>
     k === "availability"
       ? AVAILABILITY[v] || v
+      : k === "ofac"
+        ? OFAC_STATUS[v] || v
       : k === "environment" || k === "sharing" || k === "sector"
         ? ({ environment: ENVIRONMENT, sharing: SHARING, sector: SECTOR }[k])[v] || v
         : k === "category"
@@ -649,7 +1017,7 @@ async function search(params) {
     chips.length ? h("div", { class: "active-filters" }, chips) : "",
     h("div", { class: "resultbar" }, h("span", {}, page.total ? `${fmt(first)}–${fmt(last)} of ${fmt(page.total)} services` : ""), sort),
     page.items.length
-      ? h("div", { class: "grid" }, page.items.map(serviceCard))
+      ? chipView(page.items)
       : h(
           "div",
           { class: "empty" },
@@ -725,11 +1093,11 @@ async function serviceView(id) {
   if (!d) return render(h("div", { class: "empty" }, "No service with that ID."));
   const s = d.service;
   document.title = `${d.name} · InCatalog`;
-  // The service's own metadata logo when one works; otherwise the one ingest found on
-  // the organization's website (recorded separately, with where it came from).
-  const metaLogo = (s.logos || []).find((l) => !l.broken && safeImg(l.url));
-  const siteLogo = !metaLogo && s.discovered_logo && safeImg(s.discovered_logo.url) ? s.discovered_logo : null;
-  const logo = metaLogo?.url || siteLogo?.url;
+  // The logo the cards show: the service's own metadata logo when one works;
+  // otherwise the one ingest found on the organization's website (recorded
+  // separately, with where it came from).
+  const logo = d.logo && safeImg(d.logo.url) ? d.logo : null;
+  const siteLogo = logo?.source === "website" ? s.discovered_logo : null;
   const siteHost = siteLogo && safeUrl(siteLogo.page) ? new URL(siteLogo.page).host : null;
   const desc = pick(s.descriptions) || pick(s.service_descriptions);
   const contacts = s.contacts || [];
@@ -742,7 +1110,7 @@ async function serviceView(id) {
     h(
       "div",
       { class: "hero" },
-      logoEl(logo, d.name, true),
+      logoEl(logo?.url, d.name, true, null, logo?.box),
       h(
         "div",
         { style: "min-width:0" },
@@ -759,12 +1127,14 @@ async function serviceView(id) {
           ),
       ),
     ),
+    loginEl(d.login),
     h(
       "div",
       { class: "cols" },
       h(
         "div",
         {},
+        ofacNote(s),
         s.curated &&
           h(
             "section",
@@ -808,6 +1178,7 @@ async function serviceView(id) {
           { class: "panel" },
           h("h2", {}, "Availability"),
           h("p", {}, h("span", { class: "badge avail" }, AVAILABILITY[s.availability] || s.availability), " ", AVAILABILITY_HELP[s.availability] || ""),
+          importFilterNote(s),
           h(
             "dl",
             { class: "kv" },
@@ -822,6 +1193,8 @@ async function serviceView(id) {
             h("dd", {}, sectorNote(d.sector)),
             h("dt", {}, "Open to"),
             h("dd", {}, sharingNote(d.sharing)),
+            h("dt", {}, "Reachability"),
+            h("dd", {}, healthNote(s.health)),
             s.also_registered_by?.length > 0 && [h("dt", {}, "Also registered by"), h("dd", {}, s.also_registered_by.join(", "))],
           ),
         ),
@@ -1016,7 +1389,7 @@ async function providerView(id) {
       p.registrars.length ? ` · registered by ${p.federations.join(", ") || p.registrars.join(", ")}` : "",
       p.urls[0] && safeUrl(p.urls[0]) ? [" · ", h("a", { href: p.urls[0], target: "_blank", rel: "noopener noreferrer" }, "website ↗")] : "",
     ),
-    h("div", { class: "grid" }, d.services.map(serviceCard)),
+    chipView(d.services),
   );
 }
 
@@ -1090,15 +1463,24 @@ const FILTER_HELP = [
   ["Country and region", "The registering federation's country. A region or grouping stands for its countries, and countries and regions together are one set of places: a service in any of them matches. A federation that lists several countries is in a region when any of them is."],
   ["Category", "Entity categories and certifications, such as Research & Scholarship or Sirtfi. A service must carry every one you pick."],
   ["Availability", "Where the service can be used from: InCommon only, exported to eduGAIN, or registered elsewhere and imported."],
+  ["Reachability", "Whether the service still answers, from the catalog\u2019s own checks of its login hosts: their name, a connection, and a valid certificate, every few days. A login host counts as reachable for 14 days after it answers. A service is unreachable when every login host has failed three checks in a row over at least three days; its card then has a zebra-striped white and black border and says since when, and searches leave it out unless you pick \u201cUnreachable from InCatalog\u201d here. Some services answer only from their own campus, so a failure seen from outside isn\u2019t proof they\u2019re gone, and timeouts never count. A missing information or privacy page is listed on the service but doesn\u2019t make it unreachable."],
+  ["Filtered by InCommon for", "Why InCommon’s eduGAIN import left a service out, as InCommon’s own import filter report states it, grouped by the rule in its import policy. These services have a red outline and a “Filtered by InCommon” badge, and their page lists each check they failed. The report is read on every refresh. An eduGAIN-only service the report doesn’t mention may be out of the import for another reason, such as timing between the two aggregates."],
+  ["OFAC list match", "Services whose organization name or domain matches an entity on OFAC\u2019s sanctions lists, the SDN list and the consolidated (non-SDN) list, read on every refresh. Names match only when equal apart from case, punctuation, and a legal form such as \u201cCo., Ltd.\u201d; a domain matches when a host of the service is a website the entry lists. Individuals are never compared. A name is not an identity, so a match stays a \u201cPossible OFAC match\u201d, marked with \u26a0\ufe0e alone, until the catalog\u2019s curators confirm or dismiss it; nothing is confirmed automatically. A confirmed match has a near-black card with an amber hazard-striped left edge and a badge that names the list and the date. This points to OFAC\u2019s own lists as of their publication date. It is not sanctions screening or legal advice: OFAC\u2019s own search, linked under Sources and on each match, is."],
   ["Environment", "Production, test, staging, or development. It is read from markers in the entityID or the name (test., -dev, \u201c(Staging)\u201d), or else from Claude\u2019s reading of the metadata (marked \u2726). Every environment is shown unless you pick some; test and staging copies rank below the live service they mirror."],
   ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],
   ["Run by", "The kind of organization that registered the service: a university, a research institution, a company, a library, a museum or archive, government, a hospital, a school, a publisher, a nonprofit, or a federation or network. It describes who runs the service, not who it is for. It comes from the catalog\u2019s curation, else from the organization\u2019s name (\u201cUniversity\u201d, \u201cBibliothek\u201d, \u201cMinistry\u201d, \u201cGmbH\u201d) or a government domain, else from Claude\u2019s reading of the organization (marked \u2726). \u201cLibrary services\u201d, \u201cmuseum SPs\u201d, and \u201crun by libraries\u201d filter by it; \u201clibrary management system\u201d searches the words."],
+  ["US sanctions (OFAC)", "The countries under the US Treasury\u2019s country-wide sanctions programs, as OFAC lists them, rechecked every 90 days: Cuba, Iran, and North Korea. They are listed because the US government publishes them, not as this catalog\u2019s judgment. OFAC\u2019s programs also cover three regions of Ukraine that have no country code of their own; the rest of Ukraine isn\u2019t under them, so Ukraine isn\u2019t listed. Searching \u201csanctioned countries\u201d reads as this list. It is shown even when no service is registered there."],
+  ["Markings", "A card can carry several markings, from the outside in: the zebra-striped ring of an unreachable service sits outside the card, the red outline of a service InCommon filtered at its border, and the amber hazard stripe of a confirmed OFAC match inside its left edge, on a near-black card. Each comes with a badge that says it in words. The key in the lower right of the cards lists the markings on the cards shown; it collapses to a \u201cKey\u201d button, and this browser remembers which you chose."],
+  ["Access through your institution", `A service\u2019s page has an \u201cAccess through your institution\u201d button only when the service is open to any institution, reachable, not filtered by InCommon, and has no OFAC match, possible or confirmed. Otherwise it has none. For a service in InCommon\u2019s metadata, which includes the eduGAIN services InCommon imports, it opens InCommon Wayfinder, which is built on SeamlessAccess: you choose your institution there, Wayfinder remembers it on its own site (this catalog never sees it), and it sends you on to the service\u2019s login. Some services only accept a login they start themselves, so that may not work for every one. A service Wayfinder can\u2019t take goes to the login page its metadata names, and a service with neither gets a link to its own site, labelled as the site. Every link comes from the service\u2019s signed metadata and must be https on a public host. The wording and the open-door logomark are SeamlessAccess\u2019s, so the button looks the same as on other sites that use it. ${SHARING_CAVEAT}`],
   ["Requests", "A user attribute the service asks identity providers for, such as email or ORCID."],
   ["Seen in", "Which aggregate the service appears in: InCommon\u2019s or eduGAIN\u2019s."],
 ];
 
+// Entries the chips' key and the Log in button link to, as #/about/<anchor>.
+const HELP_ANCHOR = { Reachability: "reachability", "Filtered by InCommon for": "filtered", "OFAC list match": "ofac", Markings: "markings", "Access through your institution": "log-in" };
+
 function howToSearch(regions, exs) {
-  const kinds = { geographic: "UN M49 region", common: "Common name", political: "Grouping", network: "Research network" };
+  const kinds = { geographic: "UN M49 region", common: "Common name", political: "Grouping", network: "Research network", sanctions: "US sanctions (OFAC)" };
   const byKey = new Map(regions.map((r) => [r.key, r]));
   const depth = (r) => (r.parent && byKey.has(r.parent) ? 1 + depth(byKey.get(r.parent)) : 0);
   return h(
@@ -1110,7 +1492,7 @@ function howToSearch(regions, exs) {
       {},
       "Type a service\u2019s name, or ask in plain words. Above the results, the page shows how it read your search, and you can search the exact words instead. Different filters combine: a service must match all of them.",
     ),
-    h("dl", { class: "kv" }, FILTER_HELP.map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])),
+    h("dl", { class: "kv" }, FILTER_HELP.map(([k, v]) => [h("dt", { id: HELP_ANCHOR[k] && `help-${HELP_ANCHOR[k]}`, tabindex: HELP_ANCHOR[k] && "-1" }, k), h("dd", {}, v)])),
     exs.length > 0 &&
       h(
         "div",
@@ -1135,7 +1517,7 @@ function howToSearch(regions, exs) {
         h(
           "p",
           {},
-          "Each stands for a list of countries with its source. Geographic regions follow UN M49, each indented under the region it is part of. Common names such as the Middle East or the Balkans have no standard definition: each follows one cited source and says what it includes. Groupings say when their membership took effect, and every list says when it was last checked against its source. Contested lists are left out on purpose.",
+          "Each stands for a list of countries with its source. Geographic regions follow UN M49, each indented under the region it is part of. Common names such as the Middle East or the Balkans have no standard definition: each follows one cited source and says what it includes. Groupings say when their membership took effect, and every list says when it was last checked against its source. The countries under US sanctions are OFAC\u2019s own list, labeled as OFAC\u2019s and rechecked every 90 days. Contested lists, and lists that would label countries by this catalog\u2019s own judgment, are left out on purpose.",
         ),
         h(
           "div",
@@ -1171,7 +1553,7 @@ function howToSearch(regions, exs) {
   );
 }
 
-async function aboutView() {
+async function aboutView(anchor) {
   setNav("about");
   render(loading());
   let m, cats, regions, exs;
@@ -1236,6 +1618,42 @@ async function aboutView() {
         ),
       ),
     ),
+    m.ofac &&
+      h(
+        "section",
+        { class: "panel" },
+        h("h2", {}, "US sanctions lists (OFAC)"),
+        h(
+          "p",
+          {},
+          `Each refresh compares every organization\u2019s name and domains with the entities on OFAC\u2019s lists. ${fmt(m.ofac.possible)} services have a possible match and ${fmt(m.ofac.confirmed)} a confirmed one, from ${fmt(m.ofac.providers)} providers; the catalog\u2019s curators dismissed ${fmt(m.ofac.dismissed)} matches as name collisions. ${OFAC_CAVEAT} For an answer, use `,
+          h("a", { href: OFAC_SEARCH_URL, target: "_blank", rel: "noopener noreferrer" }, "OFAC\u2019s own search"),
+          ".",
+        ),
+        h(
+          "div",
+          { class: "table-wrap" },
+          h(
+            "table",
+            {},
+            h("thead", {}, h("tr", {}, h("th", {}, "List"), h("th", {}, "Published"), h("th", { class: "num" }, "Entities compared"), h("th", {}, "Fetched"))),
+            h(
+              "tbody",
+              {},
+              m.ofac.lists.map((l) =>
+                h(
+                  "tr",
+                  {},
+                  h("td", {}, h("a", { href: l.url }, OFAC_LIST[l.list] || l.list)),
+                  h("td", {}, l.published || "\u2014"),
+                  h("td", { class: "num" }, fmt(l.entities)),
+                  h("td", {}, l.fetched_at),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     h("section", { class: "panel" }, h("h2", {}, "Read with care"), h("ul", { class: "notes" }, m.caveats.map((c) => h("li", {}, c)))),
     m.warnings.length > 0 && h("section", { class: "panel" }, h("h2", {}, "Ingest warnings"), h("ul", { class: "notes" }, m.warnings.map((c) => h("li", {}, c)))),
     h(
@@ -1274,6 +1692,11 @@ async function aboutView() {
     ),
     h("p", { class: "mono" }, "API: ", h("a", { href: `${API}/openapi.json` }, "OpenAPI document"), " · data refreshes when the federations republish (daily)."),
   );
+  const target = anchor && document.getElementById(`help-${anchor}`);
+  if (target) {
+    target.scrollIntoView();
+    target.focus({ preventScroll: true });
+  }
 }
 
 // ---------- release notes ----------
@@ -1422,13 +1845,43 @@ async function route() {
   if (head === "services" && id) return serviceView(id);
   if (head === "providers") return id ? providerView(id) : providersView(params);
   if (head === "federations") return federationsView(params);
-  if (head === "about") return aboutView();
+  if (head === "about") return aboutView(id);
   if (head === "releases") return releasesView(id && decodeURIComponent(id));
   render(h("div", { class: "empty" }, "Lost in the underworld. ", h("a", { href: "#/" }, "Return to the surface.")));
 }
 
 window.addEventListener("hashchange", route);
 route();
+
+// The floater (InCommon's lockup and the footer) is stuck to the bottom of the window,
+// and its height changes as the footer wraps; styles.css leaves room for it with
+// --floater-h.
+const floater = document.querySelector(".floater");
+new ResizeObserver(() => {
+  document.documentElement.style.setProperty("--floater-h", `${floater.offsetHeight}px`);
+}).observe(floater);
+
+// Once the page scrolls, the lockup shrinks into the footer's bar (.floater.compact),
+// and grows back at the top. Only on a page that stays scrolled once the floater is
+// shorter: on one barely taller than the window, shrinking would end the scroll and
+// grow the lockup straight back.
+const foot = floater.querySelector(".foot");
+let floaterQueued = false;
+function fitFloater() {
+  floaterQueued = false;
+  const compact = floater.classList.contains("compact");
+  const room = document.documentElement.scrollHeight - window.innerHeight;
+  const saved = compact ? 0 : floater.offsetHeight - foot.offsetHeight;
+  const want = compact ? window.scrollY > 0 : window.scrollY > 8 && room - saved > 8;
+  floater.classList.toggle("compact", want);
+}
+const queueFloater = () => {
+  if (floaterQueued) return;
+  floaterQueued = true;
+  requestAnimationFrame(fitFloater);
+};
+window.addEventListener("scroll", queueFloater, { passive: true });
+window.addEventListener("resize", queueFloater);
 
 meta()
   .then((m) => {

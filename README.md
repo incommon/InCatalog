@@ -48,6 +48,9 @@ blending them.
 | InCommon MDQ (per entity) | `https://mdq.incommon.org/entities/{sha1}…` | One entity's live metadata. Linked from every InCommon-visible service |
 | REFEDS Metadata Explorer (MET) | `https://met.refeds.org` | Every federation that publishes a given entity. Linked, not ingested |
 | REFEDS specifications | `https://refeds.org/specifications` | The entity-category and assurance URIs, encoded in `catalog-core/src/categories.rs` |
+| InCommon import filter report | `https://mdq.incommon.org/reports/md_filter_report/` | Why InCommon's eduGAIN import removed each entity it removed: the newest hourly log, read on every ingest |
+| OFAC's SDN and consolidated lists | `https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/{SDN,CONSOLIDATED}.XML` | The entities on the US Treasury's sanctions lists, compared with each provider's name and domains on every ingest |
+| OFAC FAQ 10 | `https://ofac.treasury.gov/faqs/10` | Which jurisdictions are under OFAC's country-wide programs: the `ofac` grouping in `regions.json`, rechecked every 90 days |
 
 The retired `md.incommon.org` aggregate and `wayf.incommonfederation.org` discovery
 service are not used. Every metadata resource now lives under `mdq.incommon.org`.
@@ -68,6 +71,156 @@ aggregates carry it:
 The boundary is `mdrpi:RegistrationInfo/@registrationAuthority`. More than half of
 InCommon's aggregate is other federations' registrations, so anything that ignores the
 registrar double-counts "InCommon services."
+
+### Why InCommon filtered a service out
+
+InCommon's eduGAIN import removes entities that fail the checks in its
+[Interfederation Technical Policy](https://spaces.at.internet2.edu/spaces/federation/pages/168691916/Interfederation+Technical+Policy),
+and logs each removal. Ingest reads the newest log
+(`md_filter_report_<unix time>.log`, published about hourly) and attaches its findings
+to the `edugain-only` services it names, as `import_filter` on the service: each failed
+check by name, with InCommon's message, the report's URL and its time.
+
+- **Reasons are InCommon's, not the catalog's.** Each check is grouped under the policy
+  rule it falls under (`catalog-core/src/import_filter.rs`): `saml1`, `saml2`, `https`,
+  `requested-attributes`, `bindings`, `entity-id`, `sirtfi`,
+  `research-and-scholarship`, `algorithm-support`, `mdui`, `registration-info`,
+  `entity-attributes`, `saml-metadata`, `certificate`, `scope`, and `other` for a
+  check the code doesn't know yet. `filter_reason` filters on them, and the site shows
+  these services with a red outline and a "Filtered by InCommon" badge.
+- **Silent drops don't matter here.** The policy drops two kinds of entity without
+  logging them: ones InCommon registered itself and duplicates of its own entities.
+  Both are in InCommon's aggregate, so neither is `edugain-only`. In the report of
+  2026-11-01 18:46 UTC, all 61 `edugain-only` services had a reason.
+- **One it doesn't mention** is out of the import for some other reason, such as the
+  two aggregates being published at different times. `/v1/meta` counts both
+  (`import_filter_report`).
+- **No report, no reasons.** If the report can't be read, the snapshot carries a
+  warning and the services are listed without a reason; one more than 48 hours old
+  also gets a warning. `CATALOG_SKIP_FILTER_REPORT` turns the step off, and
+  `CATALOG_FILTER_REPORT_INDEX` points it at another index.
+
+### US sanctions (OFAC)
+
+Two questions, answered from the US Treasury's Office of Foreign Assets Control (OFAC)
+and labeled as OFAC's every time, never as "sanctioned" on the catalog's own word:
+
+- **Services in countries under country-wide programs:** `region=ofac`, "US sanctions
+  (OFAC)". It lists the jurisdictions OFAC's
+  [FAQ 10](https://ofac.treasury.gov/faqs/10) names: Cuba, Iran, and North Korea. The
+  Crimea and the so-called DNR and LNR regions of Ukraine have no ISO code, and the rest
+  of Ukraine is not under those programs, so Ukraine is not listed; Syria's program was
+  revoked on 2025-07-01 and is recorded under `left`. The grouping is its own kind,
+  `sanctions`, with its own heading in the site's filters, and is rechecked every 90
+  days rather than yearly. Iran's federation (IRFED) is in eduGAIN, but no service it
+  registers was in the snapshot of 2026-11-01, so the grouping finds none today.
+- **Services whose organization may be on OFAC's lists:** `ofac=possible,confirmed`.
+  Ingest reads the SDN list and the consolidated (non-SDN) list on every run
+  (`catalog-core/src/ofac.rs`) and compares only entries for entities, never
+  individuals, vessels, or aircraft:
+  - a **name** matches when the organization's name equals the entry's name or a strong
+    a.k.a., ignoring case, punctuation, a leading "The" and a trailing legal form
+    (`Co., Ltd.`, `LLC`, `GmbH`); a single word under five letters never matches
+  - a **domain** matches when a host of the service (its entityID, login endpoints,
+    organization or information page) is a website the entry lists, or under it; a
+    website with a path, such as a social media page, is not a domain
+  - **a name is not an identity.** Every match is `possible` and shows the entry it
+    matched, until the curation overlay confirms or dismisses it
+    ([Curation overlay](#curation-overlay)). Nothing is confirmed automatically. The
+    service carries its matches as `ofac`, results carry the strongest, and
+    `/v1/meta` names both lists with their publication dates and counts matches by
+    service and provider. On 2026-11-01 one service matched: a CARSI service whose
+    organization name is that of a company on the consolidated list.
+- **Not a compliance check.** This points to OFAC's lists as of their publication date.
+  It is not sanctions screening or legal advice, and the site links
+  [OFAC's own search](https://sanctionssearch.ofac.treas.gov/) on every match.
+- **On the site,** a confirmed match's card is near-black with an amber hazard-striped
+  left edge and a badge that names the list and the date ("On OFAC's SDN list,
+  confirmed 2026-11-01"); a possible match gets only a quiet ⚠ "Possible OFAC match"
+  badge; a service merely in an OFAC country gets neither. Markings combine from the
+  outside in: an unreachable card's zebra ring outside it, a filtered card's red
+  outline at its border, the OFAC stripe inside it.
+- **If a list can't be read,** or both take longer than 90 seconds, the snapshot
+  carries a warning and no service has a match, rather than matches against half of
+  OFAC's lists. `CATALOG_SKIP_OFAC` turns the step off, and `CATALOG_OFAC_SDN_URL` and
+  `CATALOG_OFAC_CONSOLIDATED_URL` point it elsewhere.
+
+### Whether a service still answers
+
+Metadata outlives the services it describes, so ingest checks each service and gives
+it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services unless
+`status=dead` or `status=all` asks for them.
+
+- **Login hosts decide it.** Each `endpoint_hosts` host (the
+  `AssertionConsumerService` hosts) gets one `HEAD https://<host>/` through the same
+  guarded client as the logo checks. Any HTTP answer counts, whatever its status: a
+  login endpoint expects a SAML POST, so many answer anything else with an error.
+  What counts is the name, the connection, and the certificate.
+- **Only evidence counts toward dead:** a name that doesn't exist, a refused
+  connection, or a certificate that has expired, is for another name, or isn't
+  trusted. Timeouts, temporary DNS failures and names that resolve only to private
+  addresses are no clear answer, because some services answer only from their own
+  campus.
+- **Thresholds** (`catalog-core/src/health.rs`): a host is alive for 14 days after it
+  answers, and dead after 3 failures in a row spanning at least 72 hours; one answer
+  clears that. A service is alive when any of its login hosts is, dead when every one
+  is, and unknown otherwise, including when it lists none or was never checked.
+- **Pages meant to be read** (information, organization and privacy URLs) get a
+  `HEAD`, falling back to `GET`. A 404 or 410 lists the page as a broken link on the
+  service (`health.broken_links`), but never makes the service dead.
+- **Spread over runs.** Results are kept in `health-cache.json` beside the snapshot.
+  Hosts that answered are rechecked every 72 hours and failing ones about daily, each
+  lengthened by up to a quarter so they don't all come due at once. Login hosts come
+  first. At most `CATALOG_HEALTH_MAX_CHECKS` (default 4000) run per run, and
+  `make backfill` works through the first pass. `CATALOG_SKIP_HEALTH` turns the step
+  off; a failure in it is a warning, not a failed run.
+- **On the site,** a dead service's card has a zebra-striped white and black ring
+  whose stripes travel around it for a few seconds (still with reduced motion), and
+  a badge with the date. The Reachability facet filters on status, and the service
+  page shows each login host's latest check.
+- **Not yet:** recognizing a name that now points elsewhere (a lapsed or parked
+  domain, a CNAME to a deleted cloud resource), and the private report on login
+  hosts that could be taken over. See TODOS.md.
+
+### The "Access through your institution" button
+
+A service's page has this button only when the service is all of these, checked in
+one place (`catalog-core/src/login.rs`) and served as `login` on `/v1/services/{id}`,
+so the site and the API agree:
+
+- **multilateral** (its sharing label);
+- **alive** (its health `status`);
+- **not filtered by InCommon** (no `import_filter`: an InCommon IdP can't see it);
+- **no OFAC match**, possible or confirmed. A match curation dismissed doesn't
+  count, and neither does a country under an OFAC program.
+
+Anything else gets no button, and `login.blocked_by` says which conditions failed.
+Where it goes, first that applies:
+
+1. **InCommon Wayfinder**, for a service in InCommon's metadata with an
+   `idpdisc:DiscoveryResponse` endpoint: `https://wayfinder.incommon.org/` with the
+   service's `entityID` and that endpoint, exactly as published, as `return`.
+   Wayfinder, built on SeamlessAccess, asks for the user's institution, remembers it
+   on its own site, and sends them to the endpoint, which starts the login. Wayfinder
+   returns only to an endpoint in the service's metadata. InCommon's
+   [docs](https://spaces.at.internet2.edu/spaces/federation/pages/296485479/howto-configure-service-to-use-wayfinder)
+   say it serves InCommon-registered services, but it reads InCommon's whole
+   aggregate: on 2026-11-01 it named a SWAMID service InCommon imports. A service that
+   expects to start discovery itself may not accept a choice it didn't ask for, so
+   the page calls this best-effort.
+2. **The SP's own login handler**, its `init:RequestInitiator` (Shibboleth's
+   `/Shibboleth.sso/Login`), which asks for the institution itself.
+3. **Its site**: the `mdui:InformationURL` or organization URL, labelled as the
+   site, not a login.
+
+Ingest keeps both endpoint lists as `discovery_responses` (the default first, then
+by `index`) and `request_initiators`. Every URL comes from the signed metadata, never
+from a request, and must be `https:` on the default port with a public address or a
+dotted name that isn't local (`localhost`, `.local`, `.internal`). The button follows
+SeamlessAccess's static button specification: the "Access through your institution"
+wording it asks implementers not to change, its blue, and its open-door logomark,
+self-hosted in `web/brand/` with its source. Getting in still depends on the user's
+IdP releasing what the SP needs, and the page says so.
 
 ### Traps the code handles
 
@@ -117,7 +270,7 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/ask?q=` | Read a plain-language search and find results, loosening it when it matches nothing (see Natural-language search) |
 | `/v1/interpret?q=` | Only the reading: the filters a plain-language search maps to |
 | `/v1/meta` | Snapshot provenance (URLs, `Last-Modified`, SHA-256, `validUntil`, signature status), counts, caveats |
-| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, `sharing`, and `sector` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
+| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, `sharing`, `sector`, `filter_reason`, `ofac`, and `status` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
 | `/v1/services/{id}` | One service. `id` is the lowercase hex SHA-1 of the entityID, which is the same identifier MDQ uses, so `{sha1}` is accepted as a prefix |
 | `/v1/lookup?entity_id=` | One service, by entityID |
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
@@ -161,6 +314,10 @@ what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
 
   The EU is not Europe, and Schengen is not the EU: Norway and Switzerland are in it,
   and Ireland and Cyprus are not.
+- **US sanctions (OFAC)** (`ofac`, kind `sanctions`) are the countries under OFAC's
+  country-wide programs, listed because the US government publishes them, not as the
+  catalog's judgment (see [US sanctions (OFAC)](#us-sanctions-ofac)). They are rechecked
+  every 90 days.
 - **Research and education networks** stand for the countries of their member
   networks: GÉANT (its 37 national members and the Nordic NRENs through NORDUnet),
   RedCLARA, APAN, WACREN, UbuntuNet, and ASREN. Their names count as regions only with
@@ -178,11 +335,14 @@ what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
   - the Alliance of Sahel States (Burkina Faso, Mali, Niger) is not listed, as a
     politically sensitive grouping
 
-  Groupings whose membership is contested, or that label countries by a judgment
-  (sanctions lists, "developed countries"), are left out on purpose.
-- **Every list is rechecked yearly.** Each entry records the date it was checked
-  against its source. A test fails once any entry is more than a year old, as a prompt
-  to recheck it and update `checked`.
+  - OFAC's programs for three regions of Ukraine, which have no ISO code, leave Ukraine
+    out of the `ofac` grouping
+
+  Groupings whose membership is contested, or that label countries by the catalog's
+  own judgment ("developed countries", "Global South"), are left out on purpose.
+- **Every list is rechecked yearly,** and sanctions programs every 90 days. Each entry
+  records the date it was checked against its source. A test fails once an entry is
+  older than that, as a prompt to recheck it and update `checked`.
 - **Federations that list several countries** are in a region when any of their
   countries is, the same rule `country` applies. WAYF (Denmark, Iceland, Greenland) is
   in Europe, the EU, and Northern America. A federation that lists no country is in
@@ -257,7 +417,7 @@ Two readers do this work:
   error, timeout, or refusal falls back to the rules, and the reading says so.
 
 Configure Claude with `ANTHROPIC_API_KEY` locally, or with
-`anthropic_api_key_ssm_parameter` in `infra/terraform` (an SSM SecureString you create
+`anthropic_api_key_ssm_parameter` in `infra/opentofu` (an SSM SecureString you create
 yourself, so the key never enters OpenTofu state). The model defaults to
 `claude-opus-5-5` at `low` effort. Set `CATALOG_NL_MODEL` / `nl_model` to trade quality
 for cost and latency, and `CATALOG_NL_ENGINE=rules` to turn Claude off.
@@ -309,6 +469,36 @@ a logo from its organization's website.
    (URL, page, model, date), separate from the metadata. The API reports
    `logo_source: metadata | website`, and the service page says where the logo came
    from.
+4. **Logos are measured, so they fill their tiles.** Ingest finds where each logo's
+   artwork sits in its image, as it looks on the site's white tile: every pixel that
+   isn't near white, once the image is composited over white. That crops away
+   transparent and white margins alike, and also white artwork drawn for a dark page,
+   which can't be seen on the tile anyway. An SVG is drawn as a browser draws it, so a
+   padded `viewBox`, or `width` and `height` that don't match the `viewBox` with a
+   `preserveAspectRatio` that pins the artwork to one side, put the box where the
+   artwork lands. A logo whose square mark stands clear of words to its right or below
+   it (a shield, then the university's name) is boxed to the mark alone, since in a
+   square tile the words only shrink it. A wordmark alone stays whole: what follows the
+   first gap must read as words, in lines clearly shorter than the mark. A logo opaque
+   to its edges (a colored square, a photo) fills the tile with no margin. The box
+   (`box` on each logo, as fractions of the image's own size) is stored, not a cropped
+   image, so the site still loads each logo from its own URL. The site scales the box
+   to the tile less a 9% margin and centers it, and clips a mark to its box. A logo
+   that couldn't be measured shows whole, as before.
+
+   SVG comes from thousands of registrants, so it is drawn with no fonts, and every
+   reference to another file or URL is refused. An SVG with text isn't measured,
+   since its text can't be drawn without fonts. A raster over 4,096 pixels on a side
+   isn't decoded, and each image gets 5 seconds.
+
+   The box also picks the logo. Among a service's working metadata logos, English or
+   untagged first, the one whose artwork renders largest in the square tile wins,
+   among those big enough to look sharp (32 px), then the largest image. So a square
+   mark beats a wider banner. Claude is told the tile is square, and when its first
+   pick from a website is a wide wordmark, a later pick that fills the tile better is
+   taken instead. A working metadata logo still always beats the website, even a wide
+   one such as the Data Intensive Research Initiative of South Africa's: it is the
+   registrant's own choice, and cropped to its artwork it shows its mark in full.
 
 Every URL involved was written by a registrant, so the fetcher refuses private,
 loopback, link-local (including `169.254.169.254`), and carrier-grade-NAT addresses,
@@ -320,7 +510,7 @@ little:
 
 | Entry | Rechecked after |
 |---|---|
-| Working logo URL | 14 days |
+| Working logo URL | 14 days (and once more to be measured, if it was cached before logos were) |
 | Broken logo URL | 7 days |
 | Inconclusive logo URL | 3 days |
 | Website with a logo found | 30 days |
@@ -341,10 +531,12 @@ The ingest report counts the services left without any logo by reason in
 `services_without_logo`: `no_website`, `waiting` (not looked up yet),
 `no_logo_on_site`, or the lookup's failure (`dns`, `connect`, `timeout`, `tls`,
 `http`, `http_transient`, `model`, `other`). It also reports how many of them publish
-a broken metadata logo, and how many metadata logos were inconclusive. A service
+a broken metadata logo, how many metadata logos were inconclusive, and how many logos
+have been measured (`logos_measured`) and are shown as their mark alone
+(`logos_shown_as_mark`). A service
 with no logo shows a monogram of its name. A federation's or identity provider's logo
 would look like the service's own, so it is not used as a fallback. Website lookup needs an Anthropic key, the same one natural-language search
-uses (`ANTHROPIC_API_KEY`, or `anthropic_api_key_ssm_parameter` in `infra/terraform`).
+uses (`ANTHROPIC_API_KEY`, or `anthropic_api_key_ssm_parameter` in `infra/opentofu`).
 Without one, ingest still checks metadata logos and reports how many services are
 waiting. `CATALOG_LOGO_MODEL` (default `claude-opus-5-5` at `low` effort) chooses the
 model, and `--skip-logos` turns all of this off.
@@ -457,7 +649,7 @@ cargo test -p catalog-ingest sharing::tests::eval -- --ignored --nocapture
 | Setting | Default | |
 |---|---|---|
 | `CATALOG_SHARING_MAX` | 400 | most requests per run (a cluster is one); `0` turns them off |
-| `CATALOG_SHARING_MODEL` | `claude-opus-5-5` | at `CATALOG_SHARING_EFFORT`, default `low`; `infra/terraform` sets `claude_model` |
+| `CATALOG_SHARING_MODEL` | `claude-opus-5-5` | at `CATALOG_SHARING_EFFORT`, default `low`; `infra/opentofu` sets `claude_model` |
 | `CATALOG_SHARING_CACHE` | `sharing-cache.json` beside the snapshot | |
 
 ## Who runs a service
@@ -498,7 +690,7 @@ An organization can have several: a university medical center is `academia` and
    its name, website, a sample of its services and the rules' hints. The answer is
    kept in `service.sector` with the model and date, cached in `sector-cache.json`,
    and capped per run (`CATALOG_SECTOR_MAX`, default 400;
-   `sector_max_per_run` in `infra/terraform`). The rules decide 719 of the 1,414 organizations in the
+   `sector_max_per_run` in `infra/opentofu`). The rules decide 719 of the 1,414 organizations in the
    2026-10-28 snapshot, so about 700 are left for Claude.
 
 Publicly funded institutions are labeled by what they are: a public university is
@@ -523,10 +715,29 @@ prompt over the organizations the rules leave undecided.
 
 Metadata cannot say whether a provider is commercial, give a plain-language summary, or
 add subject tags. `curation/curation.example.json` shows an overlay keyed by entityID or
-by organization name. Copy it to `curation/curation.json` and `make ingest` picks it up.
-In AWS, set `curation_file` in `infra/terraform`. Curated values are stored apart from metadata
+by organization name. The deployed overlay is `curation/curation.json`, committed:
+`make ingest` picks it up, and `infra/opentofu/terraform.tfvars` points `curation_file`
+at it, so `make deploy` uploads it beside the snapshot. Curated values are stored apart from metadata
 (`service.curated`) and are labeled as curated in the UI, so a reader always knows which
 statements came from the federation.
+
+It is also the only place a possible OFAC match is confirmed or dismissed. Each
+decision names the entry (`sdn:<uid>` or `consolidated:<uid>`, since UIDs repeat across
+the two lists), the organization name or the one entityID it applies to, the decision,
+its date, and an optional note shown with it:
+
+```json
+{
+  "ofac": [
+    { "entry": "consolidated:30942", "provider": "Example Telecom Group Co., Ltd.",
+      "decision": "dismissed", "date": "2026-11-01", "note": "A different company of the same name." }
+  ]
+}
+```
+
+A dismissed match disappears; a confirmed one gets the full OFAC marking with its date.
+A decision whose entry no longer matches, because it left OFAC's lists or the service
+changed, does nothing and is listed as a snapshot warning.
 
 This is also the seam for provider-maintained content later: an editing workflow only
 has to produce this file.
@@ -538,12 +749,12 @@ The same image runs the site and API locally with `make run-image`.
 
 ```bash
 make state-bucket    # once per account: S3 bucket for OpenTofu state, writes backend.hcl
-make deploy          # builds and pushes the image, then tofu apply in infra/terraform
+make deploy          # builds and pushes the image, then tofu apply in infra/opentofu
 make seed            # once: copy local summary and logo caches up, so nothing is regenerated
 make first-ingest    # the API needs one snapshot before its first cold start
 ```
 
-`infra/terraform` is applied with [OpenTofu](https://opentofu.org) at the version in
+`infra/opentofu` is applied with [OpenTofu](https://opentofu.org) at the version in
 `.opentofu-version`, the one CI validates with. `make init` (and so `make deploy`)
 stops if `tofu` is a different version; install that release, or use a version manager
 that reads `.opentofu-version`. **Never run `terraform` against this stack:** the state
@@ -605,6 +816,9 @@ integrity guarantee. **Do not use this catalog as a trust source for SAML config
   registrant chose. It does not resolve parent/subsidiary or system/campus relationships.
   Vendors that register one SP per customer appear as a single provider with many
   services, which is usually what a catalog reader wants.
+- **Not sanctions screening.** OFAC matches compare names and domains with OFAC's lists
+  as published; a possible match is a name collision until curators confirm it, and a
+  missed match proves nothing. Use OFAC's own search for an answer.
 - **SAML only.** Services that federate only with OpenID Connect are absent.
 - **Assertions, not behavior.** A category tag records what was asserted or assigned in
   metadata. It does not guarantee that any particular identity provider releases
@@ -620,8 +834,8 @@ crates/catalog-store    snapshot read/write: path, s3://, https://
 crates/catalog-ingest   fetch + build snapshot (CLI and scheduled Lambda)
 crates/catalog-api      Axum API (local server and Lambda)
 web/                    static front end; network.js is the landing animation
-infra/terraform         S3, Lambda, API Gateway, EventBridge, CloudFront (OpenTofu)
-curation/               overlay example
+infra/opentofu          S3, Lambda, API Gateway, EventBridge, CloudFront (OpenTofu)
+curation/               the deployed overlay, and an example
 ```
 
 ## Contributing
@@ -634,7 +848,11 @@ in [CONTRIBUTING.md](CONTRIBUTING.md). Release notes are in [CHANGELOG.md](CHANG
 
 Licensed under the [Apache License, Version 2.0](LICENSE); see also [NOTICE](NOTICE). The
 bundled Poppins fonts in `web/fonts/` are under the SIL Open Font License
-(`web/fonts/OFL.txt`). Dependency licenses are held to an allow-list in CI with
+(`web/fonts/OFL.txt`). The SeamlessAccess logomark in `web/brand/` is SeamlessAccess's
+mark, not licensed with the code. The InCommon and Internet2 logotypes in `web/brand/`
+are Internet2's trademarks, used with permission and not licensed with the code; a
+fork must remove them. `web/brand/README.md` says where each came from.
+Dependency licenses are held to an allow-list in CI with
 [`cargo-deny`](deny.toml), and their attributions are generated with
 [`cargo-about`](about.toml) into `THIRD-PARTY-LICENSES.html`, which the image build
 writes from the `Cargo.lock` it builds and ships in the container image (`make notices`

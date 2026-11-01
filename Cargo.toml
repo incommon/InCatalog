@@ -9,10 +9,10 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "Apache-2.0"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -31,6 +31,7 @@ sha2 = "0.11"
 hex = "0.4"
 quick-xml = "0.42"
 percent-encoding = "2"
+url = "2"
 aws-config = { version = "1", features = ["behavior-version-latest"] }
 # Without the default `rustls` (legacy hyper 0.14 / rustls 0.21 client) and `sigv4a`
 # features: both drag in crates with open RustSec advisories (deny.toml).

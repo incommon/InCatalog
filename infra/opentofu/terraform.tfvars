@@ -6,3 +6,7 @@ site_zone   = "texturedmilkproduct.casa"
 github_oidc_provider_arn = "arn:aws:iam::719982589369:oidc-provider/token.actions.githubusercontent.com"
 # The repository uses GitHub's immutable OIDC subjects, which name it by ID.
 github_subject_prefix = "repo:incommon@294270554/InCatalog@1438674272"
+
+# The curation overlay, uploaded beside the snapshot. Among other things it is where
+# possible OFAC matches are confirmed or dismissed (README, "Curation overlay").
+curation_file = "../../curation/curation.json"

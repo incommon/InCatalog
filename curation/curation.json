@@ -1,0 +1,12 @@
+{
+  "_comment": "Editorial overlay; see curation.example.json and the README's Curation overlay section.",
+  "ofac": [
+    {
+      "entry": "consolidated:30942",
+      "provider": "China United Network Communications Group Co.Ltd",
+      "decision": "confirmed",
+      "date": "2026-11-01",
+      "note": "The metadata names China United Network Communications Group Co.Ltd (China Unicom) and links chinaunicom.cn; the service is China Unicom's 5G campus network. The NS-CMIC listing restricts buying or selling the company's publicly traded securities, not buying its services (OFAC FAQ 905)."
+    }
+  ]
+}

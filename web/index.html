@@ -28,10 +28,20 @@
     </nav>
   </header>
   <main id="main" tabindex="-1"></main>
-  <footer class="foot">
-    <span id="provenance">Loading snapshot…</span>
-    <!-- The running version, from /v1/meta; it links to that release's notes. -->
-    <a id="version" class="version" hidden></a>
-  </footer>
+  <!-- Floats at the bottom of the window: InCommon's lockup (web/brand/README.md),
+       orange on the light page and white on the dark one, swapped in styles.css with
+       the theme tokens' selectors (lazy, so only the one shown downloads), and under
+       it the footer. -->
+  <div class="floater">
+    <a class="lockup" href="https://incommon.org/" aria-label="InCommon, powered by Internet2">
+      <img class="lockup-light" src="brand/incommon-poweredbyi2-lockup-orange.png" alt="" width="2883" height="1113" loading="lazy">
+      <img class="lockup-dark" src="brand/incommon-poweredbyi2-lockup-white.png" alt="" width="2883" height="1113" loading="lazy">
+    </a>
+    <footer class="foot">
+      <span id="provenance">Loading snapshot…</span>
+      <!-- The running version, from /v1/meta; it links to that release's notes. -->
+      <a id="version" class="version" hidden></a>
+    </footer>
+  </div>
 </body>
 </html>

@@ -16,10 +16,13 @@ use crate::categories::{self, CategoryDef};
 use crate::curation::provider_name;
 use crate::environment::{self, EnvironmentReading};
 use crate::federations::normalize_reg_auth;
+use crate::import_filter::{self, Reason};
 use crate::model::{
-    pick, Availability, Curated, Federation, Service, Snapshot, Source, SourceInfo,
+    pick, Availability, Curated, Federation, FilterReportInfo, HealthStatus, LogoBox, OfacReport,
+    Service, Snapshot, Source, SourceInfo,
 };
 use crate::nl::{Interpretation, Vocab};
+use crate::ofac::MatchStatus;
 use crate::regions::{self, RegionExpansion, REGIONS};
 use crate::sector::{self, Sector, SectorReading};
 use crate::sharing::{self, Sharing, SharingReading};
@@ -72,6 +75,31 @@ pub struct ServiceQuery {
     pub category: Option<String>,
     /// One of the availability keys, e.g. `incommon-and-edugain`.
     pub availability: Option<String>,
+    /// Why InCommon's import filtered a service out, as its report says: `saml1`,
+    /// `saml2`, `https`, `requested-attributes`, `bindings`, `entity-id`, `sirtfi`,
+    /// `research-and-scholarship`, `algorithm-support`, `mdui`, `registration-info`,
+    /// `entity-attributes`, `saml-metadata`, `certificate`, `scope`, or `other`,
+    /// comma-separated or as repeated parameters; a service filtered for any of them
+    /// matches. Only `edugain-only` services have a reason.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub filter_reason: Option<String>,
+    /// Services whose organization name or domain matched an entry on OFAC's
+    /// sanctions lists: `possible` (a match nobody has confirmed: a name is not an
+    /// identity) or `confirmed` (confirmed by the catalog's curators),
+    /// comma-separated or as repeated parameters. See `ofac` on the service. A
+    /// pointer to OFAC's own lists as of their publication date, not sanctions
+    /// screening or legal advice. Services in countries under OFAC's country-wide
+    /// programs are `region=ofac`.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub ofac: Option<String>,
+    /// Whether the service still answers, from the catalog's own checks of its login
+    /// hosts: `alive`, `dead` (unreachable from the catalog for several days), or
+    /// `unknown` (not checked yet, or no clear answer), comma-separated or as
+    /// repeated parameters, or `all`. **Defaults to `alive,unknown`**, so dead
+    /// services are left out unless asked for. A failure seen from outside isn't
+    /// proof: some services answer only from their campus network.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub status: Option<String>,
     /// Requested attribute, by `Name` or `FriendlyName` (case-insensitive).
     pub attribute: Option<String>,
     /// Provider ID from `/v1/providers`.
@@ -134,14 +162,40 @@ pub struct ServiceSummary {
     /// `metadata` (the service's own `mdui:Logo`) or `website` (found on the
     /// organization's site because no metadata logo works).
     pub logo_source: Option<String>,
+    /// Where the logo's artwork sits in its image, when ingest could measure it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo_box: Option<LogoBox>,
     pub categories: Vec<String>,
     pub availability: Option<Availability>,
+    /// Why InCommon's import filtered it out (see `filter_reason` on
+    /// `/v1/services`); empty unless InCommon's report gives a reason.
+    pub filter_reasons: Vec<Reason>,
+    /// Its strongest match on OFAC's sanctions lists, when its organization's name or
+    /// domain matched an entry (see `ofac` on `/v1/services`); absent otherwise. A
+    /// possible match is not a finding.
+    pub ofac: Option<OfacSummary>,
+    /// `alive`, `dead`, or `unknown` (see `status` on `/v1/services`).
+    pub status: HealthStatus,
+    /// When `dead`: the first failed check of the run of failures.
+    pub unreachable_since: Option<String>,
     pub registrar: Option<String>,
     pub federation: Option<String>,
     pub federation_name: Option<String>,
     pub countries: Vec<String>,
     pub sources: Vec<Source>,
     pub curated: Option<Curated>,
+}
+
+/// A service's strongest OFAC match, for a result card. The service's `ofac` has
+/// every match in full.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct OfacSummary {
+    /// `confirmed` or `possible`.
+    pub status: MatchStatus,
+    /// `sdn` or `consolidated`.
+    pub list: crate::ofac::List,
+    /// When the curation overlay confirmed it.
+    pub decided: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -194,6 +248,20 @@ pub struct ServiceDetail {
     pub sharing: SharingReading,
     /// Who runs it, and what decided that.
     pub sector: SectorReading,
+    /// Whether the page shows a Log in button, and where it goes.
+    pub login: crate::login::Login,
+    /// The logo the site shows, chosen as for `/v1/services`.
+    pub logo: Option<ShownLogo>,
+}
+
+/// The logo the site shows for a service. See [`best_logo`].
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct ShownLogo {
+    pub url: String,
+    /// `metadata` or `website`.
+    pub source: &'static str,
+    #[serde(rename = "box", skip_serializing_if = "Option::is_none")]
+    pub art_box: Option<LogoBox>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -291,6 +359,8 @@ pub struct Counts {
     pub federations: usize,
     pub identity_providers: usize,
     pub by_availability: BTreeMap<String, usize>,
+    /// Services by `status`. `services` counts all of them, dead ones included.
+    pub by_status: BTreeMap<String, usize>,
     pub incommon_registered_services: usize,
 }
 
@@ -304,6 +374,11 @@ pub struct Meta {
     pub generated_at: String,
     pub generator: String,
     pub sources: Vec<SourceInfo>,
+    /// InCommon's import filter report this snapshot used, when ingest could read it.
+    pub import_filter_report: Option<FilterReportInfo>,
+    /// OFAC's sanctions lists this snapshot was compared with, when ingest could read
+    /// them, and how many services matched.
+    pub ofac: Option<OfacReport>,
     pub counts: Counts,
     pub warnings: Vec<String>,
     pub caveats: Vec<String>,
@@ -319,6 +394,8 @@ struct Entry {
     environment: EnvironmentReading,
     sharing: SharingReading,
     sector: SectorReading,
+    filter_reasons: Vec<Reason>,
+    ofac: Option<MatchStatus>,
     name: String,
     name_lc: String,
     org_lc: String,
@@ -449,6 +526,8 @@ impl Catalog {
                 environment: environment::classify(s),
                 sharing: sharing::classify(s, clusters.get(&s.entity_id)),
                 sector: sector::classify(s, &fed_hosts),
+                filter_reasons: import_filter::reasons(s),
+                ofac: crate::ofac::status(&s.ofac),
                 org_n: normalize(&pkey),
                 name_lc: name.to_lowercase(),
                 name,
@@ -532,6 +611,7 @@ impl Catalog {
         let s = &self.snapshot.services[i];
         let e = &self.entries[i];
         let fed = self.federation_of(s);
+        let logo = best_logo(s);
         ServiceSummary {
             id: s.id.clone(),
             entity_id: s.entity_id.clone(),
@@ -548,10 +628,19 @@ impl Catalog {
                 .or_else(|| pick(&s.organization.names, lang))
                 .map(str::to_owned),
             provider_id: self.providers[e.provider].id.clone(),
-            logo: best_logo(s).map(|(u, _)| u),
-            logo_source: best_logo(s).map(|(_, src)| src.to_owned()),
+            logo_source: logo.as_ref().map(|l| l.source.to_owned()),
+            logo_box: logo.as_ref().and_then(|l| l.art_box),
+            logo: logo.map(|l| l.url),
             categories: s.categories.clone(),
             availability: s.availability,
+            filter_reasons: e.filter_reasons.clone(),
+            ofac: s.ofac.first().map(|m| OfacSummary {
+                status: m.status,
+                list: m.list,
+                decided: m.decided.clone(),
+            }),
+            status: crate::health::status(s),
+            unreachable_since: s.health.as_ref().and_then(|h| h.since.clone()),
             registrar: s.registrar().map(str::to_owned),
             federation: fed.map(|f| f.code.clone()),
             federation_name: fed.map(|f| f.name.clone()),
@@ -587,6 +676,8 @@ impl Catalog {
             environment: self.entries[i].environment.clone(),
             sharing: self.entries[i].sharing.clone(),
             sector: self.entries[i].sector.clone(),
+            login: crate::login::login(s, self.entries[i].sharing.value),
+            logo: best_logo(s),
         }
     }
 
@@ -689,6 +780,20 @@ impl Catalog {
                             bump(a.key(), a.label());
                         }
                     }
+                    Dim::Status => {
+                        let v = crate::health::status(s);
+                        bump(v.key(), v.label());
+                    }
+                    Dim::FilterReason => {
+                        for r in &self.entries[i].filter_reasons {
+                            bump(r.key(), r.label());
+                        }
+                    }
+                    Dim::Ofac => {
+                        if let Some(m) = self.entries[i].ofac {
+                            bump(m.key(), m.label());
+                        }
+                    }
                     Dim::Environment => {
                         let env = self.entries[i].environment.value;
                         bump(env.key(), env.label());
@@ -751,7 +856,7 @@ impl Catalog {
         let mut hits: Vec<&Provider> = self
             .providers
             .iter()
-            .filter(|p| p.service_count > 0 && tokens.iter().all(|t| p.search.contains(t.as_str())))
+            .filter(|p| p.service_count > 0 && tokens.iter().all(|t| t.found_in(&p.search)))
             .collect();
         match q.sort.as_deref() {
             Some("name") => hits.sort_by(|a, b| a.search.cmp(&b.search)),
@@ -935,7 +1040,11 @@ impl Catalog {
             .filter(|s| !hidden(s))
             .collect();
         let mut by_availability = BTreeMap::new();
+        let mut by_status = BTreeMap::new();
         for s in &visible {
+            *by_status
+                .entry(crate::health::status(s).key().to_owned())
+                .or_default() += 1;
             if let Some(a) = s.availability {
                 *by_availability.entry(a.key().to_owned()).or_default() += 1;
             }
@@ -947,6 +1056,9 @@ impl Catalog {
             "Entity categories record what was asserted or assigned in metadata; they do not guarantee attribute release by any particular identity provider.".to_owned(),
             "Services that federate only with OpenID Connect do not appear in SAML metadata.".to_owned(),
         ];
+        if self.snapshot.ofac.is_some() {
+            caveats.push("OFAC matches compare organization names and domains with OFAC's published lists as of their publication date. A possible match is a name collision until the catalog's curators confirm it, and none of this is sanctions screening or legal advice: use OFAC's own search (https://sanctionssearch.ofac.treas.gov/).".to_owned());
+        }
         if self.snapshot.sources.iter().any(|s| !s.signature_verified) {
             caveats.push("Aggregates were fetched over TLS from the federation operators, but their XML signatures were not verified for this snapshot. Do not use this catalog as a trust source for SAML configuration; consume signed metadata directly.".to_owned());
         }
@@ -956,6 +1068,8 @@ impl Catalog {
             generated_at: self.snapshot.generated_at.clone(),
             generator: self.snapshot.generator.clone(),
             sources: self.snapshot.sources.clone(),
+            import_filter_report: self.snapshot.import_filter_report.clone(),
+            ofac: self.snapshot.ofac.clone(),
             counts: Counts {
                 services: visible.len(),
                 providers: self
@@ -970,6 +1084,7 @@ impl Catalog {
                     .filter(|s| s.registrar() == Some(INCOMMON_REGISTRAR))
                     .count(),
                 by_availability,
+                by_status,
             },
             warnings: self.snapshot.warnings.clone(),
             caveats,
@@ -984,6 +1099,9 @@ enum Dim {
     Region,
     Category,
     Availability,
+    FilterReason,
+    Ofac,
+    Status,
     Environment,
     Sharing,
     Sector,
@@ -993,12 +1111,15 @@ enum Dim {
 }
 
 impl Dim {
-    const ALL: [Dim; 11] = [
+    const ALL: [Dim; 14] = [
         Dim::Federation,
         Dim::Country,
         Dim::Region,
         Dim::Category,
         Dim::Availability,
+        Dim::FilterReason,
+        Dim::Ofac,
+        Dim::Status,
         Dim::Environment,
         Dim::Sharing,
         Dim::Sector,
@@ -1014,6 +1135,9 @@ impl Dim {
             Dim::Region => "region",
             Dim::Category => "category",
             Dim::Availability => "availability",
+            Dim::FilterReason => "filter_reason",
+            Dim::Ofac => "ofac",
+            Dim::Status => "status",
             Dim::Environment => "environment",
             Dim::Sharing => "sharing",
             Dim::Sector => "sector",
@@ -1025,9 +1149,8 @@ impl Dim {
 }
 
 struct Filters {
-    /// Query words, stemmed, each with a leading space so `contains` means "a word
-    /// starts with this".
-    tokens: Vec<String>,
+    /// Query words (see [`Token`]).
+    tokens: Vec<Token>,
     /// The whole query, normalized, for the exact-phrase bonus.
     phrase: String,
     /// How many tokens must match.
@@ -1046,6 +1169,12 @@ struct Filters {
     categories: Vec<String>,
     /// `Some(None)` means an unrecognized availability key: match nothing.
     availability: Option<Option<Availability>>,
+    /// Filter reason keys, lowercase; like `environments`.
+    filter_reasons: Vec<String>,
+    /// OFAC match statuses, lowercase; like `environments`.
+    ofac: Vec<String>,
+    /// Status keys; empty when `all` was asked for. Defaults to alive and unknown.
+    statuses: Vec<String>,
     /// Environment keys, lowercase; a service must be in one. An unknown key adds
     /// nothing, and on its own matches nothing.
     environments: Vec<String>,
@@ -1105,6 +1234,27 @@ impl Filters {
             regions: named_regions,
             categories: split_list(q.category.as_deref()),
             availability: nonempty(&q.availability).map(|a| Availability::from_key(&a)),
+            statuses: {
+                let asked: Vec<String> = split_list(q.status.as_deref())
+                    .iter()
+                    .map(|v| v.to_lowercase())
+                    .collect();
+                if asked.is_empty() {
+                    vec!["alive".into(), "unknown".into()]
+                } else if asked.iter().any(|v| v == "all") {
+                    Vec::new()
+                } else {
+                    asked
+                }
+            },
+            filter_reasons: split_list(q.filter_reason.as_deref())
+                .iter()
+                .map(|v| v.to_lowercase())
+                .collect(),
+            ofac: split_list(q.ofac.as_deref())
+                .iter()
+                .map(|v| v.to_lowercase())
+                .collect(),
             environments: split_list(q.environment.as_deref())
                 .iter()
                 .map(|e| e.to_lowercase())
@@ -1132,10 +1282,7 @@ impl Filters {
             .tokens
             .iter()
             .map(|t| {
-                let df = entries
-                    .iter()
-                    .filter(|e| e.blob.contains(t.as_str()))
-                    .count() as f64;
+                let df = entries.iter().filter(|e| t.found_in(&e.blob)).count() as f64;
                 (((n + 1.0) / (df + 1.0)).ln() * 10.0) as u32 + 1
             })
             .collect();
@@ -1143,12 +1290,7 @@ impl Filters {
 
     fn text_match(&self, e: &Entry) -> bool {
         self.tokens.is_empty()
-            || self
-                .tokens
-                .iter()
-                .filter(|t| e.blob.contains(t.as_str()))
-                .count()
-                >= self.need
+            || self.tokens.iter().filter(|t| t.found_in(&e.blob)).count() >= self.need
     }
 
     fn matches(&self, c: &Catalog, i: usize, except: Option<Dim>) -> bool {
@@ -1181,6 +1323,32 @@ impl Filters {
                     return false;
                 }
             }
+        }
+        if on(Dim::Status)
+            && !self.statuses.is_empty()
+            && !self
+                .statuses
+                .iter()
+                .any(|k| k == crate::health::status(s).key())
+        {
+            return false;
+        }
+        if on(Dim::FilterReason)
+            && !self.filter_reasons.is_empty()
+            && !self
+                .filter_reasons
+                .iter()
+                .any(|k| e.filter_reasons.iter().any(|r| r.key() == k))
+        {
+            return false;
+        }
+        if on(Dim::Ofac)
+            && !self.ofac.is_empty()
+            && !e
+                .ofac
+                .is_some_and(|m| self.ofac.iter().any(|k| k == m.key()))
+        {
+            return false;
         }
         if on(Dim::Environment)
             && !self.environments.is_empty()
@@ -1260,16 +1428,16 @@ impl Filters {
             score += 100;
         }
         for (t, w) in self.tokens.iter().zip(&self.weights) {
-            if e.blob.contains(t.as_str()) {
+            if t.found_in(&e.blob) {
                 score += w * 2;
             }
-            if e.name_n.contains(t.as_str()) {
+            if t.found_in(&e.name_n) {
                 score += w;
             }
-            if e.org_n.contains(t.as_str()) {
+            if t.found_in(&e.org_n) {
                 score += w / 2;
             }
-            if e.keywords_n.contains(t.as_str()) {
+            if t.found_in(&e.keywords_n) {
                 score += w;
             }
         }
@@ -1302,24 +1470,42 @@ const FILLER: &[&str] = &[
     "a", "an", "the", "of", "for", "and", "or", "to", "in", "on", "at", "by", "with", "from",
 ];
 
-fn tokens(q: Option<&str>) -> Vec<String> {
-    let words: Vec<String> = normalize(q.unwrap_or(""))
-        .split_whitespace()
-        .map(stem)
-        .collect();
-    let content: Vec<&String> = words
+/// One query word, matched against normalized text.
+#[derive(Debug, PartialEq)]
+struct Token {
+    /// The word as typed, with a leading space: matches the start of a word.
+    prefix: String,
+    /// Its singular, space on both sides: matches only that whole word, so
+    /// "journals" finds "journal" but "physics" does not find "physicians".
+    singular: Option<String>,
+}
+
+impl Token {
+    fn new(word: &str) -> Self {
+        Self {
+            prefix: format!(" {word}"),
+            singular: singular(word).map(|s| format!(" {s} ")),
+        }
+    }
+
+    fn found_in(&self, text: &str) -> bool {
+        text.contains(&self.prefix) || self.singular.as_ref().is_some_and(|s| text.contains(s))
+    }
+}
+
+fn tokens(q: Option<&str>) -> Vec<Token> {
+    let normalized = normalize(q.unwrap_or(""));
+    let words: Vec<&str> = normalized.split_whitespace().collect();
+    let content: Vec<&str> = words
         .iter()
-        .filter(|w| !FILLER.contains(&w.as_str()))
+        .copied()
+        .filter(|w| !FILLER.contains(w))
         .collect();
     // A query made only of filler ("the who") is searched as typed.
-    let keep: Vec<&String> = if content.is_empty() {
-        words.iter().collect()
-    } else {
-        content
-    };
-    let mut out: Vec<String> = Vec::new();
+    let keep = if content.is_empty() { words } else { content };
+    let mut out: Vec<Token> = Vec::new();
     for w in keep {
-        let t = format!(" {w}");
+        let t = Token::new(w);
         if !out.contains(&t) {
             out.push(t);
         }
@@ -1355,15 +1541,15 @@ pub(crate) fn normalize(s: &str) -> String {
     out
 }
 
-/// Just enough stemming that "journals" finds "journal" and "libraries" finds
-/// "library". Tokens match word beginnings, so a shorter stem only widens.
-fn stem(t: &str) -> String {
+/// Just enough singularizing that "journals" finds "journal" and "libraries"
+/// finds "library". `None` when the word does not look plural.
+fn singular(t: &str) -> Option<String> {
     if t.len() > 4 && t.ends_with("ies") {
-        t[..t.len() - 3].to_owned()
+        Some(format!("{}y", &t[..t.len() - 3]))
     } else if t.len() > 3 && t.ends_with('s') && !t.ends_with("ss") && !t.ends_with("us") {
-        t[..t.len() - 1].to_owned()
+        Some(t[..t.len() - 1].to_owned())
     } else {
-        t.to_owned()
+        None
     }
 }
 
@@ -1427,10 +1613,15 @@ pub fn display_name(s: &Service, lang: Option<&str>) -> String {
         .to_owned()
 }
 
+/// Smaller than this, in the image's own pixels, the artwork looks blurry in a tile.
+const SHARP_PIXELS: f32 = 32.0;
+
 /// The logo to show, and where it came from. A working metadata logo always wins:
-/// `https:` or inline, not marked broken by ingest, English or untagged first, then
-/// the largest. Otherwise the logo ingest found on the organization's website.
-pub fn best_logo(s: &Service) -> Option<(String, &'static str)> {
+/// `https:` or inline, not marked broken by ingest, English or untagged first. Among
+/// those, a logo whose artwork looks sharp in the tile, then the one whose artwork
+/// fills the square tile most (a square mark over a wide banner), then the largest.
+/// Otherwise the logo ingest found on the organization's website.
+pub fn best_logo(s: &Service) -> Option<ShownLogo> {
     let from_metadata = s
         .logos
         .iter()
@@ -1439,16 +1630,38 @@ pub fn best_logo(s: &Service) -> Option<(String, &'static str)> {
         })
         .max_by_key(|l| {
             let lang_ok = matches!(l.lang.as_deref(), None | Some("en"));
+            let dims = l.width.zip(l.height).filter(|(w, h)| *w > 0 && *h > 0);
+            let (sharp, fill) = match (dims, l.art_box) {
+                (Some((w, h)), Some(b)) => {
+                    let art = (b.w * w as f32).max(b.h * h as f32);
+                    (art >= SHARP_PIXELS, b.fill())
+                }
+                (Some((w, h)), None) => {
+                    let (w, h) = (w as f32, h as f32);
+                    (w.max(h) >= SHARP_PIXELS, (w / h).min(h / w))
+                }
+                (None, Some(b)) => (true, b.fill()),
+                (None, None) => (true, 0.0),
+            };
             (
                 lang_ok,
+                sharp,
+                // In tenths, so a near-tie in shape goes to the larger image.
+                (fill * 10.0).round() as u32,
                 l.width.unwrap_or(0).min(512) * l.height.unwrap_or(0).min(512),
             )
         })
-        .map(|l| (l.url.clone(), "metadata"));
+        .map(|l| ShownLogo {
+            url: l.url.clone(),
+            source: "metadata",
+            art_box: l.art_box,
+        });
     from_metadata.or_else(|| {
-        s.discovered_logo
-            .as_ref()
-            .map(|d| (d.url.clone(), "website"))
+        s.discovered_logo.as_ref().map(|d| ShownLogo {
+            url: d.url.clone(),
+            source: "website",
+            art_box: d.art_box,
+        })
     })
 }
 
@@ -1549,6 +1762,53 @@ mod tests {
         assert_eq!(
             split_list(Some(" INCOMMON, SWAMID,,INCOMMON ")),
             vec!["INCOMMON", "SWAMID"]
+        );
+    }
+
+    #[test]
+    fn plurals_find_the_singular_word_but_not_longer_words() {
+        let svc = |id: &str, description: &str| {
+            let mut s = Service {
+                entity_id: id.into(),
+                id: crate::entity_hash(id),
+                ..Default::default()
+            };
+            s.display_names.insert("en".into(), id.into());
+            s.descriptions.insert("en".into(), description.into());
+            s
+        };
+        let c = Catalog::new(Snapshot {
+            services: vec![
+                svc("https://aip/", "Publisher of physics journals"),
+                svc("https://nejm/", "A journal for physicians"),
+                svc("https://clinic/", "Booking for the clinic"),
+                svc("https://library/", "The university library"),
+                svc("https://librarian/", "Tools for librarians"),
+            ],
+            ..Default::default()
+        });
+        let hits = |q: &str| {
+            let mut ids: Vec<String> = c
+                .search(&ServiceQuery {
+                    q: Some(q.into()),
+                    ..Default::default()
+                })
+                .items
+                .into_iter()
+                .map(|s| s.entity_id)
+                .collect();
+            ids.sort();
+            ids
+        };
+        assert_eq!(hits("physics journals"), vec!["https://aip/"]);
+        assert_eq!(hits("journals"), vec!["https://aip/", "https://nejm/"]);
+        assert_eq!(hits("clinics"), vec!["https://clinic/"]);
+        assert_eq!(hits("libraries"), vec!["https://library/"]);
+        // A word as typed still matches the start of longer words.
+        assert_eq!(hits("physic"), vec!["https://aip/", "https://nejm/"]);
+        assert_eq!(
+            hits("librar"),
+            vec!["https://librarian/", "https://library/"]
         );
     }
 
@@ -2020,6 +2280,137 @@ mod tests {
     }
 
     #[test]
+    fn status_defaults_to_alive_and_unknown() {
+        use crate::model::{Health, HealthStatus};
+        let svc = |id: &str, status: Option<HealthStatus>| Service {
+            entity_id: id.into(),
+            id: crate::entity_hash(id),
+            health: status.map(|status| Health {
+                status,
+                since: (status == HealthStatus::Dead).then(|| "2026-10-20T00:00:00Z".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let c = Catalog::new(Snapshot {
+            services: vec![
+                svc("https://a.example/sp", Some(HealthStatus::Alive)),
+                svc("https://d.example/sp", Some(HealthStatus::Dead)),
+                svc("https://u.example/sp", Some(HealthStatus::Unknown)),
+                svc("https://n.example/sp", None),
+            ],
+            ..Default::default()
+        });
+        let page = |v: Option<&str>| {
+            c.search(&ServiceQuery {
+                status: v.map(Into::into),
+                ..Default::default()
+            })
+        };
+        let default = page(None);
+        assert_eq!(default.total, 3, "dead is left out by default");
+        assert!(default.items.iter().all(|s| s.status != HealthStatus::Dead));
+        assert_eq!(page(Some("dead")).total, 1);
+        assert_eq!(page(Some("all")).total, 4);
+        assert_eq!(page(Some("Alive, dead")).total, 2);
+        assert_eq!(page(Some("unknown")).total, 2, "never checked is unknown");
+
+        let facet: Vec<(&str, usize)> = default.facets["status"]
+            .iter()
+            .map(|f| (f.value.as_str(), f.count))
+            .collect();
+        assert_eq!(
+            facet,
+            [("unknown", 2), ("alive", 1), ("dead", 1)],
+            "the facet counts dead too"
+        );
+        let d = &page(Some("dead")).items[0];
+        assert_eq!(d.unreachable_since.as_deref(), Some("2026-10-20T00:00:00Z"));
+        assert_eq!(c.meta().counts.by_status.get("dead"), Some(&1));
+    }
+
+    #[test]
+    fn filter_reason_filter_facet_and_summary() {
+        use crate::model::{FilterFinding, ImportFilter};
+        let svc = |id: &str, a: Availability, reasons: &[&str]| Service {
+            entity_id: id.into(),
+            id: crate::entity_hash(id),
+            sources: vec![Source::Edugain],
+            availability: Some(a),
+            import_filter: (!reasons.is_empty()).then(|| ImportFilter {
+                report_url: "https://r.example/x.log".into(),
+                reported_at: "2026-11-01T18:46:09Z".into(),
+                findings: reasons
+                    .iter()
+                    .map(|r| FilterFinding {
+                        reason: (*r).into(),
+                        check: format!("check_{r}"),
+                        message: "m".into(),
+                    })
+                    .collect(),
+            }),
+            ..Default::default()
+        };
+        let c = Catalog::new(Snapshot {
+            services: vec![
+                svc(
+                    "https://a.example/sp",
+                    Availability::EdugainOnly,
+                    &["saml1", "sirtfi"],
+                ),
+                svc(
+                    "https://b.example/sp",
+                    Availability::EdugainOnly,
+                    &["sirtfi", "sirtfi"],
+                ),
+                svc("https://c.example/sp", Availability::EdugainOnly, &[]),
+                svc(
+                    "https://d.example/sp",
+                    Availability::EdugainImportedByIncommon,
+                    &[],
+                ),
+            ],
+            ..Default::default()
+        });
+        let page = |v: &str| {
+            c.search(&ServiceQuery {
+                filter_reason: Some(v.into()),
+                ..Default::default()
+            })
+        };
+        assert_eq!(page("sirtfi").total, 2);
+        assert_eq!(page("saml1").total, 1);
+        assert_eq!(page("SAML1, https").total, 1);
+        assert_eq!(page("no-such-reason").total, 0);
+
+        let all = c.search(&ServiceQuery::default());
+        let facet: Vec<(&str, usize)> = all.facets["filter_reason"]
+            .iter()
+            .map(|f| (f.value.as_str(), f.count))
+            .collect();
+        assert_eq!(
+            facet,
+            [("sirtfi", 2), ("saml1", 1)],
+            "a repeated reason counts once"
+        );
+        let a = all
+            .items
+            .iter()
+            .find(|s| s.entity_id == "https://a.example/sp")
+            .unwrap();
+        assert_eq!(a.filter_reasons, [Reason::Saml1, Reason::Sirtfi]);
+        let cc = all
+            .items
+            .iter()
+            .find(|s| s.entity_id == "https://c.example/sp")
+            .unwrap();
+        assert!(
+            cc.filter_reasons.is_empty(),
+            "edugain-only, but the report doesn't say why"
+        );
+    }
+
+    #[test]
     fn sharing_filter_facet_and_ranking() {
         let c = sharing_catalog();
         let total = |v: &str| {
@@ -2133,5 +2524,87 @@ mod tests {
         );
         let d = c.service_by_entity_id("https://b/").unwrap();
         assert!(d.sector.reason.unwrap().contains("medical center"));
+    }
+
+    #[test]
+    fn best_logo_prefers_a_mark_that_fills_the_tile() {
+        use crate::model::{DiscoveredLogo, Logo, LogoBox};
+        let measured = |w: f32, h: f32, aspect: f32| LogoBox {
+            x: 0.0,
+            y: 0.0,
+            w,
+            h,
+            aspect,
+            bleed: false,
+            mark: false,
+        };
+        let logo = |url: &str, w: u32, h: u32, b: Option<LogoBox>| Logo {
+            url: url.into(),
+            width: Some(w),
+            height: Some(h),
+            art_box: b,
+            ..Default::default()
+        };
+        let mut s = Service {
+            logos: vec![
+                logo(
+                    "https://e/banner.png",
+                    600,
+                    150,
+                    Some(measured(1.0, 1.0, 4.0)),
+                ),
+                logo(
+                    "https://e/mark.png",
+                    120,
+                    120,
+                    Some(measured(0.8, 0.8, 1.0)),
+                ),
+            ],
+            ..Default::default()
+        };
+        let shown = best_logo(&s).unwrap();
+        assert_eq!(
+            (shown.url.as_str(), shown.source),
+            ("https://e/mark.png", "metadata")
+        );
+        assert_eq!(shown.art_box, s.logos[1].art_box);
+
+        // A wide image cropped to its square mark counts as square.
+        s.logos[0].art_box = Some(LogoBox {
+            mark: true,
+            ..measured(0.25, 1.0, 4.0)
+        });
+        assert_eq!(best_logo(&s).unwrap().url, "https://e/banner.png");
+
+        // Too small to look sharp loses to a banner, however square.
+        s.logos[0].art_box = Some(measured(1.0, 1.0, 4.0));
+        s.logos[1] = logo(
+            "https://e/favicon.png",
+            16,
+            16,
+            Some(measured(1.0, 1.0, 1.0)),
+        );
+        assert_eq!(best_logo(&s).unwrap().url, "https://e/banner.png");
+
+        // Unmeasured logos are ranked by their declared shape, as before.
+        s.logos = vec![
+            logo("https://e/wide.png", 400, 100, None),
+            logo("https://e/square.png", 100, 100, None),
+        ];
+        assert_eq!(best_logo(&s).unwrap().url, "https://e/square.png");
+
+        // No working metadata logo: the website's, with its box.
+        s.logos.iter_mut().for_each(|l| l.broken = true);
+        s.discovered_logo = Some(DiscoveredLogo {
+            url: "https://e/site.svg".into(),
+            art_box: Some(measured(0.5, 0.5, 1.0)),
+            ..Default::default()
+        });
+        let shown = best_logo(&s).unwrap();
+        assert_eq!(
+            (shown.url.as_str(), shown.source),
+            ("https://e/site.svg", "website")
+        );
+        assert!(shown.art_box.is_some());
     }
 }

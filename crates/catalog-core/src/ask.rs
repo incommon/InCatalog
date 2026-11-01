@@ -48,6 +48,7 @@ const SOFTEST_FIRST: &[(&str, &str)] = &[
     ("federation", "Registered by"),
     ("provider_type", "Provider type"),
     ("availability", "Availability"),
+    ("status", "Status"),
     ("category", "Category"),
 ];
 
@@ -151,6 +152,7 @@ impl Catalog {
             sector: p.sector.clone(),
             category: p.category.clone(),
             availability: p.availability.clone(),
+            status: p.status.clone(),
             attribute: p.attribute.clone(),
             source: p.source.clone(),
             provider_type: p.provider_type.clone(),
@@ -173,6 +175,7 @@ fn get<'a>(p: &'a InterpretedParams, field: &str) -> Option<&'a String> {
         "sector" => p.sector.as_ref(),
         "category" => p.category.as_ref(),
         "availability" => p.availability.as_ref(),
+        "status" => p.status.as_ref(),
         "attribute" => p.attribute.as_ref(),
         "source" => p.source.as_ref(),
         "provider_type" => p.provider_type.as_ref(),
@@ -190,6 +193,7 @@ fn take(p: &mut InterpretedParams, field: &str) -> Option<String> {
         "sector" => p.sector.take(),
         "category" => p.category.take(),
         "availability" => p.availability.take(),
+        "status" => p.status.take(),
         "attribute" => p.attribute.take(),
         "source" => p.source.take(),
         "provider_type" => p.provider_type.take(),

@@ -72,8 +72,30 @@ type St = State<Arc<AppState>>;
         MatchedTerm,
         AskResult,
         catalog_core::model::Service,
+        catalog_core::model::LogoBox,
+        catalog_core::search::ShownLogo,
+        catalog_core::model::Endpoint,
+        catalog_core::login::Login,
+        catalog_core::login::Target,
+        catalog_core::login::Route,
+        catalog_core::login::Blocker,
         catalog_core::model::Federation,
         catalog_core::model::SourceInfo,
+        catalog_core::model::ImportFilter,
+        catalog_core::model::FilterFinding,
+        catalog_core::model::FilterReportInfo,
+        catalog_core::model::Health,
+        catalog_core::model::HealthStatus,
+        catalog_core::model::HostHealth,
+        catalog_core::model::BrokenLink,
+        catalog_core::import_filter::Reason,
+        catalog_core::model::OfacMatch,
+        catalog_core::model::MatchBasis,
+        catalog_core::model::OfacReport,
+        catalog_core::model::OfacListInfo,
+        catalog_core::ofac::List,
+        catalog_core::ofac::MatchStatus,
+        catalog_core::search::OfacSummary,
         catalog_core::environment::Environment,
         catalog_core::environment::EnvironmentReading,
         catalog_core::regions::RegionExpansion,
@@ -232,11 +254,18 @@ async fn read(
 }
 
 /// Search services with filters, paging, and facet counts. Filters combine with
-/// AND; several values of `federation`, `country`, `region`, `environment`, or
-/// `sharing` or `sector` combine with OR, and `country` and `region` together are one set of
-/// places. `sharing=multilateral` means open to users of any identity provider in
-/// principle: access still depends on the user's identity provider releasing the
-/// attributes the service needs, and on any subscription it requires.
+/// AND; several values of `federation`, `country`, `region`, `environment`,
+/// `sharing`, `sector`, or `filter_reason` combine with OR, and `country` and `region`
+/// together are one set of places. `sharing=multilateral` means open to users of any
+/// identity provider in principle: access still depends on the user's identity
+/// provider releasing the attributes the service needs, and on any subscription it
+/// requires. `filter_reason` is InCommon's own reason for filtering a service out of
+/// its eduGAIN import, from its published report. `ofac` finds services whose
+/// organization name or domain matched an entry on OFAC's sanctions lists: a
+/// `possible` match is a name collision until the catalog's curators confirm it, and
+/// none of it is sanctions screening or legal advice. `status` defaults to
+/// `alive,unknown`: services unreachable from the catalog for several days are left
+/// out unless `status=dead` or `status=all` asks for them.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
 async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
     let mut query = raw.unwrap_or_default();
@@ -247,6 +276,9 @@ async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
         "environment",
         "sharing",
         "sector",
+        "filter_reason",
+        "ofac",
+        "status",
     ] {
         query = join_repeated(&query, key);
     }
@@ -326,8 +358,9 @@ async fn federations(State(s): St) -> Json<Vec<FederationView>> {
 
 /// Regions a search can name: UN M49 geographic regions (each sub-region with
 /// its `parent`, so they form a tree under the continents), regions by common
-/// name (the Middle East, the Balkans), and dated political groupings (the EU, the
-/// EEA, BRICS), each with its countries and service count.
+/// name (the Middle East, the Balkans), dated political groupings (the EU, the
+/// EEA, BRICS), and the countries under OFAC's country-wide US sanctions programs
+/// (`ofac`, kind `sanctions`), each with its countries and service count.
 /// A federation that lists several countries is in a region when any of them is.
 #[utoipa::path(get, path = "/v1/regions", responses((status = 200, body = Vec<RegionView>)))]
 async fn regions(State(s): St) -> Json<Vec<RegionView>> {
@@ -766,6 +799,203 @@ mod tests {
             ..Default::default()
         });
         router(AppState::from_catalog(catalog))
+    }
+
+    #[tokio::test]
+    async fn services_leave_out_dead_ones_unless_asked() {
+        use catalog_core::model::{Health, HealthStatus};
+        let svc = |id: &str, status: HealthStatus| Service {
+            id: catalog_core::entity_hash(id),
+            entity_id: id.into(),
+            health: Some(Health {
+                status,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let app = || {
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services: vec![
+                    svc("https://a.example/sp", HealthStatus::Alive),
+                    svc("https://d.example/sp", HealthStatus::Dead),
+                ],
+                ..Default::default()
+            })))
+        };
+        let (_, page) = get_json_from(app(), "/v1/services").await;
+        assert_eq!(page["total"], 1);
+        assert_eq!(page["items"][0]["status"], "alive");
+        let (_, page) = get_json_from(app(), "/v1/services?status=alive&status=dead").await;
+        assert_eq!(page["total"], 2);
+        let (_, page) = get_json_from(app(), "/v1/services?status=all").await;
+        assert_eq!(page["total"], 2);
+
+        let (_, spec) = get_json("/openapi.json").await;
+        assert!(spec["components"]["schemas"]["HealthStatus"].is_object());
+        let doc = spec["paths"]["/v1/services"]["get"]["description"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+            + spec["paths"]["/v1/services"]["get"]["summary"]
+                .as_str()
+                .unwrap_or_default();
+        assert!(doc.contains("alive,unknown"), "{doc}");
+    }
+
+    #[tokio::test]
+    async fn services_filter_by_import_filter_reason() {
+        use catalog_core::model::{Availability, FilterFinding, FilterReportInfo, ImportFilter};
+        let svc = |id: &str, reason: Option<&str>| Service {
+            id: catalog_core::entity_hash(id),
+            entity_id: id.into(),
+            availability: Some(Availability::EdugainOnly),
+            import_filter: reason.map(|r| ImportFilter {
+                report_url: "https://r.example/x.log".into(),
+                reported_at: "2026-11-01T18:46:09Z".into(),
+                findings: vec![FilterFinding {
+                    reason: r.into(),
+                    check: "check_saml1".into(),
+                    message: "no POST support on SAML 1.1 SP".into(),
+                }],
+            }),
+            ..Default::default()
+        };
+        let app = || {
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services: vec![
+                    svc("https://a.example/sp", Some("saml1")),
+                    svc("https://b.example/sp", Some("sirtfi")),
+                    svc("https://c.example/sp", None),
+                ],
+                import_filter_report: Some(FilterReportInfo {
+                    url: "https://r.example/x.log".into(),
+                    services_with_reason: 2,
+                    services_without_reason: 1,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })))
+        };
+        let (_, page) = get_json_from(
+            app(),
+            "/v1/services?filter_reason=saml1&filter_reason=sirtfi",
+        )
+        .await;
+        assert_eq!(page["total"], 2);
+        let (_, page) = get_json_from(app(), "/v1/services?filter_reason=saml1").await;
+        assert_eq!(page["total"], 1);
+        assert_eq!(page["items"][0]["filter_reasons"][0], "saml1");
+
+        let id = catalog_core::entity_hash("https://a.example/sp");
+        let (_, d) = get_json_from(app(), &format!("/v1/services/{id}")).await;
+        let f = &d["service"]["import_filter"]["findings"][0];
+        assert_eq!(f["check"], "check_saml1");
+        assert_eq!(f["message"], "no POST support on SAML 1.1 SP");
+
+        let (_, meta) = get_json_from(app(), "/v1/meta").await;
+        assert_eq!(meta["import_filter_report"]["services_without_reason"], 1);
+
+        let (_, spec) = get_json("/openapi.json").await;
+        assert!(spec["components"]["schemas"]["ImportFilter"].is_object());
+        assert!(spec["components"]["schemas"]["Reason"].is_object());
+    }
+
+    #[tokio::test]
+    async fn services_filter_by_ofac_match() {
+        use catalog_core::model::{MatchBasis, OfacMatch, OfacReport};
+        use catalog_core::ofac::{List, MatchStatus};
+        let svc = |id: &str, status: Option<MatchStatus>| Service {
+            id: catalog_core::entity_hash(id),
+            entity_id: id.into(),
+            ofac: status
+                .map(|status| OfacMatch {
+                    status,
+                    list: List::Sdn,
+                    uid: "306".into(),
+                    name: "BANCO NACIONAL DE CUBA".into(),
+                    programs: vec!["CUBA".into()],
+                    matched_on: vec![MatchBasis {
+                        on: "domain".into(),
+                        ours: "sso.bnc.cu".into(),
+                        theirs: "bnc.cu".into(),
+                    }],
+                    list_published: Some("2026-10-28".into()),
+                    decided: (status == MatchStatus::Confirmed).then(|| "2026-11-01".into()),
+                    note: None,
+                })
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+        let app = || {
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services: vec![
+                    svc("https://a.example/sp", Some(MatchStatus::Confirmed)),
+                    svc("https://b.example/sp", Some(MatchStatus::Possible)),
+                    svc("https://c.example/sp", None),
+                ],
+                ofac: Some(OfacReport {
+                    confirmed: 1,
+                    possible: 1,
+                    providers: 2,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })))
+        };
+        let (_, page) = get_json_from(app(), "/v1/services?ofac=confirmed&ofac=possible").await;
+        assert_eq!(page["total"], 2);
+        let (_, page) = get_json_from(app(), "/v1/services?ofac=possible").await;
+        assert_eq!(page["total"], 1);
+        assert_eq!(page["items"][0]["ofac"]["status"], "possible");
+        let (_, page) = get_json_from(app(), "/v1/services?ofac=confirmed").await;
+        assert_eq!(
+            page["items"][0]["ofac"],
+            serde_json::json!({"status": "confirmed", "list": "sdn", "decided": "2026-11-01"})
+        );
+        let (_, page) = get_json_from(app(), "/v1/services").await;
+        assert_eq!(page["total"], 3);
+        let facet = page["facets"]["ofac"].as_array().unwrap();
+        assert_eq!(facet.len(), 2, "{facet:?}");
+        let unmatched = page["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["entity_id"] == "https://c.example/sp")
+            .unwrap();
+        assert!(unmatched["ofac"].is_null());
+
+        let id = catalog_core::entity_hash("https://a.example/sp");
+        let (_, d) = get_json_from(app(), &format!("/v1/services/{id}")).await;
+        let m = &d["service"]["ofac"][0];
+        assert_eq!(
+            (&m["status"], &m["list"]),
+            (&"confirmed".into(), &"sdn".into())
+        );
+        assert_eq!(m["decided"], "2026-11-01");
+        assert_eq!(m["matched_on"][0]["theirs"], "bnc.cu");
+
+        let (_, meta) = get_json_from(app(), "/v1/meta").await;
+        assert_eq!(meta["ofac"]["providers"], 2);
+        assert!(meta["caveats"].as_array().unwrap().iter().any(|c| c
+            .as_str()
+            .unwrap()
+            .contains("sanctions screening or legal advice")));
+
+        let (_, spec) = get_json("/openapi.json").await;
+        for s in ["OfacMatch", "OfacSummary", "MatchStatus", "OfacReport"] {
+            assert!(spec["components"]["schemas"][s].is_object(), "{s}");
+        }
+        let param = spec["paths"]["/v1/services"]["get"]["parameters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "ofac")
+            .unwrap()
+            .clone();
+        assert_eq!(param["schema"]["type"], "array");
+        let kinds = &spec["components"]["schemas"]["RegionKind"]["enum"];
+        assert!(kinds.as_array().unwrap().contains(&"sanctions".into()));
     }
 
     #[tokio::test]

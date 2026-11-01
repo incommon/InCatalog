@@ -63,9 +63,29 @@
   --chip: #efecdd;
   --ok: #16750e;
   --warn: #8a6400;
+  /* Services InCommon's import filtered out: their cards' outline and badge. */
+  --filtered: #c0262d;
+  /* Unreachable services: a ring of white and black, which reads on either theme. */
+  --pulse-light: #ffffff;
+  --pulse-dark: #000000;
+  /* Confirmed matches on OFAC's lists: a near-black fill with an amber hazard-striped
+     edge. --ofac-mark is the quiet glyph of a possible match, on the page's own chips. */
+  --ofac-fill: #17140f;
+  --ofac-amber: #f2b705;
+  --ofac-mark: #7a5600;
   --foot-bg: #00365e;
   --foot-ink: #f7f5eb;
   --radius: 10px;
+  /* InCommon's lockup, floating at the bottom of the window with the footer. 64px
+     keeps "Powered by" no smaller than incommon.org shows it (63px); its clear space
+     is a quarter of its height. Once the page scrolls it shrinks into the footer's
+     bar, to --lockup-compact-h (see .floater.compact). --floater-h is the floater's
+     height, which app.js keeps current as the footer wraps and the lockup shrinks;
+     whatever sits at the bottom of the window leaves room for it. */
+  --lockup-h: 64px;
+  --lockup-compact-h: 32px;
+  --lockup-space: calc(var(--lockup-h) / 4);
+  --floater-h: 150px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --sans: Poppins, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ui: var(--sans);
@@ -87,6 +107,10 @@
     --chip: #0d3350;
     --ok: #a4d06f;
     --warn: #ffe088;
+    --filtered: #ff7b7b;
+    --ofac-fill: #0c0a07;
+    --ofac-amber: #ffc83d;
+    --ofac-mark: #ffd27a;
     --foot-bg: #001426;
     --foot-ink: #d8dfe6;
     color-scheme: dark;
@@ -95,12 +119,15 @@
 :root[data-theme="dark"] {
   --bg: #001e33; --surface: #062a45; --ink: #f7f5eb; --muted: #a7b8c8; --faint: #23445e;
   --line: #143a57; --brand: #ff5a00; --accent: #ff8a4c; --accent-fill: #ff5a00; --on-accent: #001e33;
-  --second: #a4d06f; --chip: #0d3350; --ok: #a4d06f; --warn: #ffe088; --foot-bg: #001426;
-  --foot-ink: #d8dfe6; color-scheme: dark;
+  --second: #a4d06f; --chip: #0d3350; --ok: #a4d06f; --warn: #ffe088; --filtered: #ff7b7b;
+  --ofac-fill: #0c0a07; --ofac-amber: #ffc83d; --ofac-mark: #ffd27a;
+  --foot-bg: #001426; --foot-ink: #d8dfe6; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* Scrolling to a focused element or an anchor stops above the floater. */
+html { scroll-padding-bottom: var(--floater-h); }
 /* `hidden` must win over any display rule (.facet button is display: flex), or a
    list's "+ N more" items show from the start and the button reveals nothing. */
 [hidden] { display: none !important; }
@@ -149,11 +176,40 @@ main:focus { outline: none; }
 .foot a { color: inherit; }
 .foot .version { margin-left: 8px; padding: 1px 7px; border: 1px solid currentColor; border-radius: 999px; text-decoration: none; opacity: 0.8; white-space: nowrap; }
 .foot .version:hover { opacity: 1; color: inherit; }
+/* The last thing on the page, stuck to the bottom of the window until the page
+   scrolls down to it. */
+.floater {
+  position: sticky; bottom: 0; z-index: 6; display: flex; flex-direction: column;
+  align-items: center; background: var(--bg); border-top: 1px solid var(--line);
+}
+.floater .foot { align-self: stretch; }
+.lockup { display: block; margin: var(--lockup-space); line-height: 0; }
+.lockup img { display: block; height: var(--lockup-h); width: auto; transition: height 0.2s ease; }
+.lockup .lockup-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lockup .lockup-light { display: none; }
+  :root:not([data-theme="light"]) .lockup .lockup-dark { display: block; }
+}
+:root[data-theme="dark"] .lockup .lockup-light { display: none; }
+:root[data-theme="dark"] .lockup .lockup-dark { display: block; }
+/* Scrolled (app.js): the lockup shrinks into the left of the footer's bar, white on
+   its navy in either theme, so the floater is no taller than the bar. */
+.floater.compact { flex-direction: row; background: var(--foot-bg); border-top-color: var(--foot-bg); }
+.floater.compact .foot { flex: 1; min-width: 0; }
+.floater.compact .lockup { margin: 0 0 0 24px; }
+.floater.compact .lockup img { height: var(--lockup-compact-h); }
+.floater.compact .lockup .lockup-light { display: none; }
+.floater.compact .lockup .lockup-dark { display: block; }
+@media (prefers-reduced-motion: reduce) {
+  .lockup img { transition: none; }
+}
 
 /* ---------- landing: the federation network ---------- */
 body.landing main { max-width: none; padding: 0; }
 body.landing .foot { position: relative; z-index: 2; }
-.network { position: relative; height: calc(100vh - 110px); min-height: 560px; overflow: hidden; }
+/* 60px is the top bar, so the landing page fills the window without scrolling, down
+   to a window about 690px tall, where the search panel still fits. */
+.network { position: relative; height: calc(100vh - 60px - var(--floater-h)); min-height: 480px; overflow: hidden; }
 .network canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 /* Wide screens: the search on the left, the globe on the right. Narrow: the search
    on top, the globe below it. network.js reads the same breakpoint. */
@@ -220,7 +276,7 @@ form.busy button::after { content: " …"; }
 .search-head .searchbox { flex: 1; min-width: 240px; box-shadow: none; }
 .layout { display: grid; grid-template-columns: 260px 1fr; gap: 28px; align-items: start; }
 .layout > * { min-width: 0; }
-.facets { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding-right: 4px; }
+.facets { position: sticky; top: 12px; max-height: calc(100vh - 24px - var(--floater-h)); overflow: auto; padding-right: 4px; }
 .facet { margin-bottom: 18px; }
 .facet h3 { font: 600 11px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
 .facet h3 .mode { font-weight: 400; letter-spacing: 0; text-transform: none; margin-left: 6px; }
@@ -272,6 +328,125 @@ button.chip:hover { border-color: var(--accent); }
   border: 1px solid var(--line); border-radius: var(--radius); text-decoration: none; min-width: 0;
 }
 .card:hover { border-color: var(--accent); color: inherit; }
+/* Confirmed on one of OFAC's lists: a near-black card with a thin amber hazard stripe
+   inside its left edge and a warning glyph, always with the badge that says which list
+   and when it was confirmed. No red and no motion, so it never reads as the filtered
+   outline or the unreachable ring. The theme's tokens are redefined for the dark fill,
+   so everything inside stays readable in either theme. A possible match gets only the
+   glyph badge.
+   Markings combine from the outside in: an unreachable card's zebra ring sits outside
+   the card, a filtered card's red outline at its border, and this stripe inside it. */
+.card.ofac, .panel.ofac {
+  position: relative; padding-left: 24px; background: var(--ofac-fill); color: var(--ink);
+  --surface: var(--ofac-fill); --ink: #f5f1e6; --muted: #c9c0ad; --chip: #2a251c; --line: #3a3326;
+  --accent: #ffb27a; --second: #b5dc86; --ok: #b5dc86; --warn: var(--ofac-amber); --filtered: #ff8f8f;
+}
+.card.ofac::after, .panel.ofac::after {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; pointer-events: none;
+  border-radius: calc(var(--radius) - 1px) 0 0 calc(var(--radius) - 1px);
+  background: repeating-linear-gradient(-45deg, var(--ofac-amber) 0 4px, var(--ofac-fill) 4px 8px);
+}
+.card.ofac:hover { border-color: var(--ofac-amber); }
+.badge.ofac { color: var(--ofac-amber); border: 1px solid var(--ofac-amber); }
+.badge.ofac-possible { color: var(--ofac-mark); }
+.ofac-glyph { font-style: normal; }
+.ofac-note ul { margin: 4px 0; padding-left: 18px; }
+.ofac-note li { margin-bottom: 6px; }
+/* Filtered by InCommon's import: a red outline, always with the badge that says so. */
+.card.filtered, .card.filtered:hover { border-color: var(--filtered); box-shadow: inset 0 0 0 1px var(--filtered); }
+.badge.filtered { color: var(--filtered); border: 1px solid var(--filtered); }
+/* Unreachable from InCatalog: a ring of wide diagonal white and black zebra stripes
+   just outside the card, travelling clockwise around it, always with the badge that
+   says so. It runs for under five seconds (WCAG 2.2.2) and then holds still; with
+   reduced motion it never moves. It sits outside the border, so a filtered card's red
+   outline stays visible inside it.
+   Each edge is its own strip of 45-degree stripes. A stripe pair is 16.97px across,
+   which is 24px along an edge (16.97 x sqrt 2), so a 24px tile repeats seamlessly and
+   moving it 24px moves the stripes exactly one pair. */
+.card.dead { position: relative; }
+.card.dead::before {
+  content: ""; position: absolute; inset: -6px; border-radius: 4px; pointer-events: none;
+  --zebra: repeating-linear-gradient(45deg, var(--pulse-dark) 0 8.485px, var(--pulse-light) 8.485px 16.97px);
+  background-image: var(--zebra), var(--zebra), var(--zebra), var(--zebra);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 24px 6px, 24px 6px, 6px 24px, 6px 24px;
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  animation: zebra-march 1.2s linear 4;
+}
+@keyframes zebra-march {
+  to { background-position: 24px 0, -24px 100%, 0 -24px, 100% 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.dead::before { animation: none; }
+}
+.badge.dead { color: var(--ink); border: 1px dashed var(--ink); }
+/* The key to the chips' markings: it follows the grid in the page and sticks just
+   above the floater while the grid scrolls past, so it floats in the grid's lower
+   right but never leaves the grid's box. At rest it sits below the last row, so it
+   never hides a chip or the pager. Each swatch is a tiny chip with the chips' own
+   classes, so its zebra ring, outline and stripe are the same rules, reduced motion
+   included. */
+.chip-view { position: relative; }
+.chip-key {
+  position: sticky; bottom: calc(var(--floater-h) + 12px); z-index: 5; width: max-content; max-width: 100%;
+  margin: 12px 0 0 auto; padding: 4px; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius); font: 12px var(--ui);
+  box-shadow: 0 8px 28px -12px rgba(0,0,0,0.35);
+}
+.chip-key.open { padding: 4px 12px 10px; }
+.chip-key h2 { margin: 0; font: inherit; }
+.chip-key-toggle {
+  font: 600 12px var(--ui); color: inherit; background: none; border: 0; cursor: pointer;
+  min-height: 24px; padding: 2px 8px; border-radius: 6px;
+}
+.chip-key-toggle::after { content: " \25B8"; }
+.chip-key-toggle[aria-expanded="true"]::after { content: " \25BE"; }
+.chip-key-toggle:hover { color: var(--accent); }
+.chip-key ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.chip-key li { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; }
+.chip-key li a { color: var(--muted); min-height: 24px; display: inline-flex; align-items: center; }
+.chip-key li a:hover { color: var(--accent); }
+.key-sample { display: flex; justify-content: center; align-items: center; height: 26px; }
+.card.key-swatch { display: block; width: 32px; height: 20px; padding: 0; gap: 0; border-radius: 4px; }
+.card.key-swatch::after { border-radius: 3px 0 0 3px; }
+.card.dead.key-swatch::before { inset: -4px; background-size: 24px 4px, 24px 4px, 4px 24px, 4px 24px; }
+/* The Log in button on a service's page: SeamlessAccess's "Access through your
+   institution" button, to its static button specification (web/brand/README.md).
+   SeamlessAccess's blue on white text is 5.0:1, and 4.6:1 or more against the light
+   page; against the dark page it is 3.4:1, so there it gets a light 1px edge. */
+.login { margin: -4px 0 20px; }
+.sa-button {
+  --sa-blue: #34769a;
+  display: flex; align-items: center; box-sizing: border-box; min-width: 256px; max-width: 328px;
+  min-height: 50px; padding: 9px; border-radius: 5px; background: var(--sa-blue); color: #ffffff;
+  font: 700 14px/1.4 Arial, sans-serif; text-decoration: none; cursor: pointer;
+}
+.sa-button:hover, .sa-button:focus-visible {
+  color: #ffffff; outline: none; box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.7), 0 0 0 4px rgba(0, 122, 204, 0.7);
+}
+.sa-button-logo-wrap {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 50px; height: 32px; padding-right: 5px; border-right: 1px solid #ffffff;
+}
+.sa-button-logo { display: block; height: 28px; width: auto; }
+.sa-button-text { flex: 1; min-width: 0; padding: 0 24px 0 10px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa-button.no-logo .sa-button-text { padding: 6px 24px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sa-button { border: 1px solid #f7f5eb; }
+}
+:root[data-theme="dark"] .sa-button { border: 1px solid #f7f5eb; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.login-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); max-width: 60ch; }
+.login-note a { color: var(--muted); }
+ul.health-hosts { margin: 4px 0 0; padding-left: 18px; }
+ul.health-hosts code { font: 12px var(--mono); overflow-wrap: anywhere; }
+.filter-note { margin-top: 12px; font-size: 13px; }
+.filter-note h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+.filter-note ul { margin: 4px 0; padding-left: 18px; }
+.filter-note code { font: 12px var(--mono); }
 .card-top { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .logo {
   width: 40px; height: 40px; flex: none; border-radius: 8px; background: var(--chip);
@@ -279,6 +454,8 @@ button.chip:hover { border-color: var(--accent); }
 }
 .logo { position: relative; }
 .logo img { position: absolute; inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); object-fit: contain; opacity: 0; transition: opacity 0.2s; }
+/* Placed from the box ingest measured around the artwork (logoPlacement in app.js). */
+.logo img.placed { inset: auto; max-width: none; }
 .logo.loaded img { opacity: 1; }
 /* Third-party marks assume a light page; a white tile keeps dark logos visible in dark mode. */
 .logo.loaded { background: #fff; box-shadow: inset 0 0 0 1px var(--line); }

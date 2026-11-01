@@ -10,7 +10,11 @@
 mod budget;
 mod enrich;
 mod fetch;
+mod filter_report;
+mod health;
+mod logo_box;
 mod logos;
+mod ofac;
 mod sector;
 mod sharing;
 
@@ -22,7 +26,9 @@ use anyhow::{bail, Context, Result};
 use catalog_core::build::Builder;
 use catalog_core::curation::CurationFile;
 use catalog_core::federations::{parse_edugain_federations, EDUGAIN_FEDERATIONS_URL};
+use catalog_core::import_filter::REPORT_INDEX_URL;
 use catalog_core::model::{Snapshot, Source};
+use catalog_core::ofac::{CONSOLIDATED_URL, SDN_URL};
 use catalog_core::SNAPSHOT_SCHEMA_VERSION;
 use catalog_store::Location;
 use clap::Parser;
@@ -56,6 +62,27 @@ struct Args {
     #[arg(long, env = "CATALOG_SKIP_EDUGAIN")]
     skip_edugain: bool,
 
+    /// The index of InCommon's import filter logs, which say why eduGAIN services
+    /// are out of its import.
+    #[arg(long, env = "CATALOG_FILTER_REPORT_INDEX", default_value = REPORT_INDEX_URL)]
+    filter_report_index: String,
+
+    /// Skip InCommon's import filter report.
+    #[arg(long, env = "CATALOG_SKIP_FILTER_REPORT")]
+    skip_filter_report: bool,
+
+    /// OFAC's SDN list (XML), compared with each provider's name and domains.
+    #[arg(long, env = "CATALOG_OFAC_SDN_URL", default_value = SDN_URL)]
+    ofac_sdn_url: String,
+
+    /// OFAC's consolidated non-SDN list (XML).
+    #[arg(long, env = "CATALOG_OFAC_CONSOLIDATED_URL", default_value = CONSOLIDATED_URL)]
+    ofac_consolidated_url: String,
+
+    /// Skip OFAC's sanctions lists.
+    #[arg(long, env = "CATALOG_SKIP_OFAC")]
+    skip_ofac: bool,
+
     /// Optional editorial overlay (JSON), as a path, s3:// or https:// URI.
     #[arg(long, env = "CATALOG_CURATION")]
     curation: Option<String>,
@@ -87,6 +114,18 @@ struct Args {
     /// Most websites to look up per run (each is one page fetch and one Claude call).
     #[arg(long, env = "CATALOG_LOGO_MAX_LOOKUPS", default_value_t = 300)]
     logo_max_lookups: usize,
+
+    /// Skip checking that services still answer.
+    #[arg(long, env = "CATALOG_SKIP_HEALTH")]
+    skip_health: bool,
+
+    /// Most login hosts and pages to check per run (one request each).
+    #[arg(long, env = "CATALOG_HEALTH_MAX_CHECKS", default_value_t = 4000)]
+    health_max_checks: usize,
+
+    /// Where check results are kept (default: `health-cache.json` beside `--out`).
+    #[arg(long, env = "CATALOG_HEALTH_CACHE")]
+    health_cache: Option<String>,
 
     /// Generated summaries and keywords: `auto` (batch, or at once when 25 or fewer
     /// need writing), `batch`, `sync`, or `off`.
@@ -165,8 +204,8 @@ async fn main() -> Result<()> {
 }
 
 /// The steps that call out share the run's time: summaries may use a quarter of what
-/// is left when they start, sharing labels a third, sectors half, and logos the rest,
-/// so a large backlog in one step cannot starve the steps after it.
+/// is left when they start, sharing labels a third, sectors half, health checks half,
+/// and logos the rest, so a large backlog in one step cannot starve the steps after it.
 async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
     let cache = args
         .cache_dir
@@ -240,6 +279,40 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
     }
 
     let (mut services, idp_counts) = builder.finish(&federations, curation.as_ref());
+
+    // Without eduGAIN's aggregate no service is `edugain-only`, so there is nothing
+    // for the report to explain.
+    let import_filter_report = if args.skip_filter_report || args.skip_edugain {
+        None
+    } else {
+        filter_report::attach(
+            &http,
+            &args.filter_report_index,
+            filter_report::TIME_LIMIT,
+            &mut services,
+            &mut warnings,
+        )
+        .await
+    };
+
+    // Matches are possible until the curation overlay confirms or dismisses them.
+    let ofac_report = if args.skip_ofac {
+        None
+    } else {
+        ofac::attach(
+            &http,
+            ofac::Options {
+                sdn: &args.ofac_sdn_url,
+                consolidated: &args.ofac_consolidated_url,
+                cache: &cache,
+                time_limit: ofac::TIME_LIMIT,
+            },
+            &mut services,
+            curation.as_ref().map_or(&[], |c| c.ofac.as_slice()),
+            &mut warnings,
+        )
+        .await
+    };
 
     let enrich_mode = enrich::Mode::parse(&args.enrich_mode);
     let enrich_report = if enrich_mode == enrich::Mode::Off {
@@ -352,6 +425,45 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         Some(report)
     };
 
+    let health_report = if args.skip_health {
+        None
+    } else {
+        let cache = args
+            .health_cache
+            .clone()
+            .unwrap_or_else(|| sibling(&args.out, "health-cache.json"));
+        // Checks are an addition to the catalog, so a failure here (an unreadable or
+        // unwritable cache) is a warning: services are then listed as unchecked.
+        match health::check(
+            &mut services,
+            health::Options {
+                cache: Location::parse(&cache)?,
+                max_checks: args.health_max_checks,
+                deadline: deadline.share(0.5),
+            },
+        )
+        .await
+        {
+            Ok(report) => {
+                tracing::info!(?report, "health");
+                stopped_for_time("health", report.stopped_for_time);
+                if report.skipped_network_down > 0 {
+                    warnings.push(format!(
+                        "health checks stopped after repeated connection failures; {} wait for the next run",
+                        report.skipped_network_down
+                    ));
+                }
+                Some(report)
+            }
+            Err(e) => {
+                warnings.push(format!(
+                    "health checks failed; services are listed as unchecked: {e:#}"
+                ));
+                None
+            }
+        }
+    };
+
     let logo_report = if args.skip_logos {
         None
     } else {
@@ -401,6 +513,8 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         federations,
         services,
         idp_counts,
+        import_filter_report,
+        ofac: ofac_report,
         warnings,
     };
 
@@ -417,7 +531,10 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         "services": snapshot.services.len(),
         "federations": snapshot.federations.len(),
         "sources": snapshot.sources,
+        "import_filter_report": snapshot.import_filter_report,
+        "ofac": snapshot.ofac,
         "warnings": snapshot.warnings,
+        "health": health_report,
         "logos": logo_report,
         "summaries": enrich_report,
         "sharing": sharing_report,

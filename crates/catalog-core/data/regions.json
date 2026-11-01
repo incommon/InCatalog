@@ -1,5 +1,5 @@
 {
- "about": "Regions a search can name, as sets of ISO 3166 alpha-2 codes (catalog-core/src/regions.rs). Each entry has its source and the date it was checked; political groupings also have the date their listed membership took effect (as_of) and, where it matters, when recent members joined. A test fails when an entry was checked more than a year ago. Groupings whose membership is contested, or that label countries by a judgment (sanctions lists, 'developed' or 'Global South'), are left out on purpose; add one only with a note on how its list was chosen.",
+ "about": "Regions a search can name, as sets of ISO 3166 alpha-2 codes (catalog-core/src/regions.rs). Each entry has its source and the date it was checked; groupings also have the date their listed membership took effect (as_of) and, where it matters, when recent members joined. A test fails when an entry was checked more than a year ago, or more than 90 days ago for sanctions programs. The countries under the US government's country-wide sanctions programs are listed as OFAC publishes them: they are in because the US government publishes them, not as the catalog's judgment, and every label says whose list it is. Groupings whose membership is contested, or that label countries by the catalog's own judgment ('developed' or 'Global South'), are left out on purpose; add one only with a note on how its list was chosen.",
  "regions": [
   {
    "key": "africa",
@@ -2457,6 +2457,42 @@
     "TN",
     "AE"
    ]
+  },
+  {
+   "key": "ofac",
+   "label": "US sanctions (OFAC)",
+   "kind": "sanctions",
+   "source": "OFAC FAQ 10: jurisdictions under broad, country-wide US sanctions",
+   "url": "https://ofac.treasury.gov/faqs/10",
+   "checked": "2026-11-01",
+   "as_of": "2025-07-01",
+   "aliases": [
+    "ofac",
+    "ofac countries",
+    "ofac sanctioned countries",
+    "ofac-sanctioned countries",
+    "countries under ofac sanctions",
+    "us sanctions",
+    "us sanctioned countries",
+    "us-sanctioned countries",
+    "countries under us sanctions",
+    "sanctioned countries",
+    "sanctioned country",
+    "sanctioned nations",
+    "embargoed countries",
+    "comprehensively sanctioned countries",
+    "sanctioned"
+   ],
+   "reading_note": "Read as the countries under the US Treasury's country-wide sanctions programs, as OFAC lists them: not anyone else's sanctions, and not a judgment of the catalog's.",
+   "note": "The jurisdictions OFAC's FAQ 10 (updated 2026-10-26) lists under broad, country-wide sanctions: Cuba, Iran, North Korea, and the Crimea, so-called Donetsk People's Republic and Luhansk People's Republic regions of Ukraine. Those three regions have no ISO 3166 code of their own, and the rest of Ukraine is not under country-wide sanctions, so Ukraine is not listed. Russia is not listed: OFAC says it is not under the same degree of country-wide prohibitions. Venezuela is not listed: OFAC blocks its government, not the country. Syria's country-wide program was revoked by E.O. 14312, effective 2025-07-01. Most OFAC programs target named persons, not countries; those are OFAC's lists, matched against services separately.",
+   "countries": [
+    "CU",
+    "IR",
+    "KP"
+   ],
+   "left": {
+    "SY": "2025-07-01"
+   }
   }
  ]
 }

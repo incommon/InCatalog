@@ -5,8 +5,8 @@
 
 use crate::categories;
 use crate::model::{
-    Contact, EntityAttribute, LangMap, Logo, Organization, Registration, RequestedAttribute,
-    Service,
+    Contact, Endpoint, EntityAttribute, LangMap, Logo, Organization, Registration,
+    RequestedAttribute, Service,
 };
 use crate::ns;
 use crate::xml::Element;
@@ -66,6 +66,30 @@ pub fn extract(entity: &Element) -> Extracted {
         }
         s.supports_discovery_response = sp_ext.child(ns::IDPDISC, "DiscoveryResponse").is_some();
         s.supports_request_initiator = sp_ext.child(ns::INIT, "RequestInitiator").is_some();
+        for ri in sp_ext.children(ns::INIT, "RequestInitiator") {
+            let e = Endpoint {
+                location: ri.attr("Location").unwrap_or("").trim().to_owned(),
+                binding: ri.attr("Binding").unwrap_or("").trim().to_owned(),
+            };
+            if !e.location.is_empty() && !s.request_initiators.contains(&e) {
+                s.request_initiators.push(e);
+            }
+        }
+        let mut responses: Vec<(bool, u32, Endpoint)> = Vec::new();
+        for dr in sp_ext.children(ns::IDPDISC, "DiscoveryResponse") {
+            let e = Endpoint {
+                location: dr.attr("Location").unwrap_or("").trim().to_owned(),
+                binding: dr.attr("Binding").unwrap_or("").trim().to_owned(),
+            };
+            if !e.location.is_empty() && !responses.iter().any(|(_, _, r)| *r == e) {
+                let default = matches!(dr.attr("isDefault"), Some("true") | Some("1"));
+                let index = dr.attr("index").and_then(|i| i.parse().ok());
+                responses.push((!default, index.unwrap_or(u32::MAX), e));
+            }
+        }
+        // Stable, so endpoints with neither keep the order they were published in.
+        responses.sort_by_key(|(not_default, index, _)| (*not_default, *index));
+        s.discovery_responses = responses.into_iter().map(|(_, _, e)| e).collect();
     }
 
     for kd in sp.children(ns::MD, "KeyDescriptor") {
@@ -216,7 +240,7 @@ fn ui_info(ui: &Element, s: &mut Service) {
             width: logo.attr("width").and_then(|v| v.parse().ok()),
             height: logo.attr("height").and_then(|v| v.parse().ok()),
             lang: logo.lang().map(str::to_owned),
-            broken: false,
+            ..Default::default()
         });
     }
 }
