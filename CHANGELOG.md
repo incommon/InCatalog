@@ -19,7 +19,7 @@ section must be written before it is cut.
   (`health`). Results carry `status` and `unreachable_since`, a `status` facet counts
   them, and `/v1/meta` counts `by_status`. On the site, an unreachable service's card
   has a zebra-striped ring and a dated badge, a Reachability facet filters on it, and
-  "dead services" or "broken links" read as `status=dead`.
+  "dead services" or "broken links" read as `status=dead`. (#52)
 - **Why InCommon filtered a service out of its eduGAIN import.** Ingest reads InCommon's
   newest import filter report and attaches each failed check, with InCommon's message,
   to the `edugain-only` services it names (`import_filter` on the service). The API
@@ -34,7 +34,7 @@ section must be written before it is cut.
 - **`/v1/services` leaves out dead services by default.** `status` defaults to
   `alive,unknown`; pass `status=dead` or `status=all` to include them. Nothing drops out
   at rollout: a service is `unknown`, and shown, until checks over several days find
-  it dead.
+  it dead. (#52)
 
 ### Fixed
 
