@@ -97,7 +97,7 @@ const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().repla
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
 // a service must carry every category, and may be registered by any of the federations,
 // in any of the countries or regions, or be in any of the environments.
-const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any" };
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any", filter_reason: "any" };
 // Region names read "the European Union" in a sentence and "European Union" in a list.
 const bare = (label) => label.replace(/^the /, "");
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -142,6 +142,27 @@ const AVAILABILITY_HELP = {
   "edugain-only": "Registered by another federation and in eduGAIN, but not in InCommon's (filtered) import.",
   "incommon-aggregate-only": "Registered by another federation and present in InCommon's aggregate, but not in eduGAIN's.",
 };
+// InCommon's own reasons for filtering a service out of its eduGAIN import, grouped
+// by the rule in its import policy (catalog-core/src/import_filter.rs).
+const FILTER_REASON = {
+  saml1: "Inconsistent SAML 1.x support",
+  saml2: "No SAML 2 login endpoint",
+  https: "An endpoint not on HTTPS",
+  "requested-attributes": "Errors in requested attributes",
+  bindings: "Nonstandard endpoint bindings",
+  "entity-id": "entityID prefix not accepted",
+  sirtfi: "Doesn't meet Sirtfi",
+  "research-and-scholarship": "Doesn't meet REFEDS R&S",
+  "algorithm-support": "Doesn't meet the algorithm-support profile",
+  mdui: "Errors in display information (MDUI)",
+  "registration-info": "Errors in registration information",
+  "entity-attributes": "Misplaced entity attributes",
+  "saml-metadata": "Doesn't meet the SAML 2.0 metadata spec",
+  certificate: "A certificate or key failed validation",
+  scope: "Faulty identity-provider scope",
+  other: "Another import check",
+};
+const IMPORT_POLICY_URL = "https://spaces.at.internet2.edu/spaces/federation/pages/168691916/Interfederation+Technical+Policy";
 // Sirtfi is near-universal and the InCommon tag is implied by the registrar, so
 // cards leave them off to keep the meaningful tags visible.
 const ENVIRONMENT = { production: "Production", test: "Test", staging: "Staging", development: "Development", unknown: "Unknown" };
@@ -203,11 +224,53 @@ function logoEl(url, name, large, note) {
   return box;
 }
 
+// Why InCommon's import left an eduGAIN-only service out, in InCommon's words: each
+// failed check under the policy rule it falls under, with the report it came from.
+function importFilterNote(s) {
+  if (s.availability !== "edugain-only") return null;
+  const f = s.import_filter;
+  if (!f)
+    return h(
+      "p",
+      { class: "gen-note" },
+      "InCommon's newest import filter report doesn't mention this service, so it may be out of the import for another reason, such as the two aggregates being published at different times.",
+    );
+  const byReason = new Map();
+  for (const x of f.findings) byReason.set(x.reason, [...(byReason.get(x.reason) || []), x]);
+  return h(
+    "div",
+    { class: "filter-note" },
+    h("h3", {}, h("span", { class: "badge filtered" }, "Filtered by InCommon"), " What InCommon's import filter reported"),
+    h(
+      "ul",
+      {},
+      [...byReason].map(([reason, xs]) =>
+        h(
+          "li",
+          {},
+          h("a", { href: `#/search?filter_reason=${encodeURIComponent(reason)}` }, FILTER_REASON[reason] || reason),
+          h("ul", {}, xs.map((x) => h("li", {}, x.check && h("code", {}, x.check), x.check ? ": " : "", x.message))),
+        ),
+      ),
+    ),
+    h(
+      "p",
+      { class: "gen-note" },
+      "As stated in ",
+      h("a", { href: f.report_url, rel: "noopener" }, "InCommon's report"),
+      ` of ${f.reported_at.slice(0, 16).replace("T", " ")} UTC, under its `,
+      h("a", { href: IMPORT_POLICY_URL, rel: "noopener" }, "import policy"),
+      ". InCommon's checks, not this catalog's.",
+    ),
+  );
+}
+
 function serviceCard(s) {
   const cats = s.categories.filter((c) => !QUIET_CATEGORIES.has(c));
+  const filtered = (s.filter_reasons || []).length > 0;
   return h(
     "a",
-    { class: "card", href: `#/services/${s.id}` },
+    { class: `card${filtered ? " filtered" : ""}`, href: `#/services/${s.id}` },
     h("div", { class: "card-top" }, logoEl(s.logo, s.name, false, s.logo_source === "website" ? "Logo from the organization's website" : null), h("div", { style: "min-width:0" }, h("h2", {}, s.name), s.organization && h("div", { class: "org" }, s.organization))),
     s.description &&
       h(
@@ -230,7 +293,9 @@ function serviceCard(s) {
           s.sharing_source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "),
           SHARING_BADGE[s.sharing],
         ),
-      s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
+      filtered
+        ? h("span", { class: "badge filtered", title: `InCommon's report: ${s.filter_reasons.map((r) => FILTER_REASON[r] || r).join("; ")}` }, "Filtered by InCommon")
+        : s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
       cats.map((c) => h("span", { class: "badge cat" }, CATEGORY_LABELS[c] || c)),
       s.federation_name && h("span", { class: "badge" }, `${flag(s.countries[0])} ${s.federation_name}`.trim()),
       s.curated?.provider_type && h("span", { class: "badge cur" }, s.curated.provider_type),
@@ -410,6 +475,7 @@ async function landing() {
 
 const FACET_ORDER = [
   ["availability", "Availability"],
+  ["filter_reason", "Filtered by InCommon for"],
   ["environment", "Environment"],
   ["sharing", "Open to"],
   ["sector", "Run by"],
@@ -808,6 +874,7 @@ async function serviceView(id) {
           { class: "panel" },
           h("h2", {}, "Availability"),
           h("p", {}, h("span", { class: "badge avail" }, AVAILABILITY[s.availability] || s.availability), " ", AVAILABILITY_HELP[s.availability] || ""),
+          importFilterNote(s),
           h(
             "dl",
             { class: "kv" },
@@ -1090,6 +1157,7 @@ const FILTER_HELP = [
   ["Country and region", "The registering federation's country. A region or grouping stands for its countries, and countries and regions together are one set of places: a service in any of them matches. A federation that lists several countries is in a region when any of them is."],
   ["Category", "Entity categories and certifications, such as Research & Scholarship or Sirtfi. A service must carry every one you pick."],
   ["Availability", "Where the service can be used from: InCommon only, exported to eduGAIN, or registered elsewhere and imported."],
+  ["Filtered by InCommon for", "Why InCommon’s eduGAIN import left a service out, as InCommon’s own import filter report states it, grouped by the rule in its import policy. These services have a red outline and a “Filtered by InCommon” badge, and their page lists each check they failed. The report is read on every refresh. An eduGAIN-only service the report doesn’t mention may be out of the import for another reason, such as timing between the two aggregates."],
   ["Environment", "Production, test, staging, or development. It is read from markers in the entityID or the name (test., -dev, \u201c(Staging)\u201d), or else from Claude\u2019s reading of the metadata (marked \u2726). Every environment is shown unless you pick some; test and staging copies rank below the live service they mirror."],
   ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],
   ["Run by", "The kind of organization that registered the service: a university, a research institution, a company, a library, a museum or archive, government, a hospital, a school, a publisher, a nonprofit, or a federation or network. It describes who runs the service, not who it is for. It comes from the catalog\u2019s curation, else from the organization\u2019s name (\u201cUniversity\u201d, \u201cBibliothek\u201d, \u201cMinistry\u201d, \u201cGmbH\u201d) or a government domain, else from Claude\u2019s reading of the organization (marked \u2726). \u201cLibrary services\u201d, \u201cmuseum SPs\u201d, and \u201crun by libraries\u201d filter by it; \u201clibrary management system\u201d searches the words."],

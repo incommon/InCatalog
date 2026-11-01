@@ -160,6 +160,46 @@ pub struct DiscoveredLogo {
     pub found_at: String,
 }
 
+/// Why InCommon's eduGAIN import left this service out, as InCommon's own import
+/// filter report states it. Reported by InCommon, not judged here. See
+/// [`crate::import_filter`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct ImportFilter {
+    /// The report this came from.
+    pub report_url: String,
+    /// When InCommon wrote the report.
+    pub reported_at: String,
+    pub findings: Vec<FilterFinding>,
+}
+
+/// One check the service failed in InCommon's import filter.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct FilterFinding {
+    /// The policy rule it falls under: a key from
+    /// [`crate::import_filter::Reason`], such as `saml1` or `sirtfi`.
+    pub reason: String,
+    /// The check as the report names it, such as `check_saml1`.
+    pub check: String,
+    /// The report's message, as written.
+    pub message: String,
+}
+
+/// The import filter report a snapshot used.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct FilterReportInfo {
+    pub url: String,
+    /// When InCommon wrote it.
+    pub reported_at: String,
+    pub fetched_at: String,
+    /// Entities it marks as removed, identity providers included.
+    pub entities: usize,
+    /// `edugain-only` services it gives a reason for.
+    pub services_with_reason: usize,
+    /// `edugain-only` services it doesn't mention: out of InCommon's import for some
+    /// other reason, such as the aggregates being published at different times.
+    pub services_without_reason: usize,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct Organization {
     pub names: LangMap,
@@ -257,6 +297,10 @@ pub struct Service {
     /// Other registration authorities publishing this same entityID (a clash).
     pub also_registered_by: Vec<String>,
     pub availability: Option<Availability>,
+    /// Why InCommon's import filtered it out, when it is `edugain-only` and
+    /// InCommon's report says. See [`ImportFilter`].
+    #[serde(default)]
+    pub import_filter: Option<ImportFilter>,
     /// eduGAIN federation code for the registrar, when eduGAIN lists it.
     pub federation: Option<String>,
     /// Factual observations about this entity's metadata (not judgments about its operator).
@@ -348,6 +392,9 @@ pub struct Snapshot {
     pub services: Vec<Service>,
     /// Identity providers per registration authority, across both aggregates.
     pub idp_counts: BTreeMap<String, usize>,
+    /// InCommon's import filter report, when ingest could read it.
+    #[serde(default)]
+    pub import_filter_report: Option<FilterReportInfo>,
     pub warnings: Vec<String>,
 }
 

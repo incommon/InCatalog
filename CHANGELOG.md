@@ -9,6 +9,17 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Why InCommon filtered a service out of its eduGAIN import.** Ingest reads InCommon's
+  newest import filter report and attaches each failed check, with InCommon's message,
+  to the `edugain-only` services it names (`import_filter` on the service). The API
+  filters on the policy rule with `filter_reason`, results carry `filter_reasons`, and
+  `/v1/meta` names the report used. On the site these services have a red outline and
+  a "Filtered by InCommon" badge, a facet lists the reasons, and the service page shows
+  each check and links the report. "Services filtered by InCommon" now reads as
+  `availability=edugain-only`.
+
 ### Fixed
 
 - **A plural search word no longer matches longer words through its singular.**
