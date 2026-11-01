@@ -240,7 +240,7 @@ fn ui_info(ui: &Element, s: &mut Service) {
             width: logo.attr("width").and_then(|v| v.parse().ok()),
             height: logo.attr("height").and_then(|v| v.parse().ok()),
             lang: logo.lang().map(str::to_owned),
-            broken: false,
+            ..Default::default()
         });
     }
 }

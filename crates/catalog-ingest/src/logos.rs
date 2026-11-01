@@ -18,6 +18,11 @@
 //! HTTP client refuses private, loopback, link-local, and cloud-metadata addresses,
 //! including after redirects and DNS resolution.
 //!
+//! 3. Every logo shown is measured (see [`crate::logo_box`]): where its artwork sits
+//!    in the image, so the site can crop away built-in margins, center the artwork,
+//!    and show a square mark without the words beside it. The box is stored, not a
+//!    cropped image: the site still loads each logo from its own URL.
+//!
 //! Results are cached (`logo-cache.json` beside the snapshot) so each URL and site is
 //! looked up once and rechecked on a schedule, not on every six-hourly ingest.
 //!
@@ -36,7 +41,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Result};
 use catalog_claude::Claude;
-use catalog_core::model::{DiscoveredLogo, Service};
+use catalog_core::model::{DiscoveredLogo, LogoBox, Service};
 use catalog_store::Location;
 use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
@@ -67,6 +72,11 @@ const RETRY_BACKOFF: [Duration; 2] = if cfg!(test) {
 const NETWORK_DOWN_AFTER: usize = 12;
 /// Host names resolved at once. Lookups and image checks share it.
 const DNS_AT_ONCE: usize = 8;
+/// Longest a single image may take to measure.
+const MEASURE_TIME: Duration = Duration::from_secs(5);
+/// A website logo whose artwork fills less of the square tile than this (a wide
+/// wordmark) is passed over for a squarer one among the model's choices.
+const SQUARE_ENOUGH: f32 = 0.6;
 
 pub struct Options {
     pub cache: Location,
@@ -103,6 +113,10 @@ pub struct Report {
     pub services_without_logo: BTreeMap<String, usize>,
     /// Of those, how many publish a metadata logo that is broken.
     pub without_logo_with_broken_metadata_logo: usize,
+    /// Logos in the cache whose artwork has been measured, and of those, how many are
+    /// shown as their square mark without the words beside it.
+    pub logos_measured: usize,
+    pub logos_shown_as_mark: usize,
 }
 
 /// Why a website lookup failed, read from its recorded detail, so entries cached
@@ -222,6 +236,12 @@ struct Check {
     status: String,
     detail: String,
     checked_at: DateTime<Utc>,
+    /// Measured when the image was last fetched in full. Entries cached before logos
+    /// were measured have `measured: false`, so they are fetched once more.
+    #[serde(default)]
+    measured: bool,
+    #[serde(default, rename = "box", skip_serializing_if = "Option::is_none")]
+    art_box: Option<LogoBox>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,10 +253,19 @@ struct Site {
     outcome: String,
     detail: String,
     checked_at: DateTime<Utc>,
+    /// As on [`Check`]: a logo found before logos were measured is measured once,
+    /// without looking the site up again.
+    #[serde(default)]
+    measured: bool,
+    #[serde(default, rename = "box", skip_serializing_if = "Option::is_none")]
+    logo_box: Option<LogoBox>,
 }
 
 impl Check {
     fn fresh(&self, now: DateTime<Utc>) -> bool {
+        if self.status == "ok" && !self.measured {
+            return false;
+        }
         let days = match self.status.as_str() {
             "ok" => 14,
             "broken" => 7,
@@ -297,15 +326,17 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
                     tokio::time::sleep(RETRY_BACKOFF[0]).await;
                     result = check_image(&http, &url, false).await;
                 }
-                let (status, detail) = match result {
-                    ImageCheck::Ok => ("ok", String::new()),
-                    ImageCheck::Broken(d) => ("broken", d),
-                    ImageCheck::Unknown(d) => ("unknown", d),
+                let (status, detail, art_box) = match result {
+                    ImageCheck::Ok(b) => ("ok", String::new(), b),
+                    ImageCheck::Broken(d) => ("broken", d, None),
+                    ImageCheck::Unknown(d) => ("unknown", d, None),
                 };
                 let check = Check {
                     status: status.into(),
                     detail,
                     checked_at: Utc::now(),
+                    measured: status == "ok",
+                    art_box,
                 };
                 (url, check)
             }
@@ -318,10 +349,9 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
     cache.checks.extend(checked);
     for s in services.iter_mut() {
         for l in &mut s.logos {
-            l.broken = cache
-                .checks
-                .get(&l.url)
-                .is_some_and(|c| c.status == "broken");
+            let check = cache.checks.get(&l.url);
+            l.broken = check.is_some_and(|c| c.status == "broken");
+            l.art_box = check.and_then(|c| c.art_box);
         }
     }
     report.metadata_logos_broken = cache
@@ -406,6 +436,33 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
             cache.sites.extend(found.into_iter().flatten());
         }
     }
+    // Measure website logos found before logos were measured.
+    let unmeasured: Vec<(String, String)> = by_site
+        .keys()
+        .filter_map(|origin| {
+            let site = cache.sites.get(origin)?;
+            let logo = site.logo.clone().filter(|_| !site.measured)?;
+            Some((origin.clone(), logo))
+        })
+        .collect();
+    let started = unmeasured.len();
+    let measured: Vec<(String, ImageCheck)> = opts
+        .deadline
+        .until(stream::iter(unmeasured))
+        .map(|(origin, url)| {
+            let http = http.clone();
+            async move { (origin, check_image(&http, &url, false).await) }
+        })
+        .buffer_unordered(24)
+        .collect()
+        .await;
+    report.stopped_for_time += started - measured.len();
+    for (origin, result) in measured {
+        if let (Some(site), ImageCheck::Ok(b)) = (cache.sites.get_mut(&origin), result) {
+            site.measured = true;
+            site.logo_box = b;
+        }
+    }
     for (origin, (_, _, ids)) in &by_site {
         let Some(site) = cache.sites.get(origin) else {
             continue;
@@ -419,6 +476,7 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
                 found_at: site
                     .checked_at
                     .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                art_box: site.logo_box,
             });
             report.services_given_website_logo += 1;
         }
@@ -427,6 +485,22 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
     let (missing, broken) = without_logo(services, &cache.sites, now);
     report.services_without_logo = missing;
     report.without_logo_with_broken_metadata_logo = broken;
+    let boxes = cache
+        .checks
+        .values()
+        .filter(|c| c.measured)
+        .map(|c| c.art_box)
+        .chain(
+            cache
+                .sites
+                .values()
+                .filter(|s| s.measured)
+                .map(|s| s.logo_box),
+        );
+    for b in boxes {
+        report.logos_measured += 1;
+        report.logos_shown_as_mark += b.is_some_and(|b| b.mark) as usize;
+    }
     tracing::info!(by_reason = ?report.services_without_logo, "services without a logo");
 
     if let Err(e) = opts
@@ -510,12 +584,14 @@ fn site_of(s: &Service) -> Option<(String, String)> {
 }
 
 async fn lookup(http: &reqwest::Client, claude: &Claude, page: &str, org: &str) -> Site {
-    let site = |logo: Option<String>,
+    let site = |logo: Option<(String, Option<LogoBox>)>,
                 outcome: &str,
                 detail: String,
                 chosen_by: Option<String>,
                 page: &str| Site {
-        logo,
+        measured: logo.is_some(),
+        logo_box: logo.as_ref().and_then(|l| l.1),
+        logo: logo.map(|l| l.0),
         page: page.to_owned(),
         chosen_by,
         outcome: outcome.into(),
@@ -556,13 +632,28 @@ async fn lookup(http: &reqwest::Client, claude: &Claude, page: &str, org: &str) 
             )
         }
     };
+    // The first choice that works, unless it is a wide wordmark and a later choice
+    // fills the square tile better.
+    let mut first: Option<(String, Option<LogoBox>)> = None;
     for i in choices {
         let Some(c) = candidates.get(i) else { continue };
         // Logos are shown on an HTTPS page, so only an https URL that works will do.
         let url = c.url.replacen("http://", "https://", 1);
-        if let ImageCheck::Ok = check_image(http, &url, true).await {
-            return site(Some(url), "found", reason, Some(model), final_url.as_str());
+        if let ImageCheck::Ok(b) = check_image(http, &url, true).await {
+            if b.is_none_or(|b| b.fill() >= SQUARE_ENOUGH) {
+                return site(
+                    Some((url, b)),
+                    "found",
+                    reason,
+                    Some(model),
+                    final_url.as_str(),
+                );
+            }
+            first.get_or_insert((url, b));
         }
+    }
+    if let Some(logo) = first {
+        return site(Some(logo), "found", reason, Some(model), final_url.as_str());
     }
     site(
         None,
@@ -747,6 +838,8 @@ const CHOOSER_SYSTEM: &str = "You pick an organization's logo from the images fo
 
 You get the organization's name, the page, and a numbered list of candidate images, each with where on the page it came from and any declared size or alt text. Return up to three candidate numbers, best first.
 
+The tile is square, so a square mark or emblem shows far larger than a wide wordmark: when the organization has both, rank the square one first.
+
 Prefer, in order: an SVG or large image of the organization's own logo or emblem; an apple-touch-icon or large site icon, which is usually the logo mark; a small favicon only when nothing better exists. Never choose photographs, banners, hero images, social-media icons, partner or sponsor logos, award or accreditation badges, tracking pixels, or another organization's mark. Candidates marked unverified may not exist; rank them below real ones. If no candidate is plausibly this organization's logo, return an empty list.
 
 `reason`: one short sentence on the choice.";
@@ -799,7 +892,8 @@ async fn choose(
 
 #[derive(Debug)]
 pub(crate) enum ImageCheck {
-    Ok,
+    /// With where its artwork sits, when the whole image was read and could be measured.
+    Ok(Option<LogoBox>),
     Broken(String),
     Unknown(String),
 }
@@ -836,10 +930,10 @@ pub(crate) async fn check_image(http: &reqwest::Client, url: &str, strict: bool)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
         .to_lowercase();
-    let body = match read_limited(resp, MAX_IMAGE_BYTES).await {
-        Ok((b, false)) => b,
+    let (body, whole) = match read_limited(resp, MAX_IMAGE_BYTES).await {
+        Ok((b, false)) => (b, true),
         Ok((_, true)) if strict => return ImageCheck::Broken("larger than 1 MiB".into()),
-        Ok((b, true)) => b,
+        Ok((b, true)) => (b, false),
         Err(e) => return ImageCheck::Unknown(format!("read failed: {e}")),
     };
     let sniffed = sniff(&body);
@@ -861,7 +955,18 @@ pub(crate) async fn check_image(http: &reqwest::Client, url: &str, strict: bool)
             }
         }
     }
-    ImageCheck::Ok
+    if !whole {
+        return ImageCheck::Ok(None);
+    }
+    ImageCheck::Ok(measure(body).await)
+}
+
+/// [`crate::logo_box::measure`], off the async threads and given at most
+/// [`MEASURE_TIME`]. A drawing that runs over is abandoned, not stopped: it finishes
+/// on its blocking thread and its result is dropped.
+async fn measure(body: Vec<u8>) -> Option<LogoBox> {
+    let task = tokio::task::spawn_blocking(move || crate::logo_box::measure(&body));
+    tokio::time::timeout(MEASURE_TIME, task).await.ok()?.ok()?
 }
 
 /// `Some(dims)` when the bytes are a recognizable image; dims when the format
@@ -1097,6 +1202,8 @@ mod tests {
     fn site(outcome: &str, detail: &str, hours_ago: i64) -> Site {
         Site {
             logo: None,
+            measured: false,
+            logo_box: None,
             page: "https://example.org/".into(),
             chosen_by: None,
             outcome: outcome.into(),

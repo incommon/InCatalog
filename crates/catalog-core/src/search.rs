@@ -18,8 +18,8 @@ use crate::environment::{self, EnvironmentReading};
 use crate::federations::normalize_reg_auth;
 use crate::import_filter::{self, Reason};
 use crate::model::{
-    pick, Availability, Curated, Federation, FilterReportInfo, HealthStatus, OfacReport, Service,
-    Snapshot, Source, SourceInfo,
+    pick, Availability, Curated, Federation, FilterReportInfo, HealthStatus, LogoBox, OfacReport,
+    Service, Snapshot, Source, SourceInfo,
 };
 use crate::nl::{Interpretation, Vocab};
 use crate::ofac::MatchStatus;
@@ -162,6 +162,9 @@ pub struct ServiceSummary {
     /// `metadata` (the service's own `mdui:Logo`) or `website` (found on the
     /// organization's site because no metadata logo works).
     pub logo_source: Option<String>,
+    /// Where the logo's artwork sits in its image, when ingest could measure it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo_box: Option<LogoBox>,
     pub categories: Vec<String>,
     pub availability: Option<Availability>,
     /// Why InCommon's import filtered it out (see `filter_reason` on
@@ -247,6 +250,18 @@ pub struct ServiceDetail {
     pub sector: SectorReading,
     /// Whether the page shows a Log in button, and where it goes.
     pub login: crate::login::Login,
+    /// The logo the site shows, chosen as for `/v1/services`.
+    pub logo: Option<ShownLogo>,
+}
+
+/// The logo the site shows for a service. See [`best_logo`].
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct ShownLogo {
+    pub url: String,
+    /// `metadata` or `website`.
+    pub source: &'static str,
+    #[serde(rename = "box", skip_serializing_if = "Option::is_none")]
+    pub art_box: Option<LogoBox>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -596,6 +611,7 @@ impl Catalog {
         let s = &self.snapshot.services[i];
         let e = &self.entries[i];
         let fed = self.federation_of(s);
+        let logo = best_logo(s);
         ServiceSummary {
             id: s.id.clone(),
             entity_id: s.entity_id.clone(),
@@ -612,8 +628,9 @@ impl Catalog {
                 .or_else(|| pick(&s.organization.names, lang))
                 .map(str::to_owned),
             provider_id: self.providers[e.provider].id.clone(),
-            logo: best_logo(s).map(|(u, _)| u),
-            logo_source: best_logo(s).map(|(_, src)| src.to_owned()),
+            logo_source: logo.as_ref().map(|l| l.source.to_owned()),
+            logo_box: logo.as_ref().and_then(|l| l.art_box),
+            logo: logo.map(|l| l.url),
             categories: s.categories.clone(),
             availability: s.availability,
             filter_reasons: e.filter_reasons.clone(),
@@ -660,6 +677,7 @@ impl Catalog {
             sharing: self.entries[i].sharing.clone(),
             sector: self.entries[i].sector.clone(),
             login: crate::login::login(s, self.entries[i].sharing.value),
+            logo: best_logo(s),
         }
     }
 
@@ -1595,10 +1613,15 @@ pub fn display_name(s: &Service, lang: Option<&str>) -> String {
         .to_owned()
 }
 
+/// Smaller than this, in the image's own pixels, the artwork looks blurry in a tile.
+const SHARP_PIXELS: f32 = 32.0;
+
 /// The logo to show, and where it came from. A working metadata logo always wins:
-/// `https:` or inline, not marked broken by ingest, English or untagged first, then
-/// the largest. Otherwise the logo ingest found on the organization's website.
-pub fn best_logo(s: &Service) -> Option<(String, &'static str)> {
+/// `https:` or inline, not marked broken by ingest, English or untagged first. Among
+/// those, a logo whose artwork looks sharp in the tile, then the one whose artwork
+/// fills the square tile most (a square mark over a wide banner), then the largest.
+/// Otherwise the logo ingest found on the organization's website.
+pub fn best_logo(s: &Service) -> Option<ShownLogo> {
     let from_metadata = s
         .logos
         .iter()
@@ -1607,16 +1630,38 @@ pub fn best_logo(s: &Service) -> Option<(String, &'static str)> {
         })
         .max_by_key(|l| {
             let lang_ok = matches!(l.lang.as_deref(), None | Some("en"));
+            let dims = l.width.zip(l.height).filter(|(w, h)| *w > 0 && *h > 0);
+            let (sharp, fill) = match (dims, l.art_box) {
+                (Some((w, h)), Some(b)) => {
+                    let art = (b.w * w as f32).max(b.h * h as f32);
+                    (art >= SHARP_PIXELS, b.fill())
+                }
+                (Some((w, h)), None) => {
+                    let (w, h) = (w as f32, h as f32);
+                    (w.max(h) >= SHARP_PIXELS, (w / h).min(h / w))
+                }
+                (None, Some(b)) => (true, b.fill()),
+                (None, None) => (true, 0.0),
+            };
             (
                 lang_ok,
+                sharp,
+                // In tenths, so a near-tie in shape goes to the larger image.
+                (fill * 10.0).round() as u32,
                 l.width.unwrap_or(0).min(512) * l.height.unwrap_or(0).min(512),
             )
         })
-        .map(|l| (l.url.clone(), "metadata"));
+        .map(|l| ShownLogo {
+            url: l.url.clone(),
+            source: "metadata",
+            art_box: l.art_box,
+        });
     from_metadata.or_else(|| {
-        s.discovered_logo
-            .as_ref()
-            .map(|d| (d.url.clone(), "website"))
+        s.discovered_logo.as_ref().map(|d| ShownLogo {
+            url: d.url.clone(),
+            source: "website",
+            art_box: d.art_box,
+        })
     })
 }
 
@@ -2479,5 +2524,87 @@ mod tests {
         );
         let d = c.service_by_entity_id("https://b/").unwrap();
         assert!(d.sector.reason.unwrap().contains("medical center"));
+    }
+
+    #[test]
+    fn best_logo_prefers_a_mark_that_fills_the_tile() {
+        use crate::model::{DiscoveredLogo, Logo, LogoBox};
+        let measured = |w: f32, h: f32, aspect: f32| LogoBox {
+            x: 0.0,
+            y: 0.0,
+            w,
+            h,
+            aspect,
+            bleed: false,
+            mark: false,
+        };
+        let logo = |url: &str, w: u32, h: u32, b: Option<LogoBox>| Logo {
+            url: url.into(),
+            width: Some(w),
+            height: Some(h),
+            art_box: b,
+            ..Default::default()
+        };
+        let mut s = Service {
+            logos: vec![
+                logo(
+                    "https://e/banner.png",
+                    600,
+                    150,
+                    Some(measured(1.0, 1.0, 4.0)),
+                ),
+                logo(
+                    "https://e/mark.png",
+                    120,
+                    120,
+                    Some(measured(0.8, 0.8, 1.0)),
+                ),
+            ],
+            ..Default::default()
+        };
+        let shown = best_logo(&s).unwrap();
+        assert_eq!(
+            (shown.url.as_str(), shown.source),
+            ("https://e/mark.png", "metadata")
+        );
+        assert_eq!(shown.art_box, s.logos[1].art_box);
+
+        // A wide image cropped to its square mark counts as square.
+        s.logos[0].art_box = Some(LogoBox {
+            mark: true,
+            ..measured(0.25, 1.0, 4.0)
+        });
+        assert_eq!(best_logo(&s).unwrap().url, "https://e/banner.png");
+
+        // Too small to look sharp loses to a banner, however square.
+        s.logos[0].art_box = Some(measured(1.0, 1.0, 4.0));
+        s.logos[1] = logo(
+            "https://e/favicon.png",
+            16,
+            16,
+            Some(measured(1.0, 1.0, 1.0)),
+        );
+        assert_eq!(best_logo(&s).unwrap().url, "https://e/banner.png");
+
+        // Unmeasured logos are ranked by their declared shape, as before.
+        s.logos = vec![
+            logo("https://e/wide.png", 400, 100, None),
+            logo("https://e/square.png", 100, 100, None),
+        ];
+        assert_eq!(best_logo(&s).unwrap().url, "https://e/square.png");
+
+        // No working metadata logo: the website's, with its box.
+        s.logos.iter_mut().for_each(|l| l.broken = true);
+        s.discovered_logo = Some(DiscoveredLogo {
+            url: "https://e/site.svg".into(),
+            art_box: Some(measured(0.5, 0.5, 1.0)),
+            ..Default::default()
+        });
+        let shown = best_logo(&s).unwrap();
+        assert_eq!(
+            (shown.url.as_str(), shown.source),
+            ("https://e/site.svg", "website")
+        );
+        assert!(shown.art_box.is_some());
     }
 }

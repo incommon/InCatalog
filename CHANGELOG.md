@@ -14,9 +14,11 @@ section must be written before it is cut.
 - **InCommon's logotype, "powered by Internet2".** The InCommon lockup floats,
   centered, at the bottom of every page, with the footer (the snapshot line and the
   version) beneath it, and links to incommon.org. It is orange on the light theme and
-  white on the dark one, self-hosted in `web/brand/` with its source. The logotypes
+  white on the dark one, self-hosted in `web/brand/` with its source. Once the page
+  scrolls, the lockup shrinks into the left of the footer's navy bar, white in either
+  theme, so the floater is only as tall as the bar; it grows back at the top. The logotypes
   are Internet2's trademarks, used with permission and not licensed with the code
-  (`NOTICE`). (#57)
+  (`NOTICE`). (#57, #58)
 - **An "Access through your institution" button on a service's page.** It shows only on
   a service that is multilateral, alive, not filtered out of InCommon's eduGAIN
   import, and has no OFAC match, possible or confirmed; anything else gets none. For a
@@ -69,6 +71,20 @@ section must be written before it is cut.
 
 ### Changed
 
+- **Logos fill their tiles, centered, with a small even margin.** Ingest measures
+  where each logo's artwork sits in its image, as it looks on the site's white tile,
+  and the site crops away built-in margins and centers the artwork in 9% of margin.
+  An SVG is drawn as a browser draws it, so a padded `viewBox` or artwork pinned to
+  one side by `preserveAspectRatio` is found where it lands. A logo with a square
+  mark beside or above its words (a shield, then the name) shows the mark alone. A
+  logo opaque to its edges fills the tile. Among a service's metadata logos, one whose
+  artwork fills the square tile now wins over a larger wide banner, and the website
+  lookup prefers a square mark. The box is stored, not a cropped image: logos still
+  load from their own URLs. SVG is drawn with no fonts and nothing fetched or read
+  beyond the downloaded bytes. Logos (`logos[].box`, `discovered_logo.box`), service
+  summaries (`logo_box`) and the service detail (`logo`) carry the box. Every cached
+  working logo is fetched once more to be measured. New dependencies: `image` and
+  `resvg`, both MIT or Apache-2.0. (#58)
 - **`/v1/services` leaves out dead services by default.** `status` defaults to
   `alive,unknown`; pass `status=dead` or `status=all` to include them. Nothing drops out
   at rollout: a service is `unknown`, and shown, until checks over several days find

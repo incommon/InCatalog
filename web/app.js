@@ -242,12 +242,44 @@ function monogram(name) {
   return (name || "?").replace(/^(the|university of)\s+/i, "").trim().charAt(0).toUpperCase() || "?";
 }
 
+// The margin around a logo's artwork, as a share of its tile, so the 40px and 64px
+// tiles look alike.
+const LOGO_MARGIN = 0.09;
+
+// Where a logo's image goes in its square tile, from the box ingest measured around
+// its artwork (`LogoBox` in crates/catalog-core/src/model.rs, in fractions of the
+// image): the artwork scaled to fit the tile less the margin, and centered. In
+// percentages of the tile, so one answer serves every tile size. An image opaque to
+// its edges fills the tile; a square mark is clipped to its box, leaving out the
+// words beside it. Null for a box that isn't usable, so the logo shows whole.
+function logoPlacement(b) {
+  const ok = (v) => typeof v === "number" && Number.isFinite(v);
+  if (!b || ![b.x, b.y, b.w, b.h, b.aspect].every(ok) || b.w <= 0 || b.h <= 0 || b.aspect <= 0) return null;
+  const pct = (v) => `${+(v * 100).toFixed(3)}%`;
+  const fit = 1 - 2 * (b.bleed ? 0 : LOGO_MARGIN);
+  const width = fit / Math.max(b.w, b.h / b.aspect);
+  const height = width / b.aspect;
+  return {
+    width: pct(width),
+    height: pct(height),
+    left: pct(0.5 - (b.x + b.w / 2) * width),
+    top: pct(0.5 - (b.y + b.h / 2) * height),
+    clip: b.mark ? `inset(${pct(b.y)} ${pct(1 - b.x - b.w)} ${pct(1 - b.y - b.h)} ${pct(b.x)})` : null,
+  };
+}
+
 // The monogram shows until the image has loaded, and stays if it never does. The
 // image has to be in the page from the start: a lazy image outside the page never loads.
-function logoEl(url, name, large, note) {
+function logoEl(url, name, large, note, artBox) {
   const box = h("div", { class: `logo${large ? " lg" : ""}`, "aria-hidden": "true", title: note }, h("span", {}, monogram(name)));
   if (safeImg(url)) {
     const img = h("img", { src: url, alt: "", loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" });
+    const place = logoPlacement(artBox);
+    if (place) {
+      img.classList.add("placed");
+      for (const k of ["width", "height", "left", "top"]) img.style[k] = place[k];
+      if (place.clip) img.style.clipPath = place.clip;
+    }
     img.addEventListener("load", () => box.classList.add("loaded"));
     img.addEventListener("error", () => img.remove());
     box.append(img);
@@ -527,7 +559,7 @@ function serviceCard(s) {
   return h(
     "a",
     { class: `card${filtered ? " filtered" : ""}${dead ? " dead" : ""}${ofac ? " ofac" : ""}`, href: `#/services/${s.id}` },
-    h("div", { class: "card-top" }, logoEl(s.logo, s.name, false, s.logo_source === "website" ? "Logo from the organization's website" : null), h("div", { style: "min-width:0" }, h("h2", {}, s.name), s.organization && h("div", { class: "org" }, s.organization))),
+    h("div", { class: "card-top" }, logoEl(s.logo, s.name, false, s.logo_source === "website" ? "Logo from the organization's website" : null, s.logo_box), h("div", { style: "min-width:0" }, h("h2", {}, s.name), s.organization && h("div", { class: "org" }, s.organization))),
     s.description &&
       h(
         "p",
@@ -1061,11 +1093,11 @@ async function serviceView(id) {
   if (!d) return render(h("div", { class: "empty" }, "No service with that ID."));
   const s = d.service;
   document.title = `${d.name} · InCatalog`;
-  // The service's own metadata logo when one works; otherwise the one ingest found on
-  // the organization's website (recorded separately, with where it came from).
-  const metaLogo = (s.logos || []).find((l) => !l.broken && safeImg(l.url));
-  const siteLogo = !metaLogo && s.discovered_logo && safeImg(s.discovered_logo.url) ? s.discovered_logo : null;
-  const logo = metaLogo?.url || siteLogo?.url;
+  // The logo the cards show: the service's own metadata logo when one works;
+  // otherwise the one ingest found on the organization's website (recorded
+  // separately, with where it came from).
+  const logo = d.logo && safeImg(d.logo.url) ? d.logo : null;
+  const siteLogo = logo?.source === "website" ? s.discovered_logo : null;
   const siteHost = siteLogo && safeUrl(siteLogo.page) ? new URL(siteLogo.page).host : null;
   const desc = pick(s.descriptions) || pick(s.service_descriptions);
   const contacts = s.contacts || [];
@@ -1078,7 +1110,7 @@ async function serviceView(id) {
     h(
       "div",
       { class: "hero" },
-      logoEl(logo, d.name, true),
+      logoEl(logo?.url, d.name, true, null, logo?.box),
       h(
         "div",
         { style: "min-width:0" },
@@ -1828,6 +1860,28 @@ const floater = document.querySelector(".floater");
 new ResizeObserver(() => {
   document.documentElement.style.setProperty("--floater-h", `${floater.offsetHeight}px`);
 }).observe(floater);
+
+// Once the page scrolls, the lockup shrinks into the footer's bar (.floater.compact),
+// and grows back at the top. Only on a page that stays scrolled once the floater is
+// shorter: on one barely taller than the window, shrinking would end the scroll and
+// grow the lockup straight back.
+const foot = floater.querySelector(".foot");
+let floaterQueued = false;
+function fitFloater() {
+  floaterQueued = false;
+  const compact = floater.classList.contains("compact");
+  const room = document.documentElement.scrollHeight - window.innerHeight;
+  const saved = compact ? 0 : floater.offsetHeight - foot.offsetHeight;
+  const want = compact ? window.scrollY > 0 : window.scrollY > 8 && room - saved > 8;
+  floater.classList.toggle("compact", want);
+}
+const queueFloater = () => {
+  if (floaterQueued) return;
+  floaterQueued = true;
+  requestAnimationFrame(fitFloater);
+};
+window.addEventListener("scroll", queueFloater, { passive: true });
+window.addEventListener("resize", queueFloater);
 
 meta()
   .then((m) => {

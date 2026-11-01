@@ -12,6 +12,7 @@ mod enrich;
 mod fetch;
 mod filter_report;
 mod health;
+mod logo_box;
 mod logos;
 mod ofac;
 mod sector;

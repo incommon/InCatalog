@@ -72,6 +72,8 @@ type St = State<Arc<AppState>>;
         MatchedTerm,
         AskResult,
         catalog_core::model::Service,
+        catalog_core::model::LogoBox,
+        catalog_core::search::ShownLogo,
         catalog_core::model::Endpoint,
         catalog_core::login::Login,
         catalog_core::login::Target,
