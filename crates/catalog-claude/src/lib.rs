@@ -10,7 +10,7 @@
 //!
 //! - `anthropic` (default): the Claude API. Credentials: `ANTHROPIC_API_KEY`, or
 //!   `ANTHROPIC_API_KEY_SSM_PARAM` naming an SSM SecureString (so the key never sits in
-//!   Lambda configuration or Terraform state).
+//!   Lambda configuration or OpenTofu state).
 //! - `bedrock`: Claude in Amazon Bedrock, the same Messages API at
 //!   `bedrock-mantle.{region}.api.aws`.
 //! - `bedrock-runtime`: Claude in Amazon Bedrock through `InvokeModel` on

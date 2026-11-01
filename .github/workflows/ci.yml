@@ -320,8 +320,8 @@ jobs:
       # regenerated with Terraform.
       - name: Validate
         run: |
-          tofu -chdir=infra/terraform init -backend=false -input=false -lockfile=readonly >/dev/null
-          tofu -chdir=infra/terraform validate
+          tofu -chdir=infra/opentofu init -backend=false -input=false -lockfile=readonly >/dev/null
+          tofu -chdir=infra/opentofu validate
 
   licenses:
     name: license policy / third-party notices

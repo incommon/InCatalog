@@ -20,7 +20,7 @@ name: Build image
 # deliberate act, as in `make deploy`; a merge never changes what is live.
 #
 # PREREQUISITES (one-time), on the GitHub Environment `dev`:
-#   1. Apply infra/terraform with `github_oidc_provider_arn` set, which creates
+#   1. Apply infra/opentofu with `github_oidc_provider_arn` set, which creates
 #      the push role, then set its output `github_image_push_role_arn` as the
 #      AWS_ROLE_ARN *variable* (not a secret).
 #   2. Set ECR_REPOSITORY to the repository's name (the `ecr_repository_url`

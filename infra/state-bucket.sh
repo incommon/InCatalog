@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Create the S3 bucket that holds OpenTofu state for this account (once), and
-# write infra/terraform/backend.hcl to point at it. Versioned, encrypted, private.
+# write infra/opentofu/backend.hcl to point at it. Versioned, encrypted, private.
 set -eu
 account=$(aws sts get-caller-identity --query Account --output text)
 region=${AWS_REGION:-us-east-2}
@@ -21,11 +21,11 @@ else
   aws s3api put-bucket-tagging --bucket "$bucket" --tagging 'TagSet=[{Key=Application,Value=catabasis}]'
   echo "created s3://$bucket"
 fi
-cat > "$(dirname "$0")/terraform/backend.hcl" <<HCL
+cat > "$(dirname "$0")/opentofu/backend.hcl" <<HCL
 bucket       = "$bucket"
 key          = "catabasis/terraform.tfstate"
 region       = "$region"
 encrypt      = true
 use_lockfile = true
 HCL
-echo "wrote infra/terraform/backend.hcl"
+echo "wrote infra/opentofu/backend.hcl"

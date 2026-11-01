@@ -257,7 +257,7 @@ Two readers do this work:
   error, timeout, or refusal falls back to the rules, and the reading says so.
 
 Configure Claude with `ANTHROPIC_API_KEY` locally, or with
-`anthropic_api_key_ssm_parameter` in `infra/terraform` (an SSM SecureString you create
+`anthropic_api_key_ssm_parameter` in `infra/opentofu` (an SSM SecureString you create
 yourself, so the key never enters OpenTofu state). The model defaults to
 `claude-opus-5-5` at `low` effort. Set `CATALOG_NL_MODEL` / `nl_model` to trade quality
 for cost and latency, and `CATALOG_NL_ENGINE=rules` to turn Claude off.
@@ -344,7 +344,7 @@ The ingest report counts the services left without any logo by reason in
 a broken metadata logo, and how many metadata logos were inconclusive. A service
 with no logo shows a monogram of its name. A federation's or identity provider's logo
 would look like the service's own, so it is not used as a fallback. Website lookup needs an Anthropic key, the same one natural-language search
-uses (`ANTHROPIC_API_KEY`, or `anthropic_api_key_ssm_parameter` in `infra/terraform`).
+uses (`ANTHROPIC_API_KEY`, or `anthropic_api_key_ssm_parameter` in `infra/opentofu`).
 Without one, ingest still checks metadata logos and reports how many services are
 waiting. `CATALOG_LOGO_MODEL` (default `claude-opus-5-5` at `low` effort) chooses the
 model, and `--skip-logos` turns all of this off.
@@ -457,7 +457,7 @@ cargo test -p catalog-ingest sharing::tests::eval -- --ignored --nocapture
 | Setting | Default | |
 |---|---|---|
 | `CATALOG_SHARING_MAX` | 400 | most requests per run (a cluster is one); `0` turns them off |
-| `CATALOG_SHARING_MODEL` | `claude-opus-5-5` | at `CATALOG_SHARING_EFFORT`, default `low`; `infra/terraform` sets `claude_model` |
+| `CATALOG_SHARING_MODEL` | `claude-opus-5-5` | at `CATALOG_SHARING_EFFORT`, default `low`; `infra/opentofu` sets `claude_model` |
 | `CATALOG_SHARING_CACHE` | `sharing-cache.json` beside the snapshot | |
 
 ## Who runs a service
@@ -498,7 +498,7 @@ An organization can have several: a university medical center is `academia` and
    its name, website, a sample of its services and the rules' hints. The answer is
    kept in `service.sector` with the model and date, cached in `sector-cache.json`,
    and capped per run (`CATALOG_SECTOR_MAX`, default 400;
-   `sector_max_per_run` in `infra/terraform`). The rules decide 719 of the 1,414 organizations in the
+   `sector_max_per_run` in `infra/opentofu`). The rules decide 719 of the 1,414 organizations in the
    2026-10-28 snapshot, so about 700 are left for Claude.
 
 Publicly funded institutions are labeled by what they are: a public university is
@@ -524,7 +524,7 @@ prompt over the organizations the rules leave undecided.
 Metadata cannot say whether a provider is commercial, give a plain-language summary, or
 add subject tags. `curation/curation.example.json` shows an overlay keyed by entityID or
 by organization name. Copy it to `curation/curation.json` and `make ingest` picks it up.
-In AWS, set `curation_file` in `infra/terraform`. Curated values are stored apart from metadata
+In AWS, set `curation_file` in `infra/opentofu`. Curated values are stored apart from metadata
 (`service.curated`) and are labeled as curated in the UI, so a reader always knows which
 statements came from the federation.
 
@@ -538,12 +538,12 @@ The same image runs the site and API locally with `make run-image`.
 
 ```bash
 make state-bucket    # once per account: S3 bucket for OpenTofu state, writes backend.hcl
-make deploy          # builds and pushes the image, then tofu apply in infra/terraform
+make deploy          # builds and pushes the image, then tofu apply in infra/opentofu
 make seed            # once: copy local summary and logo caches up, so nothing is regenerated
 make first-ingest    # the API needs one snapshot before its first cold start
 ```
 
-`infra/terraform` is applied with [OpenTofu](https://opentofu.org) at the version in
+`infra/opentofu` is applied with [OpenTofu](https://opentofu.org) at the version in
 `.opentofu-version`, the one CI validates with. `make init` (and so `make deploy`)
 stops if `tofu` is a different version; install that release, or use a version manager
 that reads `.opentofu-version`. **Never run `terraform` against this stack:** the state
@@ -620,7 +620,7 @@ crates/catalog-store    snapshot read/write: path, s3://, https://
 crates/catalog-ingest   fetch + build snapshot (CLI and scheduled Lambda)
 crates/catalog-api      Axum API (local server and Lambda)
 web/                    static front end; network.js is the landing animation
-infra/terraform         S3, Lambda, API Gateway, EventBridge, CloudFront (OpenTofu)
+infra/opentofu          S3, Lambda, API Gateway, EventBridge, CloudFront (OpenTofu)
 curation/               overlay example
 ```
 
