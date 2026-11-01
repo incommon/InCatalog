@@ -90,7 +90,7 @@ section must be written before it is cut.
   confirms the one possible OFAC match: China Unicom's 5G campus network service in
   CARSI, whose metadata names China United Network Communications Group Co.Ltd, on
   OFAC's NS-CMIC list. The note says that listing restricts the company's securities,
-  not buying its services (OFAC FAQ 905).
+  not buying its services (OFAC FAQ 905). (#59)
 - **`/v1/services` leaves out dead services by default.** `status` defaults to
   `alive,unknown`; pass `status=dead` or `status=all` to include them. Nothing drops out
   at rollout: a service is `unknown`, and shown, until checks over several days find
