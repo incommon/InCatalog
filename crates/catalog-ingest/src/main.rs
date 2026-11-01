@@ -11,6 +11,7 @@ mod budget;
 mod enrich;
 mod fetch;
 mod filter_report;
+mod health;
 mod logos;
 mod sector;
 mod sharing;
@@ -99,6 +100,18 @@ struct Args {
     #[arg(long, env = "CATALOG_LOGO_MAX_LOOKUPS", default_value_t = 300)]
     logo_max_lookups: usize,
 
+    /// Skip checking that services still answer.
+    #[arg(long, env = "CATALOG_SKIP_HEALTH")]
+    skip_health: bool,
+
+    /// Most login hosts and pages to check per run (one request each).
+    #[arg(long, env = "CATALOG_HEALTH_MAX_CHECKS", default_value_t = 4000)]
+    health_max_checks: usize,
+
+    /// Where check results are kept (default: `health-cache.json` beside `--out`).
+    #[arg(long, env = "CATALOG_HEALTH_CACHE")]
+    health_cache: Option<String>,
+
     /// Generated summaries and keywords: `auto` (batch, or at once when 25 or fewer
     /// need writing), `batch`, `sync`, or `off`.
     #[arg(long, env = "CATALOG_ENRICH_MODE", default_value = "auto")]
@@ -176,8 +189,8 @@ async fn main() -> Result<()> {
 }
 
 /// The steps that call out share the run's time: summaries may use a quarter of what
-/// is left when they start, sharing labels a third, sectors half, and logos the rest,
-/// so a large backlog in one step cannot starve the steps after it.
+/// is left when they start, sharing labels a third, sectors half, health checks half,
+/// and logos the rest, so a large backlog in one step cannot starve the steps after it.
 async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
     let cache = args
         .cache_dir
@@ -377,6 +390,45 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         Some(report)
     };
 
+    let health_report = if args.skip_health {
+        None
+    } else {
+        let cache = args
+            .health_cache
+            .clone()
+            .unwrap_or_else(|| sibling(&args.out, "health-cache.json"));
+        // Checks are an addition to the catalog, so a failure here (an unreadable or
+        // unwritable cache) is a warning: services are then listed as unchecked.
+        match health::check(
+            &mut services,
+            health::Options {
+                cache: Location::parse(&cache)?,
+                max_checks: args.health_max_checks,
+                deadline: deadline.share(0.5),
+            },
+        )
+        .await
+        {
+            Ok(report) => {
+                tracing::info!(?report, "health");
+                stopped_for_time("health", report.stopped_for_time);
+                if report.skipped_network_down > 0 {
+                    warnings.push(format!(
+                        "health checks stopped after repeated connection failures; {} wait for the next run",
+                        report.skipped_network_down
+                    ));
+                }
+                Some(report)
+            }
+            Err(e) => {
+                warnings.push(format!(
+                    "health checks failed; services are listed as unchecked: {e:#}"
+                ));
+                None
+            }
+        }
+    };
+
     let logo_report = if args.skip_logos {
         None
     } else {
@@ -445,6 +497,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         "sources": snapshot.sources,
         "import_filter_report": snapshot.import_filter_report,
         "warnings": snapshot.warnings,
+        "health": health_report,
         "logos": logo_report,
         "summaries": enrich_report,
         "sharing": sharing_report,

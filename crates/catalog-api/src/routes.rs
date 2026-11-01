@@ -77,6 +77,10 @@ type St = State<Arc<AppState>>;
         catalog_core::model::ImportFilter,
         catalog_core::model::FilterFinding,
         catalog_core::model::FilterReportInfo,
+        catalog_core::model::Health,
+        catalog_core::model::HealthStatus,
+        catalog_core::model::HostHealth,
+        catalog_core::model::BrokenLink,
         catalog_core::import_filter::Reason,
         catalog_core::environment::Environment,
         catalog_core::environment::EnvironmentReading,
@@ -242,7 +246,9 @@ async fn read(
 /// identity provider in principle: access still depends on the user's identity
 /// provider releasing the attributes the service needs, and on any subscription it
 /// requires. `filter_reason` is InCommon's own reason for filtering a service out of
-/// its eduGAIN import, from its published report.
+/// its eduGAIN import, from its published report. `status` defaults to
+/// `alive,unknown`: services unreachable from the catalog for several days are left
+/// out unless `status=dead` or `status=all` asks for them.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
 async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
     let mut query = raw.unwrap_or_default();
@@ -254,6 +260,7 @@ async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
         "sharing",
         "sector",
         "filter_reason",
+        "status",
     ] {
         query = join_repeated(&query, key);
     }
@@ -773,6 +780,47 @@ mod tests {
             ..Default::default()
         });
         router(AppState::from_catalog(catalog))
+    }
+
+    #[tokio::test]
+    async fn services_leave_out_dead_ones_unless_asked() {
+        use catalog_core::model::{Health, HealthStatus};
+        let svc = |id: &str, status: HealthStatus| Service {
+            id: catalog_core::entity_hash(id),
+            entity_id: id.into(),
+            health: Some(Health {
+                status,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let app = || {
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services: vec![
+                    svc("https://a.example/sp", HealthStatus::Alive),
+                    svc("https://d.example/sp", HealthStatus::Dead),
+                ],
+                ..Default::default()
+            })))
+        };
+        let (_, page) = get_json_from(app(), "/v1/services").await;
+        assert_eq!(page["total"], 1);
+        assert_eq!(page["items"][0]["status"], "alive");
+        let (_, page) = get_json_from(app(), "/v1/services?status=alive&status=dead").await;
+        assert_eq!(page["total"], 2);
+        let (_, page) = get_json_from(app(), "/v1/services?status=all").await;
+        assert_eq!(page["total"], 2);
+
+        let (_, spec) = get_json("/openapi.json").await;
+        assert!(spec["components"]["schemas"]["HealthStatus"].is_object());
+        let doc = spec["paths"]["/v1/services"]["get"]["description"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+            + spec["paths"]["/v1/services"]["get"]["summary"]
+                .as_str()
+                .unwrap_or_default();
+        assert!(doc.contains("alive,unknown"), "{doc}");
     }
 
     #[tokio::test]

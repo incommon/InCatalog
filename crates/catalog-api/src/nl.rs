@@ -22,7 +22,7 @@ use anyhow::{Context, Result};
 use catalog_claude::Claude;
 use catalog_core::categories::CATEGORIES;
 use catalog_core::environment::Environment;
-use catalog_core::model::Availability;
+use catalog_core::model::{Availability, HealthStatus};
 use catalog_core::nl::{Interpretation, InterpretedParams, MatchedTerm, Vocab};
 use catalog_core::regions::{RegionKind, REGIONS};
 use catalog_core::search::Catalog;
@@ -109,6 +109,7 @@ impl ClaudeReader {
                 sector: (!out.sectors.is_empty()).then(|| out.sectors.join(",")),
                 category: (!out.categories.is_empty()).then(|| out.categories.join(",")),
                 availability: out.availability,
+                status: out.status,
                 attribute: out.attribute,
                 source: out.source,
                 provider_type: out.provider_type,
@@ -187,6 +188,8 @@ struct ModelReading {
     sectors: Vec<String>,
     categories: Vec<String>,
     availability: Option<String>,
+    #[serde(default)]
+    status: Option<String>,
     attribute: Option<String>,
     source: Option<String>,
     provider_type: Option<String>,
@@ -205,6 +208,7 @@ fn matched_from(vocab: &Vocab, p: &InterpretedParams) -> Vec<MatchedTerm> {
     };
     for (field, v) in [
         ("availability", &p.availability),
+        ("status", &p.status),
         ("attribute", &p.attribute),
         ("source", &p.source),
         ("provider_type", &p.provider_type),
@@ -264,7 +268,7 @@ fn schema(vocab: &Vocab) -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["keywords", "federations", "countries", "regions", "environments", "sharing", "sectors", "categories", "availability", "attribute", "source", "provider_type", "explanation"],
+        "required": ["keywords", "federations", "countries", "regions", "environments", "sharing", "sectors", "categories", "availability", "status", "attribute", "source", "provider_type", "explanation"],
         "properties": {
             "keywords": { "type": "string" },
             "federations": enum_array(vocab.federations.keys().cloned().collect()),
@@ -275,6 +279,7 @@ fn schema(vocab: &Vocab) -> Value {
             "sectors": enum_array(Sector::ALL.iter().map(|s| s.key().to_owned()).chain(["unknown".to_owned()]).collect()),
             "categories": { "type": "array", "items": { "type": "string", "enum": CATEGORIES.iter().map(|c| c.key).collect::<Vec<_>>() } },
             "availability": nullable_enum(Availability::ALL.iter().map(|a| a.key().to_owned()).collect()),
+            "status": nullable_enum(HealthStatus::ALL.iter().map(|s| s.key().to_owned()).chain(["all".to_owned()]).collect()),
             "attribute": nullable_enum(attributes(vocab).map(|(n, _)| n.clone()).collect()),
             "source": nullable_enum(vec!["incommon".into(), "edugain".into()]),
             "provider_type": nullable_enum(vocab.provider_types.keys().cloned().collect()),
@@ -299,6 +304,7 @@ Set a filter only when the search clearly asks for it, and leave it null otherwi
 - `sectors`: only when the search asks who runs the service: the kind of organization that operates it (\"library services\", \"museum SPs\", \"services from libraries\", \"commercial vendors\", \"government agencies\", \"universities\"). Not the audience, and not the subject: \"library management systems\" or \"museum ticketing\" are keywords. For \"non-commercial\", list every sector except `commercial` and `publishers`. Leave the list empty otherwise.
 - `categories`: entity categories and certifications the service must carry, all of them.
 - `availability`: where the service can be used from. Use it only for searches about reach (\"not in InCommon\", \"exported to eduGAIN\"); do not combine it with `source`.
+- `status`: whether the service still answers, from the catalog's own checks. Searches leave out services that have been unreachable for several days unless this asks for them. `dead` when the search asks for services that are down, unreachable, not responding, or have broken links or bad certificates; `all` when it asks to include them (\"including unreachable ones\"). Leave it null otherwise.
 - `source`: `incommon` when the search asks only for services InCommon members can use; `edugain` for services available through eduGAIN.
 - `attribute`: when the search says the service requests, needs, or receives a particular user attribute (email, ORCID, name). Pick the attribute Name. A topic like \"email marketing\" is a keyword, not an attribute.
 - `provider_type`: only when the search asks for that kind of provider and the value is listed.

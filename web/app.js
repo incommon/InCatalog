@@ -97,7 +97,7 @@ const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().repla
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
 // a service must carry every category, and may be registered by any of the federations,
 // in any of the countries or regions, or be in any of the environments.
-const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any", filter_reason: "any" };
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any", filter_reason: "any", status: "any" };
 // Region names read "the European Union" in a sentence and "European Union" in a list.
 const bare = (label) => label.replace(/^the /, "");
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -162,6 +162,22 @@ const FILTER_REASON = {
   scope: "Faulty identity-provider scope",
   other: "Another import check",
 };
+// Whether a service still answers, from the catalog's own checks of its login hosts.
+const STATUS_DEFAULT = ["alive", "unknown"];
+const UNREACHABLE_CAVEAT =
+  "Its login hosts failed the catalog's checks several times over several days. Some services answer only from their own campus network, so this isn't proof it's gone.";
+const HOST_FAILURE = {
+  dns: "the name doesn't exist",
+  connect: "the connection was refused",
+  tls_expired: "its certificate has expired",
+  tls_name: "its certificate is for another name",
+  tls_untrusted: "its certificate isn't from a trusted authority",
+  tls: "TLS failed",
+  dns_transient: "name lookup failed for now",
+  private_address: "the name resolves only inside a private network",
+  timeout: "it didn't answer in time",
+  other: "the check failed",
+};
 const IMPORT_POLICY_URL = "https://spaces.at.internet2.edu/spaces/federation/pages/168691916/Interfederation+Technical+Policy";
 // Sirtfi is near-universal and the InCommon tag is implied by the registrar, so
 // cards leave them off to keep the meaningful tags visible.
@@ -224,6 +240,45 @@ function logoEl(url, name, large, note) {
   return box;
 }
 
+// What the catalog's own checks found: the status, each login host's latest check,
+// and any information, organization or privacy page that has gone missing.
+function healthNote(hl) {
+  const day = (t) => (t ? t.slice(0, 10) : "");
+  if (!hl) return "Not checked yet.";
+  const lead = {
+    alive: `Reachable: a login host answered on ${day(hl.last_ok)}.`,
+    dead: `Unreachable from InCatalog since ${day(hl.since)}. ${UNREACHABLE_CAVEAT}`,
+    unknown: (hl.hosts || []).some((x) => x.checked_at) ? "No clear answer yet." : "Not checked yet.",
+  }[hl.status];
+  const hosts = (hl.hosts || []).filter((x) => x.checked_at);
+  return [
+    lead,
+    hosts.length > 0 &&
+      h(
+        "ul",
+        { class: "health-hosts" },
+        hosts.map((x) =>
+          h(
+            "li",
+            {},
+            h("code", {}, x.host),
+            x.failure
+              ? ` \u2014 ${HOST_FAILURE[x.failure] || x.failure} (checked ${day(x.checked_at)}${x.failures_in_a_row > 1 ? `, ${x.failures_in_a_row} times in a row` : ""})`
+              : ` \u2014 answered on ${day(x.last_ok)}`,
+          ),
+        ),
+      ),
+    (hl.broken_links || []).length > 0 &&
+      h(
+        "p",
+        { class: "gen-note" },
+        "Pages that have gone missing: ",
+        hl.broken_links.map((l, i) => [i ? ", " : "", h("a", { href: l.url, rel: "noopener" }, l.kind), ` (${l.detail} since ${day(l.since)})`]),
+        ". A missing page doesn\u2019t make the service unreachable.",
+      ),
+  ];
+}
+
 // Why InCommon's import left an eduGAIN-only service out, in InCommon's words: each
 // failed check under the policy rule it falls under, with the report it came from.
 function importFilterNote(s) {
@@ -268,9 +323,10 @@ function importFilterNote(s) {
 function serviceCard(s) {
   const cats = s.categories.filter((c) => !QUIET_CATEGORIES.has(c));
   const filtered = (s.filter_reasons || []).length > 0;
+  const dead = s.status === "dead";
   return h(
     "a",
-    { class: `card${filtered ? " filtered" : ""}`, href: `#/services/${s.id}` },
+    { class: `card${filtered ? " filtered" : ""}${dead ? " dead" : ""}`, href: `#/services/${s.id}` },
     h("div", { class: "card-top" }, logoEl(s.logo, s.name, false, s.logo_source === "website" ? "Logo from the organization's website" : null), h("div", { style: "min-width:0" }, h("h2", {}, s.name), s.organization && h("div", { class: "org" }, s.organization))),
     s.description &&
       h(
@@ -293,6 +349,7 @@ function serviceCard(s) {
           s.sharing_source === "generated" && h("span", { class: "gen-mark", "aria-label": "Generated:" }, "✦ "),
           SHARING_BADGE[s.sharing],
         ),
+      dead && h("span", { class: "badge dead", title: UNREACHABLE_CAVEAT }, `Unreachable from InCatalog${s.unreachable_since ? ` since ${s.unreachable_since.slice(0, 10)}` : ""}`),
       filtered
         ? h("span", { class: "badge filtered", title: `InCommon's report: ${s.filter_reasons.map((r) => FILTER_REASON[r] || r).join("; ")}` }, "Filtered by InCommon")
         : s.availability && h("span", { class: "badge avail" }, AVAILABILITY[s.availability]),
@@ -456,7 +513,7 @@ async function landing() {
 
   try {
     const [m, feds] = await Promise.all([meta(), api("/v1/federations")]);
-    hint.textContent = `${fmt(m.counts.services)} services · ${fmt(m.counts.providers)} providers · ${fmt(feds.filter((f) => f.listed_in_edugain).length)} federations`;
+    hint.textContent = `${fmt(m.counts.services)} services${m.counts.by_status?.dead ? ` (${fmt(m.counts.by_status.dead)} unreachable)` : ""} · ${fmt(m.counts.providers)} providers · ${fmt(feds.filter((f) => f.listed_in_edugain).length)} federations`;
     globe?.setFederations(
       feds
         .filter((f) => (f.listed_in_edugain || f.code === "INCOMMON") && f.catalog_services + f.catalog_identity_providers > 0)
@@ -476,6 +533,7 @@ async function landing() {
 const FACET_ORDER = [
   ["availability", "Availability"],
   ["filter_reason", "Filtered by InCommon for"],
+  ["status", "Reachability"],
   ["environment", "Environment"],
   ["sharing", "Open to"],
   ["sector", "Run by"],
@@ -613,7 +671,9 @@ async function search(params) {
         : page.facets[key] || [];
     if (!values.length) continue;
     const active = params[param];
-    const selected = listOf(active);
+    // Searches leave out unreachable services unless asked, so with no status chosen
+    // the facet shows the default as chosen.
+    const selected = key === "status" && !active ? STATUS_DEFAULT : listOf(active);
     const same = key === "federation" ? (a, b) => fedKey(feds, a) === fedKey(feds, b) : (a, b) => a === b;
     const list = h("div", {});
     const limit = 8;
@@ -889,6 +949,8 @@ async function serviceView(id) {
             h("dd", {}, sectorNote(d.sector)),
             h("dt", {}, "Open to"),
             h("dd", {}, sharingNote(d.sharing)),
+            h("dt", {}, "Reachability"),
+            h("dd", {}, healthNote(s.health)),
             s.also_registered_by?.length > 0 && [h("dt", {}, "Also registered by"), h("dd", {}, s.also_registered_by.join(", "))],
           ),
         ),
@@ -1157,6 +1219,7 @@ const FILTER_HELP = [
   ["Country and region", "The registering federation's country. A region or grouping stands for its countries, and countries and regions together are one set of places: a service in any of them matches. A federation that lists several countries is in a region when any of them is."],
   ["Category", "Entity categories and certifications, such as Research & Scholarship or Sirtfi. A service must carry every one you pick."],
   ["Availability", "Where the service can be used from: InCommon only, exported to eduGAIN, or registered elsewhere and imported."],
+  ["Reachability", "Whether the service still answers, from the catalog\u2019s own checks of its login hosts: their name, a connection, and a valid certificate, every few days. A login host counts as reachable for 14 days after it answers. A service is unreachable when every login host has failed three checks in a row over at least three days; its card then has a zebra-striped white and black border and says since when, and searches leave it out unless you pick \u201cUnreachable from InCatalog\u201d here. Some services answer only from their own campus, so a failure seen from outside isn\u2019t proof they\u2019re gone, and timeouts never count. A missing information or privacy page is listed on the service but doesn\u2019t make it unreachable."],
   ["Filtered by InCommon for", "Why InCommon’s eduGAIN import left a service out, as InCommon’s own import filter report states it, grouped by the rule in its import policy. These services have a red outline and a “Filtered by InCommon” badge, and their page lists each check they failed. The report is read on every refresh. An eduGAIN-only service the report doesn’t mention may be out of the import for another reason, such as timing between the two aggregates."],
   ["Environment", "Production, test, staging, or development. It is read from markers in the entityID or the name (test., -dev, \u201c(Staging)\u201d), or else from Claude\u2019s reading of the metadata (marked \u2726). Every environment is shown unless you pick some; test and staging copies rank below the live service they mirror."],
   ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],

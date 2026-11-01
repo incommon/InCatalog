@@ -71,7 +71,7 @@ country-wide programs, and those whose organization may be on OFAC's lists.
   glance and a little ominous, without looking like an alarm. For example, a near-black
   fill with a thin amber hazard-stripe edge, and a small warning glyph. It has to stay
   distinct from the other markings, so no red (InCommon-filtered services, `--filtered`)
-  and no motion (dead services' pulsing border). Make its colors theme tokens that work
+  and no motion (the dead services' moving zebra ring). Make its colors theme tokens that work
   in dark mode.
   - **Only a confirmed match gets the full style.** A possible match is a name
     collision until curation confirms it, so it gets only a quiet mark (the glyph, no
@@ -94,7 +94,7 @@ country-wide programs, and those whose organization may be on OFAC's lists.
 
 The service chips and cards are gaining markings: the red outline and badge for
 services InCommon filtered from its import (`.card.filtered`, already shipped), the
-alive indicator and the dead services' pulsing white-black border, and the OFAC style.
+the dead services' zebra-striped white and black ring (`.card.dead`, already shipped), and the OFAC style.
 Each TODO says to explain its marking in a legend. Make that one legend: a key floating in the lower-right corner of the chip
 view (the `.grid` of `serviceCard`s in `web/app.js`, on the results page and on the
 provider and federation pages).
@@ -157,104 +157,39 @@ Also leave the state key `catabasis/terraform.tfstate` (move it only with the AW
 above, which moves the state anyway), past CHANGELOG entries, and the "never run
 `terraform`" warnings.
 
-## Label services alive or dead, and hide the dead ones by default
+## Finish the alive/dead checks: names that point elsewhere, and the private report
 
-Metadata outlives the services it describes. Check each service's hosts and label each
-service **alive** when it answers, or **dead** when it no longer does: a 404 or a 5xx,
-DNS that fails or no longer points at the service, or TLS that doesn't validate.
-Searches hide dead services unless asked for them. The logo fetcher
-(`catalog-ingest/src/logos.rs`) already has most of what this needs: the `PublicOnly`
-resolver that refuses private and cloud-metadata addresses, failure classification,
-retries with backoff, the network-down guard, a cache with recheck intervals, and the
-run's `Deadline`.
+Ingest checks login hosts and pages and labels services `alive`, `dead` or `unknown`
+(README § Whether a service still answers, `catalog-core/src/health.rs`,
+`catalog-ingest/src/health.rs`). What's left:
 
-- **What to check, and how.** Check the service's own front door: `endpoint_hosts`
-  (the `AssertionConsumerService` hosts), and `information_urls`, the organization URL
-  and `privacy_statement_urls`. Judge an ACS host only by DNS, connection and TLS,
-  never by its HTTP status. An ACS expects a SAML POST, so many answer a GET with 400,
-  405 or 500 while working fine. The status code counts only for pages meant to be read
-  (the information, organization and privacy URLs).
-- **Each kind of failure, kept apart.** DNS: NXDOMAIN is evidence; SERVFAIL and timeouts
-  are transient. HTTP: 404 and 410 are evidence; 5xx is transient until it persists; 403
-  and 429 say nothing. TLS: record which check failed (expired, wrong host name,
-  untrusted chain, self-signed). TLS on the ACS host matters most, because the browser
-  posts the assertion there.
-- **DNS that no longer points at the service.** This one has no single test, so record
-  the signals and label it "may no longer be this service", never as fact:
+- **Names that no longer point at the service.** Today a lapsed domain whose name
+  still resolves, or a CNAME to a deleted cloud resource, can look alive, because any
+  answer counts. Add these signals, and label them "may no longer be this service",
+  never as fact:
   - the registered domain has lapsed, or now serves a registrar's parking or for-sale
     page
   - a CNAME points at a cloud resource that no longer exists (a deleted S3 bucket,
     Azure or Heroku app, or GitHub Pages site)
-  - the site redirects to an unrelated domain
   - against the last good check, both the addresses and the certificate's subject and
     issuer changed at once
 
-  Keep the parking-page and cloud-provider fingerprints in a data file, each with its
-  source and a `checked` date, as `regions.json` does.
-- **Dangling ACS hosts are a security finding, not a label.** Whoever claims a dangling
-  CNAME on an ACS host can receive users' assertions. Don't publish those details in the
-  snapshot or the site, which would hand out a takeover list. Show only "unreachable".
-  Put the specifics in a report kept private for the federations' operators, and decide
-  first who receives it and how.
-- **One bad check is not a dead site.** Label a host only after it fails several checks
-  in a row over several days. Settle the count and the span from the data. Record the
-  first failed check and the last good one, and clear the label on the next success.
-  Some sites answer only from campus networks (split DNS, IP allow-lists), so a failure
-  seen from AWS is not proof. Say so on the About page. `dead` is the status's name in
-  the code and the API, but the site's words are "unreachable from InCatalog since
-  <date>", never "dead".
-- **Be a polite client.** Send at most one request per host per check (HEAD, falling back
-  to GET), with a user agent that names InCatalog and links the About page. Spread the
-  rechecks over the schedule, as the logo cache does, rather than probing every host on
-  every run. Keep the results in their own cache beside `logo-cache.json`.
-- **Alive is a positive finding, not the absence of a failure.** Each service has one
-  status, with its reasons and dates:
-  - **alive:** on a recent check, an ACS host resolved, connected and passed TLS. A
-    broken information, organization or privacy page doesn't make a service dead.
-    List those pages as broken links on the service instead.
-  - **dead:** unreachable past the threshold, or "may no longer be this service".
-  - **unknown:** not checked yet, or only inconclusive answers (403, 429, timeouts,
-    campus-only).
-
-  Show an alive indicator on each alive service's chip and card, with a text label
-  and an accessible name, not only a mark. An unknown service gets neither the alive
-  indicator nor the dead border, and its card says "not checked yet" or "no clear
-  answer yet". Say on the About page what alive means and how recent "recent" is.
-- **Searches show alive and unknown services by default, and hide dead ones.** The site
-  and the API filter out dead services unless asked otherwise: a "Show unreachable
-  services" toggle on the site, and `status=` in the API, taking `alive`, `dead` and
-  `unknown` (several at once, comma-separated) or `all`, defaulting to
-  `alive,unknown`, with an OpenAPI entry. Facet counts and provider and federation
-  counts follow the same filter, and the landing page says which services its totals
-  count. NL phrasings ("dead services", "broken links", "services with bad
-  certificates") turn the filter off by themselves, and the reading of the query says
-  so. The API's default results change, so the CHANGELOG records it under Changed.
-- **Nothing vanishes at rollout.** At first nearly everything is unknown, and unknown
-  shows, so the default can ship before the checks have covered the catalog. Dead
-  services drop out of default results only as checks find them, and a campus-only
-  service that never answers stays unknown and stays visible. Run `make backfill` to
-  check every service sooner.
-- **Dead services get a pulsing white-black border on their chip and card.** Make the
-  white and black theme tokens so the border reads against both themes' backgrounds,
-  and keep `button.chip:hover` from overriding it. With `prefers-reduced-motion`, show
-  a static alternating white-black border instead, as `network.js` already respects
-  that setting. Don't rely on the border alone: add the text label "unreachable from
-  InCatalog since <date>" and an accessible name, and explain the border in the
-  floating key and on the About page. Settle how it sits with the red outline on
-  InCommon-filtered cards (`.card.filtered`) when a chip has both.
-- **Report it.** The ingest report counts services alive, dead and unknown, and each
-  kind of failure.
-- **Tests.** Local fixture servers for 404, 500, an expired certificate and a wrong-host
-  certificate, and a stub resolver for NXDOMAIN and SERVFAIL. Also:
-  - an ACS answering a GET with 500 still counts as alive
-  - a broken information URL alone doesn't make a service dead
-  - the failure threshold and recovery
-  - each fingerprint
-  - the default filter keeps alive and unknown services and drops dead ones, and each
-    `status` value, in the API and in facet counts
-  - NL turning the filter off
-  - the chip's dead and alive classes, including under reduced motion
-  - the private findings never reaching the public snapshot
+  CNAMEs need DNS record lookups, which the system resolver doesn't give, so this
+  needs a resolver crate (such as `hickory-resolver`) through `deny.toml`'s license
+  review. Keep the parking-page and cloud-provider fingerprints in a data file, each
+  with its source and a `checked` date, as `regions.json` does.
+- **Dangling login hosts are a security finding, not a label.** Whoever claims a
+  dangling CNAME on a login host can receive users' assertions. Don't publish the
+  details in the snapshot or on the site, which would hand out a takeover list; the
+  site shows only "unreachable". Put the specifics in a report kept private for the
+  federations' operators, and decide first who receives it and how.
+- **Provider and federation counts.** Search facets already leave dead services out by
+  default, but the provider and federation listings still count every service.
+  Decide whether they should follow the same default.
+- **Tests with real TLS failures.** Failures are classified from the error's text,
+  tested against messages rustls and the system resolver really give. Add local
+  fixture servers with an expired and a wrong-host certificate, and a stub resolver
+  for NXDOMAIN and SERVFAIL, so a change in those messages fails a test.
 
 ## WCAG 2.2 AA as a standing CI check, with a VPAT kept current
 
@@ -292,7 +227,7 @@ checks accessibility today, and `web/` has no build or Node tooling.
   focused element (2.4.11, Focus Not Obscured).
 - **Criteria the planned work runs into.** Settle these in the TODOs that add them,
   not after:
-  - **Pause, Stop, Hide (2.2.2).** The dead services' pulsing border and the landing
+  - **Pause, Stop, Hide (2.2.2).** The dead services' zebra ring (which stops within five seconds) and the landing
     globe both move. Honoring `prefers-reduced-motion` may not be enough on its own,
     so give the page a control that stops animation, for example in the floating key.
   - **Three flashes (2.3.1).** Keep the pulse well under the flash thresholds.

@@ -19,6 +19,7 @@ pub mod environment;
 pub mod examples;
 pub mod extract;
 pub mod federations;
+pub mod health;
 pub mod import_filter;
 pub mod model;
 pub mod nl;

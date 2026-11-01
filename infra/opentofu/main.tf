@@ -30,6 +30,9 @@ locals {
   # way. Without access to these, every run would request the same labels again.
   sharing_cache_key = "snapshots/sharing-cache.json"
   sector_cache_key  = "snapshots/sector-cache.json"
+  # Whether services still answer: each login host's and page's checks, so a failure
+  # is confirmed over several runs and days.
+  health_cache_key = "snapshots/health-cache.json"
   # Every Claude task (search reading, logo choice, summaries) goes through Bedrock
   # InvokeModel, signed with the function's role: there is no API key to store. The
   # model is a cross-region inference profile (us.…), which routes to the same
@@ -245,6 +248,7 @@ resource "aws_iam_role_policy" "ingest_s3" {
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.summary_cache_key}" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.sharing_cache_key}" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.sector_cache_key}" },
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${aws_s3_bucket.data.arn}/${local.health_cache_key}" },
     ]
   })
 }

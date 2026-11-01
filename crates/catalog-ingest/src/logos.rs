@@ -935,8 +935,13 @@ fn root_cause(e: &reqwest::Error) -> String {
 // ---------- the guarded client ----------
 
 fn guarded_client() -> Result<reqwest::Client> {
+    guarded_client_as(USER_AGENT)
+}
+
+/// The guarded client, under another step's user agent.
+pub(crate) fn guarded_client_as(user_agent: &'static str) -> Result<reqwest::Client> {
     Ok(reqwest::Client::builder()
-        .user_agent(USER_AGENT)
+        .user_agent(user_agent)
         .connect_timeout(Duration::from_secs(6))
         .timeout(Duration::from_secs(12))
         .dns_resolver(Arc::new(PublicOnly {
