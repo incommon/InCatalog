@@ -72,8 +72,19 @@ const RETRY_BACKOFF: [Duration; 2] = if cfg!(test) {
 /// Lookups in a row that fail to connect at all before the breaker asks whether the
 /// network is down.
 const NETWORK_DOWN_AFTER: usize = 12;
-/// How long the breaker trusts its last answer before asking again.
-const PROBE_EVERY: Duration = Duration::from_secs(30);
+/// How long the breaker trusts the canary's last answer before asking again.
+const PROBE_EVERY: Duration = if cfg!(test) {
+    Duration::from_millis(50)
+} else {
+    Duration::from_secs(30)
+};
+/// How long checks wait for the canary to answer again before the run gives up on
+/// the network.
+const OUTAGE_LIMIT: Duration = if cfg!(test) {
+    Duration::from_millis(150)
+} else {
+    Duration::from_secs(90)
+};
 /// Host names resolved at once. Lookups and image checks share it.
 const DNS_AT_ONCE: usize = 8;
 /// Longest a single image may take to measure.
@@ -215,15 +226,28 @@ pub(crate) type Probe = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool
 /// the network is down, or only a run of dead sites: one organization's retired host
 /// names, checked side by side. So before stopping anything it asks the probe, a
 /// host that answered earlier in the run. If that answers, the failures were the
-/// sites' own and the count starts again; if not, the network is down until the
-/// probe answers again, asked at most every [`PROBE_EVERY`]. Without a probe, the
-/// count alone decides.
+/// sites' own and the count starts again. If not, the checks wait, and the probe is
+/// asked again every [`PROBE_EVERY`]: a brief outage (a DNS hiccup) pauses the run
+/// rather than skipping what is left of it. Only an outage that outlasts
+/// [`OUTAGE_LIMIT`] stops the run's checks. Without a probe, the count alone decides.
+///
+/// (On 2026-11-01 a probe that failed once, with no waiting, skipped 2,347 of a
+/// run's health checks within 30 seconds: each skip took no time.)
 #[derive(Default)]
 pub(crate) struct Breaker {
     in_a_row: AtomicUsize,
     probe: Option<Probe>,
+    state: tokio::sync::Mutex<ProbeState>,
+}
+
+#[derive(Default)]
+struct ProbeState {
     /// When the probe was last asked, and whether it answered.
-    last: tokio::sync::Mutex<Option<(tokio::time::Instant, bool)>>,
+    last: Option<(tokio::time::Instant, bool)>,
+    /// When it first failed to answer, in the current outage.
+    down_since: Option<tokio::time::Instant>,
+    /// The outage outlasted [`OUTAGE_LIMIT`]: the run stops checking.
+    gave_up: bool,
 }
 
 impl Breaker {
@@ -244,11 +268,15 @@ impl Breaker {
                 Arc::new(move || {
                     let (http, canary) = (http.clone(), canary.clone());
                     Box::pin(async move {
-                        http.head(&canary)
+                        let answer = http
+                            .head(&canary)
                             .timeout(Duration::from_secs(10))
                             .send()
-                            .await
-                            .is_ok()
+                            .await;
+                        if let Err(e) = &answer {
+                            tracing::warn!(%canary, error = %e, "the canary did not answer");
+                        }
+                        answer.is_ok()
                     }) as futures::future::BoxFuture<'static, bool>
                 }) as Probe
             });
@@ -271,23 +299,48 @@ impl Breaker {
         let Some(probe) = &self.probe else {
             return true;
         };
-        // One probe at a time; the others wait for its answer.
-        let mut last = self.last.lock().await;
-        if !tripped() {
-            return false;
-        }
-        let up = match *last {
-            Some((at, up)) if at.elapsed() < PROBE_EVERY => up,
-            _ => {
-                let up = probe().await;
-                *last = Some((tokio::time::Instant::now(), up));
-                up
+        // One probe at a time; the others wait for its answer, and through an
+        // outage they all wait here.
+        let mut state = self.state.lock().await;
+        loop {
+            if !tripped() {
+                return false;
             }
-        };
-        if up {
-            self.in_a_row.store(0, Ordering::SeqCst);
+            if state.gave_up {
+                return true;
+            }
+            let now = tokio::time::Instant::now();
+            let (at, up) = match state.last {
+                Some((at, up)) if now - at < PROBE_EVERY => (at, up),
+                _ => {
+                    let up = probe().await;
+                    state.last = Some((now, up));
+                    (now, up)
+                }
+            };
+            if up {
+                if state.down_since.take().is_some() {
+                    tracing::info!("the canary answers again: checks go on");
+                }
+                self.in_a_row.store(0, Ordering::SeqCst);
+                return false;
+            }
+            let since = *state.down_since.get_or_insert_with(|| {
+                tracing::warn!(
+                    "{NETWORK_DOWN_AFTER} in a row could not be reached, and neither could the canary: waiting for the network"
+                );
+                at
+            });
+            if now - since >= OUTAGE_LIMIT {
+                tracing::warn!(
+                    waited = ?(now - since),
+                    "the canary still does not answer: the network looks down, so the run stops checking"
+                );
+                state.gave_up = true;
+                return true;
+            }
+            tokio::time::sleep_until(at + PROBE_EVERY).await;
         }
-        !up
     }
 }
 
@@ -1113,11 +1166,18 @@ fn guarded_client() -> Result<reqwest::Client> {
 }
 
 /// The guarded client, under another step's user agent.
+///
+/// It keeps no idle connections. Nearly every request goes to a different
+/// registrant's host, so a pooled connection is almost never used again, and each
+/// one holds a file descriptor for 90 seconds. Lambda allows 1,024: on 2026-11-01
+/// health checks ran out after about 1,000 hosts, and every lookup after that
+/// failed with "Device or resource busy (os error 16)", the canary's too.
 pub(crate) fn guarded_client_as(user_agent: &'static str) -> Result<reqwest::Client> {
     Ok(reqwest::Client::builder()
         .user_agent(user_agent)
         .connect_timeout(Duration::from_secs(6))
         .timeout(Duration::from_secs(12))
+        .pool_max_idle_per_host(0)
         .dns_resolver(Arc::new(PublicOnly {
             at_once: Arc::new(Semaphore::new(DNS_AT_ONCE)),
         }))
@@ -1376,27 +1436,94 @@ mod tests {
         assert_eq!(asked.load(Ordering::SeqCst), 1);
     }
 
-    /// A real outage stops the lookups until the canary answers again, and the
-    /// canary is asked at most once per [`PROBE_EVERY`] meanwhile.
+    /// A brief outage pauses the lookups until the canary answers again, asked
+    /// every [`PROBE_EVERY`]; nothing is skipped.
     #[tokio::test(start_paused = true)]
-    async fn an_outage_lasts_until_the_canary_answers_again() {
+    async fn a_brief_outage_waits_for_the_canary() {
+        let asked = Arc::new(AtomicUsize::new(0));
+        let a = asked.clone();
+        // Down twice, then up.
+        let probe: Probe = Arc::new(move || {
+            let n = a.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move { n >= 2 }) as futures::future::BoxFuture<'static, bool>
+        });
+        let breaker = Breaker::new(Some(probe));
+        for _ in 0..NETWORK_DOWN_AFTER {
+            breaker.record(Some(Failure::Connect));
+        }
+        let started = tokio::time::Instant::now();
+        assert!(!breaker.network_down().await);
+        assert_eq!(asked.load(Ordering::SeqCst), 3);
+        assert_eq!(started.elapsed(), PROBE_EVERY * 2);
+        // The count started again.
+        assert!(!breaker.network_down().await);
+        assert_eq!(asked.load(Ordering::SeqCst), 3);
+    }
+
+    /// An outage that outlasts [`OUTAGE_LIMIT`] stops the lookups for the rest of
+    /// the run, without asking the canary again.
+    #[tokio::test(start_paused = true)]
+    async fn a_long_outage_stops_the_lookups() {
         let up = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let asked = Arc::new(AtomicUsize::new(0));
         let breaker = Breaker::new(Some(probe(up.clone(), asked.clone())));
         for _ in 0..NETWORK_DOWN_AFTER {
             breaker.record(Some(Failure::Connect));
         }
-        for _ in 0..10 {
-            assert!(breaker.network_down().await);
-        }
-        assert_eq!(asked.load(Ordering::SeqCst), 1);
-
-        // Back up, but the last answer still stands until it is due again.
+        let started = tokio::time::Instant::now();
+        assert!(breaker.network_down().await);
+        assert_eq!(started.elapsed(), OUTAGE_LIMIT);
+        let probes = asked.load(Ordering::SeqCst);
+        assert_eq!(
+            probes as u32,
+            OUTAGE_LIMIT.as_millis() as u32 / PROBE_EVERY.as_millis() as u32 + 1
+        );
         up.store(true, Ordering::SeqCst);
         assert!(breaker.network_down().await);
-        tokio::time::advance(PROBE_EVERY).await;
-        assert!(!breaker.network_down().await);
-        assert_eq!(asked.load(Ordering::SeqCst), 2);
+        assert_eq!(asked.load(Ordering::SeqCst), probes);
+    }
+
+    /// Each request opens its own connection and closes it after: no idle
+    /// connection holds a file descriptor.
+    #[tokio::test]
+    async fn the_guarded_client_keeps_no_idle_connections() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let a = accepted.clone();
+        tokio::spawn(async move {
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+                a.fetch_add(1, Ordering::SeqCst);
+                // A keep-alive HTTP/1.1 server: answers every request on the
+                // connection, and never closes it first.
+                tokio::spawn(async move {
+                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                    let mut stream = stream;
+                    let mut buf = vec![0u8; 4096];
+                    let mut seen = Vec::new();
+                    loop {
+                        let n = match stream.read(&mut buf).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => n,
+                        };
+                        seen.extend_from_slice(&buf[..n]);
+                        while let Some(end) = seen.windows(4).position(|w| w == b"\r\n\r\n") {
+                            seen.drain(..end + 4);
+                            let ok = b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n";
+                            if stream.write_all(ok).await.is_err() {
+                                return;
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        let http = guarded_client().unwrap();
+        for _ in 0..3 {
+            http.head(format!("http://{addr}/")).send().await.unwrap();
+        }
+        assert_eq!(accepted.load(Ordering::SeqCst), 3);
     }
 
     /// The canary is asked over HTTP; any answer, whatever its status, is up.

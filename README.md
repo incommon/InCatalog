@@ -524,9 +524,10 @@ starting with the sites behind the most services, so the first few runs fill the
 gradually. A transient failure is retried twice within the run, after 3 and 12
 seconds. If 12 lookups in a row cannot reach their site at all, the run asks
 InCommon's metadata URL, which answered earlier in the run. If that answers too, the
-failures were the sites' own and lookups go on. If it doesn't, the network is down,
-so the run stops looking up and leaves the rest uncached, with a warning, until the
-metadata URL answers again (asked at most every 30 seconds). One local run on
+failures were the sites' own and lookups go on. If it doesn't, lookups wait and the
+URL is asked again every 30 seconds, so a brief outage only pauses the run. If it
+still doesn't answer after 90 seconds, the network is down: the run stops looking up
+and leaves the rest uncached, with a warning. One local run on
 2026-10-28 shows why the network matters: it cached 520 sites as DNS failures within
 ten seconds, and kept them for 3 days. The health checks below use the same breaker.
 Host names are resolved 8 at a time.
