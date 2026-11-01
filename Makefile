@@ -11,7 +11,7 @@ test:
 lint:
 	cargo fmt --all -- --check
 	cargo clippy --workspace --all-targets -- -D warnings
-	tofu -chdir=infra/terraform fmt -check
+	tofu -chdir=infra/opentofu fmt -check
 	cargo deny check
 
 # The dependencies' license notices, as the image build writes them (not committed).
@@ -32,13 +32,13 @@ $(SNAPSHOT):
 	$(MAKE) ingest
 
 # ---------- AWS ----------
-# One container image runs both Lambda functions. OpenTofu applies infra/terraform
+# One container image runs both Lambda functions. OpenTofu applies infra/opentofu
 # (never Terraform: the state is OpenTofu's now). Its state lives in S3
 # (backend.hcl); `make state-bucket` creates the bucket once per account.
 AWS_PROFILE ?= incommon-hyperdrive-dev
 AWS_REGION ?= us-east-2
 export AWS_PROFILE AWS_REGION
-TF := tofu -chdir=infra/terraform
+TF := tofu -chdir=infra/opentofu
 TOFU_VERSION := $(shell tr -d '[:space:]' < .opentofu-version)
 IMAGE := incatalog:local
 # The workspace version: the only unindented `version =` line in Cargo.toml.

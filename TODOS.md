@@ -149,13 +149,13 @@ provider and federation pages).
 The code and docs use `incatalog`, but the deployed AWS resources still carry the old
 working name. These must change together, as a planned migration:
 
-- **`var.name` default** in `infra/terraform/variables.tf`. Every resource is named from
+- **`var.name` default** in `infra/opentofu/variables.tf`. Every resource is named from
   it (ECR repo, both Lambdas and their log groups, the S3 data and site buckets, CloudFront,
   the EventBridge rule, API Gateway). Changing it makes `tofu apply` destroy and
   recreate them, so copy the data and site buckets' contents and push the image to the new
   ECR repo first (or `tofu state mv` / import where a resource can keep its identity).
 - **The state bucket** `catabasis-tfstate-<account>` and key `catabasis/terraform.tfstate`
-  in `infra/terraform/backend.hcl` and `infra/state-bucket.sh`. S3 buckets can't be
+  in `infra/opentofu/backend.hcl` and `infra/state-bucket.sh`. S3 buckets can't be
   renamed: create the new bucket, update both files, run
   `tofu init -backend-config=backend.hcl -migrate-state`, then delete the old bucket.
 - **The GitHub `dev` environment's variables.** `ECR_REPOSITORY` names the ECR repository
@@ -167,16 +167,9 @@ working name. These must change together, as a planned migration:
 
 ## Finish removing Terraform's name from the OpenTofu setup
 
-OpenTofu has applied the stack since #35. Some references still say Terraform. Do the
-first two in one PR into `develop`, and the third separately, later:
+OpenTofu has applied the stack since #35, and its directory is `infra/opentofu/`. One
+reference still says Terraform, and it waits for the next release:
 
-- **One stale comment.** `crates/catalog-claude/src/lib.rs` says "Terraform state". Under
-  `crates/`, so the PR runs the Rust suite.
-- **`infra/terraform/` → `infra/opentofu/`**, as hyperdrive did. About 20 references
-  change: Makefile, README, TODOS, CONTRIBUTING, `ci.yml`, `build-images.yml`,
-  `infra/state-bucket.sh`, `web/config.js` and `.dockerignore`. Nothing changes in AWS,
-  since the backend settings stay the same, but every checkout runs `make init` again.
-  The `web/config.js` edit starts an image build on `develop` (a push, no deploy).
 - **The CI job `terraform fmt / validate` → `tofu fmt / validate`.** `main`'s branch
   protection requires the job by its exact name, so the timing matters. The rename
   reaches `develop` first, while `main` keeps the old job until the next release merges.
