@@ -6,6 +6,21 @@ Let someone go from a service's page straight to signing in to it, through their
 institution. Metadata gives three routes. Each works for only some SPs, so the button
 has to say which route it uses and show only when one exists.
 
+The button shows only on a service that is all of these. Anything else gets no button,
+not even the fallback:
+
+- **Multilateral.** Its sharing label (#16) is `multilateral`. A `bilateral` or
+  `unknown` one gets none.
+- **Alive.** Its health `status` is `alive`. A `dead` or `unknown` one gets none.
+- **Not filtered by InCommon.** It has no `import_filter`: InCommon's eduGAIN import
+  didn't remove it. An InCommon IdP can't see a filtered SP, so a login would fail.
+- **Not OFAC-listed.** It has no OFAC entity match, possible or confirmed (see the OFAC
+  TODO). A match that curation dismissed doesn't count. Being in a country under an
+  OFAC program, with no entity match, doesn't hide it.
+
+Check all four in one place in `catalog-core`, and serve the result with the service,
+so the site and the API agree on when it shows.
+
 - **SP-initiated, through the SP's own login endpoint.** An `init:RequestInitiator`
   endpoint (Shibboleth's login handler) starts a login for any IdP, often with an
   `entityID` parameter for the IdP. Ingest notices it today
@@ -24,15 +39,15 @@ Questions to settle:
 - **Choosing an institution.** Use SeamlessAccess (its widget, or its persistent
   choice) or a picker of our own. The choice stays in the browser only, never on our
   servers. Any third-party script or endpoint needs a deliberate change to the CSP.
-- **Who it can work for.** Use the sharing label (#16). A *bilateral* SP should say
-  "for <institution> users only" and offer no button to everyone else. A
-  *multilateral* one still depends on the user's IdP releasing the attributes it needs.
-  Say that on the button, as the About page does, rather than promising access.
+- **Who it can work for.** Even a multilateral SP still depends on the user's IdP
+  releasing the attributes it needs. Say that on the button, as the About page does,
+  rather than promising access.
 - **No open redirect.** Build every URL only from metadata and the chosen IdP's
   metadata, never from query input. Allow only `https:`, and refuse private and
   loopback hosts, as the logo fetcher does.
 - **Tests.** URL construction for each route, which button shows for each kind of SP,
-  and that a crafted entityID or parameter can't send the browser anywhere else.
+  that no button shows when any one of the four conditions fails, and that a crafted
+  entityID or parameter can't send the browser anywhere else.
 
 ## OFAC sanctions: countries in the Grouping filter, and entities
 
