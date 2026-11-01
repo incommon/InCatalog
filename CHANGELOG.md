@@ -9,6 +9,8 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
 ### Added
 
 - **InCommon's logotype, "powered by Internet2".** The InCommon lockup floats,
@@ -250,7 +252,8 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.3.0...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.0...develop
+[0.4.0]: https://github.com/incommon/InCatalog/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/incommon/InCatalog/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/incommon/InCatalog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/incommon/InCatalog/tree/v0.1.0
