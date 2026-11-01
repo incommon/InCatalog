@@ -1,27 +1,27 @@
 # TODOs
 
-## The Log in button: through the user's own institution
+## The access button: remember the institution, and IdP-initiated logins
 
-The button ships (`catalog-core/src/login.rs`, `loginEl` in `web/app.js`): on a
-service that is multilateral, alive, not filtered by InCommon and has no OFAC match,
-it goes to the SP's own `init:RequestInitiator` handler, or else to its site,
-labelled as the site. What's left needs the user's institution:
+The button ships (`catalog-core/src/login.rs`, `loginEl` in `web/app.js`). It opens
+InCommon Wayfinder on the service's behalf, else the SP's own `init:RequestInitiator`,
+else its site. What's left:
 
-- **Choosing an institution.** Use SeamlessAccess (its widget, or its persistent
-  choice) or a picker of our own. The choice stays in the browser only, never on our
-  servers. Any third-party script or endpoint needs a deliberate change to the CSP.
-- **SP-initiated, with the IdP named.** Once an institution is chosen, add it to the
-  RequestInitiator URL as the `entityID` parameter, so the SP skips its own
-  discovery. Build the parameter only from the chosen IdP's metadata, and keep
-  `safe_link`'s checks on the result.
-- **IdP-initiated, through the user's own IdP.** For SPs with no RequestInitiator,
-  link to the chosen IdP's unsolicited-SSO endpoint for this SP. For Shibboleth that
-  is `/idp/profile/SAML2/Unsolicited/SSO?providerId=<SP entityID>`. This needs the
-  IdPs' `SingleSignOnService` endpoints and software, which ingest doesn't keep yet:
-  it only counts IdPs. Many SPs reject unsolicited responses, so treat it as
-  best-effort and say so.
-- **Tests.** URL construction for both routes with a chosen IdP, and that a crafted
-  IdP entityID or SP entityID can't send the browser anywhere else.
+- **Which routes really log people in.** Wayfinder hands the institution to the SP's
+  discovery response endpoint with no state from the SP. Shibboleth's
+  `/Shibboleth.sso/Login` starts a login from that, but other software (Canvas,
+  SimpleSAMLphp) may not. Try a sample of each kind with a test IdP, and if one kind
+  fails, send it to its RequestInitiator or its site instead.
+- **The remembered institution on the button.** SeamlessAccess's dynamic button shows
+  the user's last institution, from its persistence service. That needs its script or
+  iframe, so a deliberate CSP change (`script-src`, `frame-src`), and SeamlessAccess
+  then sees each service page view. Decide whether that's worth it.
+- **IdP-initiated, through the user's own IdP.** For SPs with neither endpoint, link
+  to the chosen IdP's unsolicited-SSO endpoint for this SP. For Shibboleth that is
+  `/idp/profile/SAML2/Unsolicited/SSO?providerId=<SP entityID>`. This needs the
+  user's institution, which only Wayfinder knows, so InCatalog would have to be a
+  registered SP with its own discovery response endpoint. It also needs the IdPs'
+  `SingleSignOnService` endpoints and software, which ingest doesn't keep: it only
+  counts IdPs. Many SPs reject unsolicited responses, so treat it as best-effort.
 
 ## Rename the AWS resources from `catabasis` to `incatalog`
 

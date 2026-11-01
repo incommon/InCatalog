@@ -182,11 +182,11 @@ it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services
   domain, a CNAME to a deleted cloud resource), and the private report on login
   hosts that could be taken over. See TODOS.md.
 
-### The Log in button
+### The "Access through your institution" button
 
-A service's page has a Log in button only when the service is all of these, checked
-in one place (`catalog-core/src/login.rs`) and served as `login` on
-`/v1/services/{id}`, so the site and the API agree:
+A service's page has this button only when the service is all of these, checked in
+one place (`catalog-core/src/login.rs`) and served as `login` on `/v1/services/{id}`,
+so the site and the API agree:
 
 - **multilateral** (its sharing label);
 - **alive** (its health `status`);
@@ -195,15 +195,32 @@ in one place (`catalog-core/src/login.rs`) and served as `login` on
   count, and neither does a country under an OFAC program.
 
 Anything else gets no button, and `login.blocked_by` says which conditions failed.
-The button goes to the SP's own login handler, the `init:RequestInitiator`
-endpoint (Shibboleth's `/Shibboleth.sso/Login`), which asks for the user's
-institution; ingest keeps each one's `Location` and `Binding` as `request_initiators`.
-An SP that publishes none gets a link to its `mdui:InformationURL` or organization URL
-instead, labelled as the site, not a login. Every URL comes from the signed metadata,
-never from a request, and must be `https:` on the default port with a public address
-or a dotted name that isn't local (`localhost`, `.local`, `.internal`). Getting in
-still depends on the user's IdP releasing what the SP needs, and the button says so.
-Logging in through the user's own IdP, once they've chosen it, is in TODOS.md.
+Where it goes, first that applies:
+
+1. **InCommon Wayfinder**, for a service in InCommon's metadata with an
+   `idpdisc:DiscoveryResponse` endpoint: `https://wayfinder.incommon.org/` with the
+   service's `entityID` and that endpoint, exactly as published, as `return`.
+   Wayfinder, built on SeamlessAccess, asks for the user's institution, remembers it
+   on its own site, and sends them to the endpoint, which starts the login. Wayfinder
+   returns only to an endpoint in the service's metadata. InCommon's
+   [docs](https://spaces.at.internet2.edu/spaces/federation/pages/296485479/howto-configure-service-to-use-wayfinder)
+   say it serves InCommon-registered services, but it reads InCommon's whole
+   aggregate: on 2026-11-01 it named a SWAMID service InCommon imports. A service that
+   expects to start discovery itself may not accept a choice it didn't ask for, so
+   the page calls this best-effort.
+2. **The SP's own login handler**, its `init:RequestInitiator` (Shibboleth's
+   `/Shibboleth.sso/Login`), which asks for the institution itself.
+3. **Its site**: the `mdui:InformationURL` or organization URL, labelled as the
+   site, not a login.
+
+Ingest keeps both endpoint lists as `discovery_responses` (the default first, then
+by `index`) and `request_initiators`. Every URL comes from the signed metadata, never
+from a request, and must be `https:` on the default port with a public address or a
+dotted name that isn't local (`localhost`, `.local`, `.internal`). The button follows
+SeamlessAccess's static button specification: the "Access through your institution"
+wording it asks implementers not to change, its blue, and its open-door logomark,
+self-hosted in `web/brand/` with its source. Getting in still depends on the user's
+IdP releasing what the SP needs, and the page says so.
 
 ### Traps the code handles
 
@@ -798,7 +815,9 @@ in [CONTRIBUTING.md](CONTRIBUTING.md). Release notes are in [CHANGELOG.md](CHANG
 
 Licensed under the [Apache License, Version 2.0](LICENSE); see also [NOTICE](NOTICE). The
 bundled Poppins fonts in `web/fonts/` are under the SIL Open Font License
-(`web/fonts/OFL.txt`). Dependency licenses are held to an allow-list in CI with
+(`web/fonts/OFL.txt`). The SeamlessAccess logomark in `web/brand/` is SeamlessAccess's
+mark, not licensed with the code; `web/brand/README.md` says where it came from.
+Dependency licenses are held to an allow-list in CI with
 [`cargo-deny`](deny.toml), and their attributions are generated with
 [`cargo-about`](about.toml) into `THIRD-PARTY-LICENSES.html`, which the image build
 writes from the `Cargo.lock` it builds and ships in the container image (`make notices`

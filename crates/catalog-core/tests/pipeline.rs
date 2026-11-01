@@ -86,6 +86,17 @@ fn parses_and_merges() {
             binding: "urn:oasis:names:tc:SAML:profiles:SSO:request-init".into(),
         }]
     );
+    // The default discovery response first, then by index.
+    assert_eq!(
+        s.discovery_responses
+            .iter()
+            .map(|e| e.location.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "https://sp.example.edu/Shibboleth.sso/Login",
+            "https://sp.example.edu/ds"
+        ]
+    );
     // Never checked, so not alive yet: no Log in button.
     assert_eq!(wiki.login.target, None);
     assert!(wiki
