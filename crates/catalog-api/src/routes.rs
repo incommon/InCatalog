@@ -74,6 +74,10 @@ type St = State<Arc<AppState>>;
         catalog_core::model::Service,
         catalog_core::model::Federation,
         catalog_core::model::SourceInfo,
+        catalog_core::model::ImportFilter,
+        catalog_core::model::FilterFinding,
+        catalog_core::model::FilterReportInfo,
+        catalog_core::import_filter::Reason,
         catalog_core::environment::Environment,
         catalog_core::environment::EnvironmentReading,
         catalog_core::regions::RegionExpansion,
@@ -232,11 +236,13 @@ async fn read(
 }
 
 /// Search services with filters, paging, and facet counts. Filters combine with
-/// AND; several values of `federation`, `country`, `region`, `environment`, or
-/// `sharing` or `sector` combine with OR, and `country` and `region` together are one set of
-/// places. `sharing=multilateral` means open to users of any identity provider in
-/// principle: access still depends on the user's identity provider releasing the
-/// attributes the service needs, and on any subscription it requires.
+/// AND; several values of `federation`, `country`, `region`, `environment`,
+/// `sharing`, `sector`, or `filter_reason` combine with OR, and `country` and `region`
+/// together are one set of places. `sharing=multilateral` means open to users of any
+/// identity provider in principle: access still depends on the user's identity
+/// provider releasing the attributes the service needs, and on any subscription it
+/// requires. `filter_reason` is InCommon's own reason for filtering a service out of
+/// its eduGAIN import, from its published report.
 #[utoipa::path(get, path = "/v1/services", params(ServiceQuery), responses((status = 200, body = ServicePage)))]
 async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
     let mut query = raw.unwrap_or_default();
@@ -247,6 +253,7 @@ async fn services(State(s): St, RawQuery(raw): RawQuery) -> Response {
         "environment",
         "sharing",
         "sector",
+        "filter_reason",
     ] {
         query = join_repeated(&query, key);
     }
@@ -766,6 +773,64 @@ mod tests {
             ..Default::default()
         });
         router(AppState::from_catalog(catalog))
+    }
+
+    #[tokio::test]
+    async fn services_filter_by_import_filter_reason() {
+        use catalog_core::model::{Availability, FilterFinding, FilterReportInfo, ImportFilter};
+        let svc = |id: &str, reason: Option<&str>| Service {
+            id: catalog_core::entity_hash(id),
+            entity_id: id.into(),
+            availability: Some(Availability::EdugainOnly),
+            import_filter: reason.map(|r| ImportFilter {
+                report_url: "https://r.example/x.log".into(),
+                reported_at: "2026-11-01T18:46:09Z".into(),
+                findings: vec![FilterFinding {
+                    reason: r.into(),
+                    check: "check_saml1".into(),
+                    message: "no POST support on SAML 1.1 SP".into(),
+                }],
+            }),
+            ..Default::default()
+        };
+        let app = || {
+            router(AppState::from_catalog(Catalog::new(Snapshot {
+                services: vec![
+                    svc("https://a.example/sp", Some("saml1")),
+                    svc("https://b.example/sp", Some("sirtfi")),
+                    svc("https://c.example/sp", None),
+                ],
+                import_filter_report: Some(FilterReportInfo {
+                    url: "https://r.example/x.log".into(),
+                    services_with_reason: 2,
+                    services_without_reason: 1,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })))
+        };
+        let (_, page) = get_json_from(
+            app(),
+            "/v1/services?filter_reason=saml1&filter_reason=sirtfi",
+        )
+        .await;
+        assert_eq!(page["total"], 2);
+        let (_, page) = get_json_from(app(), "/v1/services?filter_reason=saml1").await;
+        assert_eq!(page["total"], 1);
+        assert_eq!(page["items"][0]["filter_reasons"][0], "saml1");
+
+        let id = catalog_core::entity_hash("https://a.example/sp");
+        let (_, d) = get_json_from(app(), &format!("/v1/services/{id}")).await;
+        let f = &d["service"]["import_filter"]["findings"][0];
+        assert_eq!(f["check"], "check_saml1");
+        assert_eq!(f["message"], "no POST support on SAML 1.1 SP");
+
+        let (_, meta) = get_json_from(app(), "/v1/meta").await;
+        assert_eq!(meta["import_filter_report"]["services_without_reason"], 1);
+
+        let (_, spec) = get_json("/openapi.json").await;
+        assert!(spec["components"]["schemas"]["ImportFilter"].is_object());
+        assert!(spec["components"]["schemas"]["Reason"].is_object());
     }
 
     #[tokio::test]

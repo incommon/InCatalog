@@ -10,6 +10,7 @@
 mod budget;
 mod enrich;
 mod fetch;
+mod filter_report;
 mod logos;
 mod sector;
 mod sharing;
@@ -22,6 +23,7 @@ use anyhow::{bail, Context, Result};
 use catalog_core::build::Builder;
 use catalog_core::curation::CurationFile;
 use catalog_core::federations::{parse_edugain_federations, EDUGAIN_FEDERATIONS_URL};
+use catalog_core::import_filter::REPORT_INDEX_URL;
 use catalog_core::model::{Snapshot, Source};
 use catalog_core::SNAPSHOT_SCHEMA_VERSION;
 use catalog_store::Location;
@@ -55,6 +57,15 @@ struct Args {
     /// Skip the eduGAIN aggregate (InCommon view only).
     #[arg(long, env = "CATALOG_SKIP_EDUGAIN")]
     skip_edugain: bool,
+
+    /// The index of InCommon's import filter logs, which say why eduGAIN services
+    /// are out of its import.
+    #[arg(long, env = "CATALOG_FILTER_REPORT_INDEX", default_value = REPORT_INDEX_URL)]
+    filter_report_index: String,
+
+    /// Skip InCommon's import filter report.
+    #[arg(long, env = "CATALOG_SKIP_FILTER_REPORT")]
+    skip_filter_report: bool,
 
     /// Optional editorial overlay (JSON), as a path, s3:// or https:// URI.
     #[arg(long, env = "CATALOG_CURATION")]
@@ -241,6 +252,20 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
 
     let (mut services, idp_counts) = builder.finish(&federations, curation.as_ref());
 
+    // Without eduGAIN's aggregate no service is `edugain-only`, so there is nothing
+    // for the report to explain.
+    let import_filter_report = if args.skip_filter_report || args.skip_edugain {
+        None
+    } else {
+        filter_report::attach(
+            &http,
+            &args.filter_report_index,
+            &mut services,
+            &mut warnings,
+        )
+        .await
+    };
+
     let enrich_mode = enrich::Mode::parse(&args.enrich_mode);
     let enrich_report = if enrich_mode == enrich::Mode::Off {
         None
@@ -401,6 +426,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         federations,
         services,
         idp_counts,
+        import_filter_report,
         warnings,
     };
 
@@ -417,6 +443,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         "services": snapshot.services.len(),
         "federations": snapshot.federations.len(),
         "sources": snapshot.sources,
+        "import_filter_report": snapshot.import_filter_report,
         "warnings": snapshot.warnings,
         "logos": logo_report,
         "summaries": enrich_report,

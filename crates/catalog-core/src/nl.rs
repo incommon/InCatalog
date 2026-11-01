@@ -527,6 +527,13 @@ const AVAILABILITY_ALIASES: &[(Availability, &[&str])] = &[
             "beyond incommon",
             "not visible in incommon",
             "excluded from incommon",
+            "filtered by incommon",
+            "filtered out by incommon",
+            "filtered from incommon",
+            "incommon filtered out",
+            "incommon filtered",
+            "rejected by incommon",
+            "blocked by incommon",
         ],
     ),
     (
@@ -1581,6 +1588,17 @@ mod tests {
     fn availability_beats_federation_and_source() {
         let i = vocab().interpret("journals not in InCommon");
         assert_eq!(i.params.availability.as_deref(), Some("edugain-only"));
+        for q in [
+            "services filtered by InCommon",
+            "services InCommon filtered out",
+        ] {
+            let i = vocab().interpret(q);
+            assert_eq!(
+                i.params.availability.as_deref(),
+                Some("edugain-only"),
+                "{q}"
+            );
+        }
         assert_eq!(i.params.federation, None);
         assert_eq!(i.params.source, None);
         assert_eq!(i.params.q.as_deref(), Some("journals"));

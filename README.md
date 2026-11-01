@@ -48,6 +48,7 @@ blending them.
 | InCommon MDQ (per entity) | `https://mdq.incommon.org/entities/{sha1}…` | One entity's live metadata. Linked from every InCommon-visible service |
 | REFEDS Metadata Explorer (MET) | `https://met.refeds.org` | Every federation that publishes a given entity. Linked, not ingested |
 | REFEDS specifications | `https://refeds.org/specifications` | The entity-category and assurance URIs, encoded in `catalog-core/src/categories.rs` |
+| InCommon import filter report | `https://mdq.incommon.org/reports/md_filter_report/` | Why InCommon's eduGAIN import removed each entity it removed: the newest hourly log, read on every ingest |
 
 The retired `md.incommon.org` aggregate and `wayf.incommonfederation.org` discovery
 service are not used. Every metadata resource now lives under `mdq.incommon.org`.
@@ -68,6 +69,34 @@ aggregates carry it:
 The boundary is `mdrpi:RegistrationInfo/@registrationAuthority`. More than half of
 InCommon's aggregate is other federations' registrations, so anything that ignores the
 registrar double-counts "InCommon services."
+
+### Why InCommon filtered a service out
+
+InCommon's eduGAIN import removes entities that fail the checks in its
+[Interfederation Technical Policy](https://spaces.at.internet2.edu/spaces/federation/pages/168691916/Interfederation+Technical+Policy),
+and logs each removal. Ingest reads the newest log
+(`md_filter_report_<unix time>.log`, published about hourly) and attaches its findings
+to the `edugain-only` services it names, as `import_filter` on the service: each failed
+check by name, with InCommon's message, the report's URL and its time.
+
+- **Reasons are InCommon's, not the catalog's.** Each check is grouped under the policy
+  rule it falls under (`catalog-core/src/import_filter.rs`): `saml1`, `saml2`, `https`,
+  `requested-attributes`, `bindings`, `entity-id`, `sirtfi`,
+  `research-and-scholarship`, `algorithm-support`, `mdui`, `registration-info`,
+  `entity-attributes`, `saml-metadata`, `certificate`, `scope`, and `other` for a
+  check the code doesn't know yet. `filter_reason` filters on them, and the site shows
+  these services with a red outline and a "Filtered by InCommon" badge.
+- **Silent drops don't matter here.** The policy drops two kinds of entity without
+  logging them: ones InCommon registered itself and duplicates of its own entities.
+  Both are in InCommon's aggregate, so neither is `edugain-only`. In the report of
+  2026-11-01 18:46 UTC, all 61 `edugain-only` services had a reason.
+- **One it doesn't mention** is out of the import for some other reason, such as the
+  two aggregates being published at different times. `/v1/meta` counts both
+  (`import_filter_report`).
+- **No report, no reasons.** If the report can't be read, the snapshot carries a
+  warning and the services are listed without a reason; one more than 48 hours old
+  also gets a warning. `CATALOG_SKIP_FILTER_REPORT` turns the step off, and
+  `CATALOG_FILTER_REPORT_INDEX` points it at another index.
 
 ### Traps the code handles
 

@@ -16,8 +16,10 @@ use crate::categories::{self, CategoryDef};
 use crate::curation::provider_name;
 use crate::environment::{self, EnvironmentReading};
 use crate::federations::normalize_reg_auth;
+use crate::import_filter::{self, Reason};
 use crate::model::{
-    pick, Availability, Curated, Federation, Service, Snapshot, Source, SourceInfo,
+    pick, Availability, Curated, Federation, FilterReportInfo, Service, Snapshot, Source,
+    SourceInfo,
 };
 use crate::nl::{Interpretation, Vocab};
 use crate::regions::{self, RegionExpansion, REGIONS};
@@ -72,6 +74,14 @@ pub struct ServiceQuery {
     pub category: Option<String>,
     /// One of the availability keys, e.g. `incommon-and-edugain`.
     pub availability: Option<String>,
+    /// Why InCommon's import filtered a service out, as its report says: `saml1`,
+    /// `saml2`, `https`, `requested-attributes`, `bindings`, `entity-id`, `sirtfi`,
+    /// `research-and-scholarship`, `algorithm-support`, `mdui`, `registration-info`,
+    /// `entity-attributes`, `saml-metadata`, `certificate`, `scope`, or `other`,
+    /// comma-separated or as repeated parameters; a service filtered for any of them
+    /// matches. Only `edugain-only` services have a reason.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub filter_reason: Option<String>,
     /// Requested attribute, by `Name` or `FriendlyName` (case-insensitive).
     pub attribute: Option<String>,
     /// Provider ID from `/v1/providers`.
@@ -136,6 +146,9 @@ pub struct ServiceSummary {
     pub logo_source: Option<String>,
     pub categories: Vec<String>,
     pub availability: Option<Availability>,
+    /// Why InCommon's import filtered it out (see `filter_reason` on
+    /// `/v1/services`); empty unless InCommon's report gives a reason.
+    pub filter_reasons: Vec<Reason>,
     pub registrar: Option<String>,
     pub federation: Option<String>,
     pub federation_name: Option<String>,
@@ -304,6 +317,8 @@ pub struct Meta {
     pub generated_at: String,
     pub generator: String,
     pub sources: Vec<SourceInfo>,
+    /// InCommon's import filter report this snapshot used, when ingest could read it.
+    pub import_filter_report: Option<FilterReportInfo>,
     pub counts: Counts,
     pub warnings: Vec<String>,
     pub caveats: Vec<String>,
@@ -319,6 +334,7 @@ struct Entry {
     environment: EnvironmentReading,
     sharing: SharingReading,
     sector: SectorReading,
+    filter_reasons: Vec<Reason>,
     name: String,
     name_lc: String,
     org_lc: String,
@@ -449,6 +465,7 @@ impl Catalog {
                 environment: environment::classify(s),
                 sharing: sharing::classify(s, clusters.get(&s.entity_id)),
                 sector: sector::classify(s, &fed_hosts),
+                filter_reasons: import_filter::reasons(s),
                 org_n: normalize(&pkey),
                 name_lc: name.to_lowercase(),
                 name,
@@ -552,6 +569,7 @@ impl Catalog {
             logo_source: best_logo(s).map(|(_, src)| src.to_owned()),
             categories: s.categories.clone(),
             availability: s.availability,
+            filter_reasons: e.filter_reasons.clone(),
             registrar: s.registrar().map(str::to_owned),
             federation: fed.map(|f| f.code.clone()),
             federation_name: fed.map(|f| f.name.clone()),
@@ -687,6 +705,11 @@ impl Catalog {
                     Dim::Availability => {
                         if let Some(a) = s.availability {
                             bump(a.key(), a.label());
+                        }
+                    }
+                    Dim::FilterReason => {
+                        for r in &self.entries[i].filter_reasons {
+                            bump(r.key(), r.label());
                         }
                     }
                     Dim::Environment => {
@@ -956,6 +979,7 @@ impl Catalog {
             generated_at: self.snapshot.generated_at.clone(),
             generator: self.snapshot.generator.clone(),
             sources: self.snapshot.sources.clone(),
+            import_filter_report: self.snapshot.import_filter_report.clone(),
             counts: Counts {
                 services: visible.len(),
                 providers: self
@@ -984,6 +1008,7 @@ enum Dim {
     Region,
     Category,
     Availability,
+    FilterReason,
     Environment,
     Sharing,
     Sector,
@@ -993,12 +1018,13 @@ enum Dim {
 }
 
 impl Dim {
-    const ALL: [Dim; 11] = [
+    const ALL: [Dim; 12] = [
         Dim::Federation,
         Dim::Country,
         Dim::Region,
         Dim::Category,
         Dim::Availability,
+        Dim::FilterReason,
         Dim::Environment,
         Dim::Sharing,
         Dim::Sector,
@@ -1014,6 +1040,7 @@ impl Dim {
             Dim::Region => "region",
             Dim::Category => "category",
             Dim::Availability => "availability",
+            Dim::FilterReason => "filter_reason",
             Dim::Environment => "environment",
             Dim::Sharing => "sharing",
             Dim::Sector => "sector",
@@ -1045,6 +1072,8 @@ struct Filters {
     categories: Vec<String>,
     /// `Some(None)` means an unrecognized availability key: match nothing.
     availability: Option<Option<Availability>>,
+    /// Filter reason keys, lowercase; like `environments`.
+    filter_reasons: Vec<String>,
     /// Environment keys, lowercase; a service must be in one. An unknown key adds
     /// nothing, and on its own matches nothing.
     environments: Vec<String>,
@@ -1104,6 +1133,10 @@ impl Filters {
             regions: named_regions,
             categories: split_list(q.category.as_deref()),
             availability: nonempty(&q.availability).map(|a| Availability::from_key(&a)),
+            filter_reasons: split_list(q.filter_reason.as_deref())
+                .iter()
+                .map(|v| v.to_lowercase())
+                .collect(),
             environments: split_list(q.environment.as_deref())
                 .iter()
                 .map(|e| e.to_lowercase())
@@ -1172,6 +1205,15 @@ impl Filters {
                     return false;
                 }
             }
+        }
+        if on(Dim::FilterReason)
+            && !self.filter_reasons.is_empty()
+            && !self
+                .filter_reasons
+                .iter()
+                .any(|k| e.filter_reasons.iter().any(|r| r.key() == k))
+        {
+            return false;
         }
         if on(Dim::Environment)
             && !self.environments.is_empty()
@@ -2073,6 +2115,87 @@ mod tests {
             services,
             ..Default::default()
         })
+    }
+
+    #[test]
+    fn filter_reason_filter_facet_and_summary() {
+        use crate::model::{FilterFinding, ImportFilter};
+        let svc = |id: &str, a: Availability, reasons: &[&str]| Service {
+            entity_id: id.into(),
+            id: crate::entity_hash(id),
+            sources: vec![Source::Edugain],
+            availability: Some(a),
+            import_filter: (!reasons.is_empty()).then(|| ImportFilter {
+                report_url: "https://r.example/x.log".into(),
+                reported_at: "2026-11-01T18:46:09Z".into(),
+                findings: reasons
+                    .iter()
+                    .map(|r| FilterFinding {
+                        reason: (*r).into(),
+                        check: format!("check_{r}"),
+                        message: "m".into(),
+                    })
+                    .collect(),
+            }),
+            ..Default::default()
+        };
+        let c = Catalog::new(Snapshot {
+            services: vec![
+                svc(
+                    "https://a.example/sp",
+                    Availability::EdugainOnly,
+                    &["saml1", "sirtfi"],
+                ),
+                svc(
+                    "https://b.example/sp",
+                    Availability::EdugainOnly,
+                    &["sirtfi", "sirtfi"],
+                ),
+                svc("https://c.example/sp", Availability::EdugainOnly, &[]),
+                svc(
+                    "https://d.example/sp",
+                    Availability::EdugainImportedByIncommon,
+                    &[],
+                ),
+            ],
+            ..Default::default()
+        });
+        let page = |v: &str| {
+            c.search(&ServiceQuery {
+                filter_reason: Some(v.into()),
+                ..Default::default()
+            })
+        };
+        assert_eq!(page("sirtfi").total, 2);
+        assert_eq!(page("saml1").total, 1);
+        assert_eq!(page("SAML1, https").total, 1);
+        assert_eq!(page("no-such-reason").total, 0);
+
+        let all = c.search(&ServiceQuery::default());
+        let facet: Vec<(&str, usize)> = all.facets["filter_reason"]
+            .iter()
+            .map(|f| (f.value.as_str(), f.count))
+            .collect();
+        assert_eq!(
+            facet,
+            [("sirtfi", 2), ("saml1", 1)],
+            "a repeated reason counts once"
+        );
+        let a = all
+            .items
+            .iter()
+            .find(|s| s.entity_id == "https://a.example/sp")
+            .unwrap();
+        assert_eq!(a.filter_reasons, [Reason::Saml1, Reason::Sirtfi]);
+        let cc = all
+            .items
+            .iter()
+            .find(|s| s.entity_id == "https://c.example/sp")
+            .unwrap();
+        assert!(
+            cc.filter_reasons.is_empty(),
+            "edugain-only, but the report doesn't say why"
+        );
     }
 
     #[test]

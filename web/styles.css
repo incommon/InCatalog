@@ -63,6 +63,8 @@
   --chip: #efecdd;
   --ok: #16750e;
   --warn: #8a6400;
+  /* Services InCommon's import filtered out: their cards' outline and badge. */
+  --filtered: #c0262d;
   --foot-bg: #00365e;
   --foot-ink: #f7f5eb;
   --radius: 10px;
@@ -87,6 +89,7 @@
     --chip: #0d3350;
     --ok: #a4d06f;
     --warn: #ffe088;
+    --filtered: #ff7b7b;
     --foot-bg: #001426;
     --foot-ink: #d8dfe6;
     color-scheme: dark;
@@ -95,8 +98,8 @@
 :root[data-theme="dark"] {
   --bg: #001e33; --surface: #062a45; --ink: #f7f5eb; --muted: #a7b8c8; --faint: #23445e;
   --line: #143a57; --brand: #ff5a00; --accent: #ff8a4c; --accent-fill: #ff5a00; --on-accent: #001e33;
-  --second: #a4d06f; --chip: #0d3350; --ok: #a4d06f; --warn: #ffe088; --foot-bg: #001426;
-  --foot-ink: #d8dfe6; color-scheme: dark;
+  --second: #a4d06f; --chip: #0d3350; --ok: #a4d06f; --warn: #ffe088; --filtered: #ff7b7b;
+  --foot-bg: #001426; --foot-ink: #d8dfe6; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -272,6 +275,13 @@ button.chip:hover { border-color: var(--accent); }
   border: 1px solid var(--line); border-radius: var(--radius); text-decoration: none; min-width: 0;
 }
 .card:hover { border-color: var(--accent); color: inherit; }
+/* Filtered by InCommon's import: a red outline, always with the badge that says so. */
+.card.filtered, .card.filtered:hover { border-color: var(--filtered); box-shadow: inset 0 0 0 1px var(--filtered); }
+.badge.filtered { color: var(--filtered); border: 1px solid var(--filtered); }
+.filter-note { margin-top: 12px; font-size: 13px; }
+.filter-note h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+.filter-note ul { margin: 4px 0; padding-left: 18px; }
+.filter-note code { font: 12px var(--mono); }
 .card-top { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .logo {
   width: 40px; height: 40px; flex: none; border-radius: 8px; background: var(--chip);
