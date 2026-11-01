@@ -425,3 +425,118 @@ The fix:
   - `best_logo` choosing a square metadata mark over a larger wide banner.
   - Visual: a contact sheet of real logos (Penn State's and DIRISA's among them) in
     both tile sizes, to check by eye before and after.
+
+## The InCommon logotype, with "powered by Internet2" under it
+
+Show the InCommon logotype with the "powered by Internet2" sublogotype beneath it, as
+one lockup. The site already uses InCommon's colors and typeface, but its only mark is
+InCatalog's own: the inline SVG in `.brand` in `web/index.html`.
+
+- **Official artwork only.** Get the lockup files from Internet2's brand or marketing
+  team, as SVG, in every version the brand guidelines allow. Don't redraw, recolor or
+  re-space them, and don't copy them from a website. Record where each file came from,
+  its version and the date, beside the files (for example `web/brand/README.md`).
+- **Follow the guidelines.** Clear space, minimum size, and which version goes on which
+  background. "powered by Internet2" is the smaller line, so its smallest legible size
+  sets the lockup's minimum height. If the lockup can't stay legible at phone width,
+  use whichever smaller-screen arrangement the guidelines allow, rather than letting
+  it shrink.
+- **Where.** In the top bar, to the left of InCatalog's mark, separated by a thin
+  rule, so it reads as an InCommon service. It links to incommon.org, and it is not
+  part of the "InCatalog home" link. Decide whether the footer carries it too.
+  - The lockup is two lines, so the top bar gets taller. Check the landing globe and
+    the facets' sticky position still line up.
+  - Below 520px the top bar stacks (`styles.css`). Check the lockup there and at
+    320 CSS px.
+- **Both themes.** Use the reversed version on dark backgrounds. The theme comes from
+  `prefers-color-scheme` or from `data-theme` on the root, so a `<picture>` with a media
+  query alone would miss `data-theme`. Swap the versions with the same selectors the
+  theme tokens use. If the guidelines allow a single-color version, one inline SVG in
+  `currentColor` is simpler.
+- **Self-hosted.** Serve the files from the site's own origin (for example
+  `web/brand/`), which the CSP's `img-src 'self'` already allows. Cache them like the
+  other static assets.
+- **Accessible.** One accessible name for the lockup: "InCommon, powered by Internet2".
+  A logotype is exempt from WCAG's text-contrast minimums, but the link around it
+  still needs a visible focus style and a big enough target. Add it to the pages the
+  WCAG scan covers.
+- **Trademarks aren't Apache-2.0.** The license excludes trademarks (§6), so say in
+  `NOTICE` and the README's License section that the InCommon and Internet2 logotypes
+  are Internet2's trademarks, used with permission, and not licensed with the code.
+  Say too that a fork must remove them.
+- **Check.** Look at it in both themes, at desktop width, at 520px and at 320 CSS px,
+  against the guidelines' clear-space and minimum-size rules.
+
+## TLS letter grades from testssl.sh, and a post-quantum badge
+
+Scan each service's login hosts with [testssl.sh](https://testssl.sh) as a step of
+ingest. Show each service's letter grade prominently on its chip and card and on its
+details page. Give services whose hosts negotiate a post-quantum key exchange a badge.
+
+- **What to scan.** Scan the `endpoint_hosts` (the `AssertionConsumerService` hosts),
+  where browsers post users' assertions, on the port each ACS URL names. A service
+  with several hosts shows its worst grade, and its details list each host's grade.
+- **testssl.sh's own rating.** Use the grade testssl.sh computes (its JSON output's
+  overall grade, following SSL Labs' rating guide), not a grading of our own. Read
+  from testssl.sh's documentation, not from memory, which letters it gives (A+ to F,
+  and its marks for trust and name-mismatch failures) and how it reports what capped
+  a grade. Store the grade, the capping reasons, the scan date and the testssl.sh
+  version.
+- **Post-quantum.** The badge means the host negotiated a hybrid post-quantum key
+  exchange in TLS 1.3 (an ML-KEM group such as `X25519MLKEM768`). It does not mean
+  post-quantum certificates, which the public web PKI doesn't issue yet. Say exactly
+  that on the badge's tooltip and the About page.
+  - Check from testssl.sh's release notes which version detects these groups.
+  - Check too which OpenSSL it needs to offer them. ML-KEM arrived in OpenSSL 3.5, so
+    check what Amazon Linux 2023 ships.
+  - If testssl.sh can't detect them, test with a client that offers only the hybrid
+    groups and record whether the handshake succeeds.
+- **In the image.** Install a pinned testssl.sh release, verified by checksum, plus
+  what it needs (bash, `dig`, procps, and the OpenSSL that does the post-quantum
+  test). Install them on the `amazonlinux:2023-minimal` runtime stage of the
+  `Dockerfile`.
+  - The bundled OpenSSL binaries testssl.sh ships are x86-64 only, and the image is
+    arm64, so it uses the system OpenSSL. Check which legacy protocols and ciphers that
+    can still test, and whether a grade can differ for that reason. Say so on the About
+    page if it can.
+  - testssl.sh is GPL-2.0, outside the permissive list `deny.toml` enforces for crates.
+    It runs as a separate program, but the image distributes it, so decide that with
+    the license policy's owners. Ship its license and source location in the image,
+    and add it to `NOTICE`.
+  - The image smoke test (`infra/test-image.sh`) checks the pinned version runs.
+- **An ingest step with a budget.** A full scan takes minutes per host, and there are
+  several thousand hosts (about 7,700 distinct entityID hosts today). So scan a capped
+  number of hosts per run, a few at once, and stop at the run's `Deadline`. Cache
+  results beside `logo-cache.json` and rescan each host on a schedule, about monthly.
+  Measure the time per host and set the cap from it. `make backfill` works through the
+  first pass.
+- **Safe and polite scanning.** testssl.sh opens many connections, which can set off a
+  campus's intrusion detection.
+  - Resolve each host through the same public-only checks as the logo fetcher, and pass
+    testssl.sh the checked address (`--ip`), so it never reaches a private network.
+  - Scan one host at a time per address, never two at once.
+  - Publish what InCatalog scans, how often and from where on the About page, with a
+    contact and an opt-out. Keep opted-out hosts in a list that ingest skips.
+  - Agree all of this with InCommon operations and security before the first scan.
+- **Show it.**
+  - **Chips and cards:** the grade as a letter badge, colored by grade with theme
+    tokens. The letter itself is the text, so the color is never the only cue. Add the
+    post-quantum badge beside it, with a text label and an accessible name.
+  - **Details page:** the grade per host, what capped it, the scan date and the
+    testssl.sh version, and a link to how grades are computed.
+  - **No grade yet:** say "not scanned yet". Unreachable hosts are the alive/dead TODO's
+    job and get no grade.
+  - Add both badges to the floating key, a facet on grade and one on post-quantum, the
+    API filters and OpenAPI entries, and NL phrasings ("services with an A grade",
+    "post-quantum TLS").
+- **Decide what's public.** A low grade is already visible to anyone who runs the same
+  tool, but a list of each host's specific vulnerabilities is a list of targets.
+  Decide with InCommon security whether the details page names vulnerabilities or
+  only the grade and its general reasons, such as "TLS 1.0 enabled".
+- **Tests.**
+  - Parsing testssl.sh JSON fixtures: A+, a capped B, F, the trust and name-mismatch
+    marks, a host that refuses, and a post-quantum host.
+  - Worst-host aggregation, and the rescan schedule.
+  - The deadline and per-run cap, and opted-out hosts skipped.
+  - A private address refused before testssl.sh runs.
+  - The badges on chips, including the floating key's rows.
