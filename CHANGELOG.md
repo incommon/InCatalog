@@ -9,6 +9,8 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-01
+
 ### Fixed
 
 - **Health checks no longer run out of file descriptors after about 1,000 hosts.**
@@ -18,13 +20,13 @@ section must be written before it is cut.
   the same way, so the breaker tripped. Each 0.4.0 and 0.4.1 run in AWS checked
   about 1,000–1,650 hosts and skipped the rest, and recorded the lookups that ran out
   as temporary DNS failures (not evidence, so no service was marked dead for them).
-  The client now keeps no idle connections.
+  The client now keeps no idle connections. (#67)
 - **A brief outage no longer skips the rest of a run's checks.** When the canary
   failed to answer once, every check started in the next 30 seconds was skipped, and
   a skip takes no time, so that drained the run. Now checks wait, and the canary is
   asked again every 30 seconds. Only an outage longer than 90 seconds stops the run's
   health checks and logo lookups. Each time the canary doesn't answer, the ingest log
-  says why.
+  says why. (#67)
 
 ## [0.4.1] - 2026-11-01
 
@@ -313,7 +315,8 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.1...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.2...develop
+[0.4.2]: https://github.com/incommon/InCatalog/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/incommon/InCatalog/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/incommon/InCatalog/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/incommon/InCatalog/compare/v0.2.0...v0.3.0
