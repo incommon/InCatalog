@@ -339,6 +339,40 @@ button.chip:hover { border-color: var(--accent); }
   .card.dead::before { animation: none; }
 }
 .badge.dead { color: var(--ink); border: 1px dashed var(--ink); }
+/* The key to the chips' markings: it follows the grid in the page and sticks to the
+   bottom of the window while the grid scrolls past, so it floats in the grid's lower
+   right but never leaves the grid's box. At rest it sits below the last row, so it
+   never hides a chip or the pager. Each swatch is a tiny chip with the chips' own
+   classes, so its zebra ring, outline and stripe are the same rules, reduced motion
+   included. */
+.chip-view { position: relative; }
+.chip-key {
+  position: sticky; bottom: 12px; z-index: 5; width: max-content; max-width: 100%;
+  margin: 12px 0 0 auto; padding: 4px; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius); font: 12px var(--ui);
+  box-shadow: 0 8px 28px -12px rgba(0,0,0,0.35);
+}
+.chip-key.open { padding: 4px 12px 10px; }
+.chip-key h2 { margin: 0; font: inherit; }
+.chip-key-toggle {
+  font: 600 12px var(--ui); color: inherit; background: none; border: 0; cursor: pointer;
+  min-height: 24px; padding: 2px 8px; border-radius: 6px;
+}
+.chip-key-toggle::after { content: " \25B8"; }
+.chip-key-toggle[aria-expanded="true"]::after { content: " \25BE"; }
+.chip-key-toggle:hover { color: var(--accent); }
+.chip-key ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.chip-key li { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; }
+.chip-key li a { color: var(--muted); min-height: 24px; display: inline-flex; align-items: center; }
+.chip-key li a:hover { color: var(--accent); }
+.key-sample { display: flex; justify-content: center; align-items: center; height: 26px; }
+.card.key-swatch { display: block; width: 32px; height: 20px; padding: 0; gap: 0; border-radius: 4px; }
+.card.key-swatch::after { border-radius: 3px 0 0 3px; }
+.card.dead.key-swatch::before { inset: -4px; background-size: 24px 4px, 24px 4px, 4px 24px, 4px 24px; }
+/* The Log in button on a service's page. */
+.login { margin-top: 12px; }
+.login-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); max-width: 60ch; }
+.login-note a { color: var(--muted); }
 ul.health-hosts { margin: 4px 0 0; padding-left: 18px; }
 ul.health-hosts code { font: 12px var(--mono); overflow-wrap: anywhere; }
 .filter-note { margin-top: 12px; font-size: 13px; }

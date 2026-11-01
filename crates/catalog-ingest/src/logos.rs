@@ -972,35 +972,7 @@ pub(crate) fn allowed(url: &Url) -> bool {
     matches!(url.scheme(), "http" | "https") && port_ok && host_ok
 }
 
-pub(crate) fn is_public(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => {
-            let o = v4.octets();
-            !(v4.is_private()
-                || v4.is_loopback()
-                || v4.is_link_local() // includes 169.254.169.254, the cloud metadata service
-                || v4.is_broadcast()
-                || v4.is_documentation()
-                || v4.is_unspecified()
-                || v4.is_multicast()
-                || o[0] == 0
-                || (o[0] == 100 && (o[1] & 0xC0) == 64) // 100.64.0.0/10, carrier-grade NAT
-                || (o[0] == 198 && (o[1] & 0xFE) == 18) // 198.18.0.0/15, benchmarking
-                || o[0] >= 240)
-        }
-        IpAddr::V6(v6) => {
-            if let Some(v4) = v6.to_ipv4_mapped() {
-                return is_public(IpAddr::V4(v4));
-            }
-            let seg = v6.segments();
-            !(v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                || (seg[0] & 0xFE00) == 0xFC00 // unique local
-                || (seg[0] & 0xFFC0) == 0xFE80) // link local
-        }
-    }
-}
+pub(crate) use catalog_core::net::is_public;
 
 /// Resolves through the system, a few names at a time, and keeps only public
 /// addresses.

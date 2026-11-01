@@ -79,6 +79,19 @@ fn parses_and_merges() {
     assert_eq!(s.requested_attributes.len(), 2);
     assert!(s.requested_attributes[0].required);
     assert!(s.has_signing_key && s.has_encryption_key && s.supports_discovery_response);
+    assert_eq!(
+        s.request_initiators,
+        [catalog_core::model::Endpoint {
+            location: "https://sp.example.edu/Shibboleth.sso/Login".into(),
+            binding: "urn:oasis:names:tc:SAML:profiles:SSO:request-init".into(),
+        }]
+    );
+    // Never checked, so not alive yet: no Log in button.
+    assert_eq!(wiki.login.target, None);
+    assert!(wiki
+        .login
+        .blocked_by
+        .contains(&catalog_core::login::Blocker::NotAlive));
     // Endpoint hosts are lowercase, without ports or repeats.
     assert_eq!(s.endpoint_hosts, ["sp.example.edu"]);
     assert_eq!(

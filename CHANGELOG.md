@@ -11,6 +11,22 @@ section must be written before it is cut.
 
 ### Added
 
+- **A Log in button on a service's page.** It shows only on a service that is
+  multilateral, alive, not filtered out of InCommon's eduGAIN import, and has no OFAC
+  match, possible or confirmed; anything else gets none. It goes to the service's own
+  login handler, its `init:RequestInitiator` endpoint, which asks for your
+  institution, or else to its information or organization URL, labelled as the site.
+  Every URL comes from the signed metadata and must be `https:` on the default port
+  with a public host. Ingest now keeps each RequestInitiator's `Location` and
+  `Binding` (`request_initiators` on the service), and the service detail carries
+  `login`: its `target` (`route` and `url`) and the conditions that hid it
+  (`blocked_by`).
+- **A key to the cards' markings.** Results and provider pages show a key floating in
+  the lower right of the cards. It lists only the markings on the cards shown
+  (unreachable, filtered by InCommon, OFAC confirmed, possible OFAC match), each with a
+  sample drawn by the cards' own styles and a link to the About page. It collapses to
+  a "Key" button, the browser remembers the choice, and it starts collapsed on narrow
+  screens.
 - **US sanctions (OFAC).** A new `ofac` grouping, kind `sanctions`, lists the
   countries under OFAC's country-wide programs (Cuba, Iran, North Korea), from OFAC's
   own FAQ, rechecked every 90 days; "sanctioned countries" reads as it. Ingest also

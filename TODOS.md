@@ -1,81 +1,27 @@
 # TODOs
 
-## A "Log in" button on each service's expanded view
+## The Log in button: through the user's own institution
 
-Let someone go from a service's page straight to signing in to it, through their own
-institution. Metadata gives three routes. Each works for only some SPs, so the button
-has to say which route it uses and show only when one exists.
+The button ships (`catalog-core/src/login.rs`, `loginEl` in `web/app.js`): on a
+service that is multilateral, alive, not filtered by InCommon and has no OFAC match,
+it goes to the SP's own `init:RequestInitiator` handler, or else to its site,
+labelled as the site. What's left needs the user's institution:
 
-The button shows only on a service that is all of these. Anything else gets no button,
-not even the fallback:
-
-- **Multilateral.** Its sharing label (#16) is `multilateral`. A `bilateral` or
-  `unknown` one gets none.
-- **Alive.** Its health `status` is `alive`. A `dead` or `unknown` one gets none.
-- **Not filtered by InCommon.** It has no `import_filter`: InCommon's eduGAIN import
-  didn't remove it. An InCommon IdP can't see a filtered SP, so a login would fail.
-- **Not OFAC-listed.** It has no OFAC entity match, possible or confirmed: the
-  service's `ofac` is empty (`catalog-core/src/ofac.rs`). A match that curation
-  dismissed is dropped from `ofac`, so it doesn't count. Being in a country under an
-  OFAC program (`region=ofac`), with no entity match, doesn't hide it.
-
-Check all four in one place in `catalog-core`, and serve the result with the service,
-so the site and the API agree on when it shows.
-
-- **SP-initiated, through the SP's own login endpoint.** An `init:RequestInitiator`
-  endpoint (Shibboleth's login handler) starts a login for any IdP, often with an
-  `entityID` parameter for the IdP. Ingest notices it today
-  (`supports_request_initiator` in `catalog-core/src/extract.rs`) but doesn't keep the
-  `Location`. Store it, with its binding.
-- **IdP-initiated, through the user's own IdP.** Once the user has picked their
-  institution, link to that IdP's unsolicited-SSO endpoint for this SP. For Shibboleth
-  that is `/idp/profile/SAML2/Unsolicited/SSO?providerId=<SP entityID>`. This needs the
-  IdPs' `SingleSignOnService` endpoints and software, which ingest doesn't keep yet:
-  it only counts IdPs. Many SPs reject unsolicited responses, so treat it as
-  best-effort and say so.
-- **Fallback: the service's own front door.** `mdui:InformationURL` or the
-  organization URL, labelled as the site, not a login.
-
-Questions to settle:
 - **Choosing an institution.** Use SeamlessAccess (its widget, or its persistent
   choice) or a picker of our own. The choice stays in the browser only, never on our
   servers. Any third-party script or endpoint needs a deliberate change to the CSP.
-- **Who it can work for.** Even a multilateral SP still depends on the user's IdP
-  releasing the attributes it needs. Say that on the button, as the About page does,
-  rather than promising access.
-- **No open redirect.** Build every URL only from metadata and the chosen IdP's
-  metadata, never from query input. Allow only `https:`, and refuse private and
-  loopback hosts, as the logo fetcher does.
-- **Tests.** URL construction for each route, which button shows for each kind of SP,
-  that no button shows when any one of the four conditions fails, and that a crafted
-  entityID or parameter can't send the browser anywhere else.
-
-## A floating key to the chips' markings, in the lower right of the chip view
-
-The service chips and cards are gaining markings: the red outline and badge for
-services InCommon filtered from its import (`.card.filtered`, already shipped), the
-the dead services' zebra-striped white and black ring (`.card.dead`, already shipped), and the OFAC markings (`.card.ofac` and `.badge.ofac-possible`, already shipped).
-Each TODO says to explain its marking in a legend. Make that one legend: a key floating in the lower-right corner of the chip
-view (the `.grid` of `serviceCard`s in `web/app.js`, on the results page and on the
-provider and federation pages).
-
-- **What it lists.** One row per marking: a small sample swatch drawn with the same
-  classes as the chips, so the two can't drift, a short label, and a link to the
-  About page's longer explanation. List only the markings on the chips currently
-  shown, and hide the key when there are none. A new marking adds its row as part of
-  its own change.
-- **Where it floats.** Pin it to the lower right of the chip view, not the window, so it
-  never covers the facets. Leave room under the last row of chips so the key never
-  hides one, nor the paging controls.
-- **It can be collapsed.** It can collapse to a small "Key" button. Remember the choice
-  in the browser (`localStorage`, wrapped in try/catch, defaulting to open when
-  storage is unavailable). On narrow screens, start collapsed.
-- **Accessible.** A labelled region with a heading, reachable by keyboard, with each
-  swatch's meaning in text. Under `prefers-reduced-motion`, show the dead border's
-  static version, as the chips do. Both themes.
-- **Tests.** The key lists exactly the markings present on the page, hides when there
-  are none, doesn't cover the last chip, keeps its collapsed state across reloads, and
-  swatches use the chips' own classes.
+- **SP-initiated, with the IdP named.** Once an institution is chosen, add it to the
+  RequestInitiator URL as the `entityID` parameter, so the SP skips its own
+  discovery. Build the parameter only from the chosen IdP's metadata, and keep
+  `safe_link`'s checks on the result.
+- **IdP-initiated, through the user's own IdP.** For SPs with no RequestInitiator,
+  link to the chosen IdP's unsolicited-SSO endpoint for this SP. For Shibboleth that
+  is `/idp/profile/SAML2/Unsolicited/SSO?providerId=<SP entityID>`. This needs the
+  IdPs' `SingleSignOnService` endpoints and software, which ingest doesn't keep yet:
+  it only counts IdPs. Many SPs reject unsolicited responses, so treat it as
+  best-effort and say so.
+- **Tests.** URL construction for both routes with a chosen IdP, and that a crafted
+  IdP entityID or SP entityID can't send the browser anywhere else.
 
 ## Rename the AWS resources from `catabasis` to `incatalog`
 
@@ -181,6 +127,10 @@ checks accessibility today, and `web/` has no build or Node tooling.
   - the About page
   - the chip markings: the red outline, alive and dead, and OFAC
   - the floating key, open and collapsed
+
+  Add the floating key's own tests (`chipView` in `web/app.js`): it lists exactly the
+  markings on the page, is absent when there are none, rests below the last chip,
+  keeps its collapsed state across reloads, and its swatches use the chips' classes.
 
   Add keyboard-only Playwright tests that tab through each page. They check that every
   control can be reached and operated, and that the floating key never covers the

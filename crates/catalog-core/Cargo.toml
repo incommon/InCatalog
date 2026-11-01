@@ -16,4 +16,5 @@ sha1.workspace = true
 hex.workspace = true
 utoipa.workspace = true
 percent-encoding.workspace = true
+url.workspace = true
 tracing.workspace = true

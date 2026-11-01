@@ -812,6 +812,7 @@ dependencies = [
  "serde_json",
  "sha1 0.11.0",
  "tracing",
+ "url",
  "utoipa",
 ]
 
