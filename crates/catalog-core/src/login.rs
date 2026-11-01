@@ -15,10 +15,21 @@
 //!
 //! Anything else gets no button, not even the fallback. Where it goes, best first:
 //!
-//! 1. **SP-initiated**: the service's own login handler, its `init:RequestInitiator`
-//!    endpoint (Shibboleth's `/Shibboleth.sso/Login`). The service then asks for the
-//!    user's institution itself.
-//! 2. **Website**: its `mdui:InformationURL`, else its organization's URL. This is
+//! 1. **Wayfinder**: for a service in InCommon's aggregate, InCommon Wayfinder (built
+//!    on SeamlessAccess), with the service's entityID and its own
+//!    `idpdisc:DiscoveryResponse` endpoint as `return`. Wayfinder asks for the user's
+//!    institution, remembers it on its own site, never ours, and sends the user to
+//!    that endpoint, which starts the login. Wayfinder reads the service from
+//!    InCommon's metadata, which carries both InCommon's registrations and the
+//!    eduGAIN services it imports, and returns only to an endpoint published there.
+//!    (InCommon's docs say "InCommon-registered", but on 2026-11-01 Wayfinder named a
+//!    SWAMID-registered service InCommon imports, and named nothing for an entityID
+//!    not in the metadata.) A service that expects to start discovery itself may not
+//!    accept a choice it didn't ask for, so this is best-effort and the page says so.
+//! 2. **SP-initiated**: the service's own login handler, its `init:RequestInitiator`
+//!    endpoint (Shibboleth's `/Shibboleth.sso/Login`), for a service Wayfinder can't
+//!    take. The service then asks for the user's institution itself.
+//! 3. **Website**: its `mdui:InformationURL`, else its organization's URL. This is
 //!    the service's front door, labelled as the site, not a login.
 //!
 //! Every URL comes from the service's signed metadata, never from a request, and must
@@ -30,7 +41,7 @@ use serde::Serialize;
 use url::{Host, Url};
 use utoipa::ToSchema;
 
-use crate::model::{pick, HealthStatus, Service};
+use crate::model::{pick, HealthStatus, Service, Source};
 use crate::sharing::Sharing;
 
 /// Whether a service's page shows a Log in button, and where it goes.
@@ -55,6 +66,8 @@ pub struct Target {
 pub enum Route {
     /// The service's own login handler (`init:RequestInitiator`).
     SpInitiated,
+    /// InCommon Wayfinder, returning to the service's `idpdisc:DiscoveryResponse`.
+    Wayfinder,
     /// The service's or its organization's website: not a login.
     Website,
 }
@@ -106,7 +119,7 @@ fn target(s: &Service) -> Option<Target> {
             route: Route::SpInitiated,
             url,
         });
-    sp_initiated.or_else(|| {
+    let website = || {
         [&s.information_urls, &s.organization.urls]
             .into_iter()
             .find_map(|m| pick(m, Some("en")).and_then(safe_link))
@@ -114,6 +127,33 @@ fn target(s: &Service) -> Option<Target> {
                 route: Route::Website,
                 url,
             })
+    };
+    wayfinder(s).or(sp_initiated).or_else(website)
+}
+
+/// InCommon Wayfinder's SAML discovery service.
+pub const WAYFINDER: &str = "https://wayfinder.incommon.org/";
+
+/// Wayfinder for a service in InCommon's aggregate with a discovery response endpoint.
+/// `return` is the endpoint exactly as registered, since Wayfinder compares it with
+/// the metadata; it only has to pass [`safe_link`].
+fn wayfinder(s: &Service) -> Option<Target> {
+    if !s.sources.contains(&Source::Incommon) {
+        return None;
+    }
+    let ret = s
+        .discovery_responses
+        .iter()
+        .filter(|e| e.binding == crate::ns::IDPDISC)
+        .map(|e| e.location.trim())
+        .find(|l| safe_link(l).is_some())?;
+    let mut url = Url::parse(WAYFINDER).expect("a valid URL");
+    url.query_pairs_mut()
+        .append_pair("entityID", &s.entity_id)
+        .append_pair("return", ret);
+    Some(Target {
+        route: Route::Wayfinder,
+        url: url.into(),
     })
 }
 
@@ -321,6 +361,107 @@ mod tests {
         assert_eq!(
             safe_link("https://8.8.8.8/x"),
             Some("https://8.8.8.8/x".into())
+        );
+    }
+
+    /// In InCommon's aggregate, with a discovery response endpoint and no login handler.
+    fn incommon() -> Service {
+        let mut s = open();
+        s.request_initiators.clear();
+        s.sources = vec![Source::Incommon];
+        s.discovery_responses = vec![Endpoint {
+            location: LOGIN.into(),
+            binding: crate::ns::IDPDISC.into(),
+        }];
+        s
+    }
+
+    fn query(url: &str) -> Vec<(String, String)> {
+        Url::parse(url)
+            .unwrap()
+            .query_pairs()
+            .map(|(k, v)| (k.into_owned(), v.into_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn wayfinder_for_an_incommon_registration() {
+        assert_eq!(
+            target_of(&incommon()),
+            Some((
+                Route::Wayfinder,
+                "https://wayfinder.incommon.org/?entityID=https%3A%2F%2Fsp.example.edu%2Fshibboleth\
+                 &return=https%3A%2F%2Fsp.example.edu%2FShibboleth.sso%2FLogin"
+                    .into()
+            ))
+        );
+    }
+
+    #[test]
+    fn wayfinder_for_any_service_in_incommons_aggregate() {
+        // Another federation's registration that InCommon imports still gets Wayfinder.
+        let mut s = incommon();
+        s.registration.authority = Some("http://www.swamid.se/".into());
+        s.sources = vec![Source::Incommon, Source::Edugain];
+        assert_eq!(target_of(&s).unwrap().0, Route::Wayfinder);
+        // Only in eduGAIN's: Wayfinder can't read it.
+        s.sources = vec![Source::Edugain];
+        assert_eq!(target_of(&s).unwrap().0, Route::Website);
+    }
+
+    #[test]
+    fn wayfinder_comes_before_the_login_handler() {
+        let mut s = incommon();
+        s.request_initiators = open().request_initiators;
+        assert_eq!(target_of(&s).unwrap().0, Route::Wayfinder);
+        // Without a usable discovery response endpoint, the login handler.
+        s.discovery_responses.clear();
+        assert_eq!(target_of(&s), Some((Route::SpInitiated, LOGIN.into())));
+    }
+
+    #[test]
+    fn wayfinder_returns_only_to_a_safe_endpoint_as_registered() {
+        let mut s = incommon();
+        s.discovery_responses = vec![
+            Endpoint {
+                location: "https://sp.example.edu/other".into(),
+                binding: "urn:example:other".into(),
+            },
+            Endpoint {
+                location: "https://10.0.0.5/Shibboleth.sso/Login".into(),
+                binding: crate::ns::IDPDISC.into(),
+            },
+            Endpoint {
+                location: " https://SP.example.edu:443/Shibboleth.sso/Login ".into(),
+                binding: crate::ns::IDPDISC.into(),
+            },
+        ];
+        let (route, url) = target_of(&s).unwrap();
+        assert_eq!(route, Route::Wayfinder);
+        // Wayfinder compares `return` with the metadata, so it isn't normalized.
+        assert_eq!(
+            query(&url)[1],
+            (
+                "return".into(),
+                "https://SP.example.edu:443/Shibboleth.sso/Login".into()
+            )
+        );
+        s.discovery_responses.remove(2);
+        assert_eq!(target_of(&s).unwrap().0, Route::Website);
+    }
+
+    #[test]
+    fn a_crafted_entity_id_stays_one_parameter() {
+        let mut s = incommon();
+        s.entity_id = "https://sp.example.edu/?x=1&return=https://evil.example/#".into();
+        let (_, url) = target_of(&s).unwrap();
+        assert!(url.starts_with(WAYFINDER));
+        assert_eq!(
+            query(&url),
+            [
+                ("entityID".to_owned(), s.entity_id.clone()),
+                ("return".to_owned(), LOGIN.to_owned())
+            ]
         );
     }
 

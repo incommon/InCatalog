@@ -473,25 +473,49 @@ function chipView(services) {
 
 // The Log in button, as catalog-core/src/login.rs decides it: only on a service that
 // is multilateral, reachable, not filtered by InCommon and with no OFAC match. It goes
-// to the service's own login handler, which asks for your institution, or else to its
+// through InCommon Wayfinder, else to the service's own login handler, else to its
 // website, labelled as the site.
-const LOGIN_CAVEAT =
-  "Through your institution\u2019s account, on the service\u2019s own login page. Whether you get in depends on your institution releasing the attributes the service needs, and on any subscription it requires.";
+//
+// The two that ask for an institution are SeamlessAccess's "Access through your
+// institution" button (Wayfinder is built on SeamlessAccess), drawn to its static
+// button specification: SeamlessAccess asks that the wording never change, and keeps
+// "log in" for accounts held with the service itself. Only the Wayfinder one carries
+// SeamlessAccess's logomark (web/brand/README.md), since only it leads to
+// SeamlessAccess's discovery.
+const LOGIN_ACCESS = "Whether you get in depends on your institution releasing the attributes the service needs, and on any subscription it requires.";
+const LOGIN_ROUTE = {
+  wayfinder: {
+    access: true,
+    logo: true,
+    note: `Opens InCommon Wayfinder, which asks for your institution, remembers it on its own site, and sends you to the service\u2019s login. Some services only accept a login they start themselves; if this one doesn\u2019t, use its own site. ${LOGIN_ACCESS}`,
+  },
+  "sp-initiated": { access: true, logo: false, note: `Opens the service\u2019s own login page, which asks for your institution. ${LOGIN_ACCESS}` },
+  website: { access: false, note: "It publishes no login link, so this opens its own site, not a login." },
+};
+// The logomark is this site's own file, so it is set directly: h() lets an <img> load
+// only https: and data: URLs, because every other image comes from metadata.
+function saLogo() {
+  const img = h("img", { class: "sa-button-logo", alt: "" });
+  img.setAttribute("src", "brand/sa-white.svg");
+  return img;
+}
 function loginEl(login) {
   const t = login?.target;
-  if (!t || !t.url?.startsWith("https://") || !safeUrl(t.url)) return null;
-  const sp = t.route === "sp-initiated";
+  const r = t && LOGIN_ROUTE[t.route];
+  if (!r || !t.url?.startsWith("https://") || !safeUrl(t.url)) return null;
+  const link = { href: t.url, target: "_blank", rel: "noopener noreferrer" };
   return h(
     "div",
     { class: "login" },
-    h("a", { class: sp ? "btn primary" : "btn", href: t.url, target: "_blank", rel: "noopener noreferrer" }, sp ? "Log in" : "Go to the service\u2019s site", " \u2197"),
-    h(
-      "p",
-      { class: "login-note" },
-      sp ? LOGIN_CAVEAT : "It publishes no login link, so this opens its own site, not a login.",
-      " ",
-      h("a", { href: "#/about/log-in" }, "When this shows"),
-    ),
+    r.access
+      ? h(
+          "a",
+          { ...link, class: `sa-button${r.logo ? "" : " no-logo"}` },
+          r.logo && h("span", { class: "sa-button-logo-wrap" }, saLogo()),
+          h("span", { class: "sa-button-text" }, "Access through your institution", h("span", { class: "visually-hidden" }, " (opens in a new tab)")),
+        )
+      : h("a", { ...link, class: "btn" }, "Go to the service\u2019s site \u2197"),
+    h("p", { class: "login-note" }, r.note, " ", h("a", { href: "#/about/log-in" }, "When this shows")),
   );
 }
 
@@ -1069,9 +1093,9 @@ async function serviceView(id) {
             siteHost ? h("a", { href: siteLogo.page, target: "_blank", rel: "noopener noreferrer" }, siteHost) : "the organization's website",
             ".",
           ),
-        loginEl(d.login),
       ),
     ),
+    loginEl(d.login),
     h(
       "div",
       { class: "cols" },
@@ -1415,13 +1439,13 @@ const FILTER_HELP = [
   ["Run by", "The kind of organization that registered the service: a university, a research institution, a company, a library, a museum or archive, government, a hospital, a school, a publisher, a nonprofit, or a federation or network. It describes who runs the service, not who it is for. It comes from the catalog\u2019s curation, else from the organization\u2019s name (\u201cUniversity\u201d, \u201cBibliothek\u201d, \u201cMinistry\u201d, \u201cGmbH\u201d) or a government domain, else from Claude\u2019s reading of the organization (marked \u2726). \u201cLibrary services\u201d, \u201cmuseum SPs\u201d, and \u201crun by libraries\u201d filter by it; \u201clibrary management system\u201d searches the words."],
   ["US sanctions (OFAC)", "The countries under the US Treasury\u2019s country-wide sanctions programs, as OFAC lists them, rechecked every 90 days: Cuba, Iran, and North Korea. They are listed because the US government publishes them, not as this catalog\u2019s judgment. OFAC\u2019s programs also cover three regions of Ukraine that have no country code of their own; the rest of Ukraine isn\u2019t under them, so Ukraine isn\u2019t listed. Searching \u201csanctioned countries\u201d reads as this list. It is shown even when no service is registered there."],
   ["Markings", "A card can carry several markings, from the outside in: the zebra-striped ring of an unreachable service sits outside the card, the red outline of a service InCommon filtered at its border, and the amber hazard stripe of a confirmed OFAC match inside its left edge, on a near-black card. Each comes with a badge that says it in words. The key in the lower right of the cards lists the markings on the cards shown; it collapses to a \u201cKey\u201d button, and this browser remembers which you chose."],
-  ["Log in", `A service\u2019s page has a Log in button only when the service is open to any institution, reachable, not filtered by InCommon, and has no OFAC match, possible or confirmed. Otherwise it has none. The button goes to the service\u2019s own login page, which its metadata names and which asks for your institution. A service that names none gets a link to its own site instead, labelled as the site. Every link comes from the service\u2019s signed metadata and must be https on a public host. ${SHARING_CAVEAT}`],
+  ["Access through your institution", `A service\u2019s page has an \u201cAccess through your institution\u201d button only when the service is open to any institution, reachable, not filtered by InCommon, and has no OFAC match, possible or confirmed. Otherwise it has none. For a service in InCommon\u2019s metadata, which includes the eduGAIN services InCommon imports, it opens InCommon Wayfinder, which is built on SeamlessAccess: you choose your institution there, Wayfinder remembers it on its own site (this catalog never sees it), and it sends you on to the service\u2019s login. Some services only accept a login they start themselves, so that may not work for every one. A service Wayfinder can\u2019t take goes to the login page its metadata names, and a service with neither gets a link to its own site, labelled as the site. Every link comes from the service\u2019s signed metadata and must be https on a public host. The wording and the open-door logomark are SeamlessAccess\u2019s, so the button looks the same as on other sites that use it. ${SHARING_CAVEAT}`],
   ["Requests", "A user attribute the service asks identity providers for, such as email or ORCID."],
   ["Seen in", "Which aggregate the service appears in: InCommon\u2019s or eduGAIN\u2019s."],
 ];
 
 // Entries the chips' key and the Log in button link to, as #/about/<anchor>.
-const HELP_ANCHOR = { Reachability: "reachability", "Filtered by InCommon for": "filtered", "OFAC list match": "ofac", Markings: "markings", "Log in": "log-in" };
+const HELP_ANCHOR = { Reachability: "reachability", "Filtered by InCommon for": "filtered", "OFAC list match": "ofac", Markings: "markings", "Access through your institution": "log-in" };
 
 function howToSearch(regions, exs) {
   const kinds = { geographic: "UN M49 region", common: "Common name", political: "Grouping", network: "Research network", sanctions: "US sanctions (OFAC)" };

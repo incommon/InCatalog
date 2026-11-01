@@ -461,6 +461,11 @@ pub struct Service {
     /// The `init:RequestInitiator` endpoints, as published. See [`crate::login`].
     #[serde(default)]
     pub request_initiators: Vec<Endpoint>,
+    /// The `idpdisc:DiscoveryResponse` endpoints, where a discovery service returns the
+    /// user's choice of institution: the default first, then by `index`. See
+    /// [`crate::login`].
+    #[serde(default)]
+    pub discovery_responses: Vec<Endpoint>,
     /// Hosts of the `AssertionConsumerService` locations, lowercase, without repeats.
     #[serde(default)]
     pub endpoint_hosts: Vec<String>,
