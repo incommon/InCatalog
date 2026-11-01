@@ -77,11 +77,13 @@
   --foot-ink: #f7f5eb;
   --radius: 10px;
   /* InCommon's lockup, floating at the bottom of the window with the footer. 64px
-     keeps "Powered by" no smaller than incommon.org shows it (63px), so it never
-     shrinks; its clear space is a quarter of its height. --floater-h is the floater's
-     height, which app.js keeps current as the footer wraps; whatever sits at the
-     bottom of the window leaves room for it. */
+     keeps "Powered by" no smaller than incommon.org shows it (63px); its clear space
+     is a quarter of its height. Once the page scrolls it shrinks into the footer's
+     bar, to --lockup-compact-h (see .floater.compact). --floater-h is the floater's
+     height, which app.js keeps current as the footer wraps and the lockup shrinks;
+     whatever sits at the bottom of the window leaves room for it. */
   --lockup-h: 64px;
+  --lockup-compact-h: 32px;
   --lockup-space: calc(var(--lockup-h) / 4);
   --floater-h: 150px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -182,7 +184,7 @@ main:focus { outline: none; }
 }
 .floater .foot { align-self: stretch; }
 .lockup { display: block; margin: var(--lockup-space); line-height: 0; }
-.lockup img { display: block; height: var(--lockup-h); width: auto; }
+.lockup img { display: block; height: var(--lockup-h); width: auto; transition: height 0.2s ease; }
 .lockup .lockup-dark { display: none; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .lockup .lockup-light { display: none; }
@@ -190,6 +192,17 @@ main:focus { outline: none; }
 }
 :root[data-theme="dark"] .lockup .lockup-light { display: none; }
 :root[data-theme="dark"] .lockup .lockup-dark { display: block; }
+/* Scrolled (app.js): the lockup shrinks into the left of the footer's bar, white on
+   its navy in either theme, so the floater is no taller than the bar. */
+.floater.compact { flex-direction: row; background: var(--foot-bg); border-top-color: var(--foot-bg); }
+.floater.compact .foot { flex: 1; min-width: 0; }
+.floater.compact .lockup { margin: 0 0 0 24px; }
+.floater.compact .lockup img { height: var(--lockup-compact-h); }
+.floater.compact .lockup .lockup-light { display: none; }
+.floater.compact .lockup .lockup-dark { display: block; }
+@media (prefers-reduced-motion: reduce) {
+  .lockup img { transition: none; }
+}
 
 /* ---------- landing: the federation network ---------- */
 body.landing main { max-width: none; padding: 0; }
@@ -441,6 +454,8 @@ ul.health-hosts code { font: 12px var(--mono); overflow-wrap: anywhere; }
 }
 .logo { position: relative; }
 .logo img { position: absolute; inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); object-fit: contain; opacity: 0; transition: opacity 0.2s; }
+/* Placed from the box ingest measured around the artwork (logoPlacement in app.js). */
+.logo img.placed { inset: auto; max-width: none; }
 .logo.loaded img { opacity: 1; }
 /* Third-party marks assume a light page; a white tile keeps dark logos visible in dark mode. */
 .logo.loaded { background: #fff; box-shadow: inset 0 0 0 1px var(--line); }

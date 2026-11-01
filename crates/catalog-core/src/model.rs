@@ -92,6 +92,46 @@ pub struct Logo {
     /// HTML error page). Kept, so the metadata stays as published, but never shown.
     #[serde(default)]
     pub broken: bool,
+    /// Where the artwork sits in the image, measured by ingest. Absent when it
+    /// couldn't be measured; the logo is then shown whole.
+    #[serde(default, rename = "box", skip_serializing_if = "Option::is_none")]
+    pub art_box: Option<LogoBox>,
+}
+
+/// Where a logo's artwork sits in its image, as ingest measured it against the white
+/// tile the site shows logos on, so the site can crop away built-in margins and
+/// center the artwork. Positions and sizes are fractions of the image's own width and
+/// height, so the box holds at any size the image is drawn.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct LogoBox {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    /// The image's own width over its height.
+    pub aspect: f32,
+    /// The image is opaque to its edges (a colored square, a photo), so it fills the
+    /// tile with no margin.
+    #[serde(default)]
+    pub bleed: bool,
+    /// The box is the logo's square mark alone: the words beside or below it are
+    /// left out, and the site clips the image to the box.
+    #[serde(default)]
+    pub mark: bool,
+}
+
+impl LogoBox {
+    /// The box's own width over its height.
+    pub fn shape(&self) -> f32 {
+        self.w * self.aspect / self.h
+    }
+
+    /// How much of a square tile the artwork fills when scaled to fit it: 1 for a
+    /// square, 1/3 for a banner three times as wide as it is tall.
+    pub fn fill(&self) -> f32 {
+        let r = self.shape();
+        r.min(1.0 / r)
+    }
 }
 
 /// A plain-language summary and search keywords written by Claude from this
@@ -158,6 +198,9 @@ pub struct DiscoveredLogo {
     /// The model that chose it among the page's candidate images.
     pub chosen_by: String,
     pub found_at: String,
+    /// Where the artwork sits in the image. See [`LogoBox`].
+    #[serde(default, rename = "box", skip_serializing_if = "Option::is_none")]
+    pub art_box: Option<LogoBox>,
 }
 
 /// Why InCommon's eduGAIN import left this service out, as InCommon's own import

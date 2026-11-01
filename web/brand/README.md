@@ -27,7 +27,9 @@ light theme's cream and the white one on the dark theme's navy. They swap with t
 theme tokens' selectors, so `data-theme` overrides the system setting. Neither
 InCommon's page nor Internet2's media resources give clear-space or minimum-size
 rules, so the site sets its own: the lockup is 64px high, at least as large as
-incommon.org shows it (63px), so "Powered by" stays legible and the lockup never
-shrinks, with a quarter of its height (16px) clear on every side. Replace both PNGs
+incommon.org shows it (63px), so "Powered by" stays legible, with a quarter of its
+height (16px) clear on every side. Once the page scrolls, the lockup shrinks to 32px
+inside the footer's navy bar, white in either theme, so the floater is no taller
+than the bar; it grows back at the top of the page. Replace both PNGs
 with SVGs and these rules with the guidelines' own once Internet2's marketing team
 supplies them.

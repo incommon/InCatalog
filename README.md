@@ -469,6 +469,36 @@ a logo from its organization's website.
    (URL, page, model, date), separate from the metadata. The API reports
    `logo_source: metadata | website`, and the service page says where the logo came
    from.
+4. **Logos are measured, so they fill their tiles.** Ingest finds where each logo's
+   artwork sits in its image, as it looks on the site's white tile: every pixel that
+   isn't near white, once the image is composited over white. That crops away
+   transparent and white margins alike, and also white artwork drawn for a dark page,
+   which can't be seen on the tile anyway. An SVG is drawn as a browser draws it, so a
+   padded `viewBox`, or `width` and `height` that don't match the `viewBox` with a
+   `preserveAspectRatio` that pins the artwork to one side, put the box where the
+   artwork lands. A logo whose square mark stands clear of words to its right or below
+   it (a shield, then the university's name) is boxed to the mark alone, since in a
+   square tile the words only shrink it. A wordmark alone stays whole: what follows the
+   first gap must read as words, in lines clearly shorter than the mark. A logo opaque
+   to its edges (a colored square, a photo) fills the tile with no margin. The box
+   (`box` on each logo, as fractions of the image's own size) is stored, not a cropped
+   image, so the site still loads each logo from its own URL. The site scales the box
+   to the tile less a 9% margin and centers it, and clips a mark to its box. A logo
+   that couldn't be measured shows whole, as before.
+
+   SVG comes from thousands of registrants, so it is drawn with no fonts, and every
+   reference to another file or URL is refused. An SVG with text isn't measured,
+   since its text can't be drawn without fonts. A raster over 4,096 pixels on a side
+   isn't decoded, and each image gets 5 seconds.
+
+   The box also picks the logo. Among a service's working metadata logos, English or
+   untagged first, the one whose artwork renders largest in the square tile wins,
+   among those big enough to look sharp (32 px), then the largest image. So a square
+   mark beats a wider banner. Claude is told the tile is square, and when its first
+   pick from a website is a wide wordmark, a later pick that fills the tile better is
+   taken instead. A working metadata logo still always beats the website, even a wide
+   one such as the Data Intensive Research Initiative of South Africa's: it is the
+   registrant's own choice, and cropped to its artwork it shows its mark in full.
 
 Every URL involved was written by a registrant, so the fetcher refuses private,
 loopback, link-local (including `169.254.169.254`), and carrier-grade-NAT addresses,
@@ -480,7 +510,7 @@ little:
 
 | Entry | Rechecked after |
 |---|---|
-| Working logo URL | 14 days |
+| Working logo URL | 14 days (and once more to be measured, if it was cached before logos were) |
 | Broken logo URL | 7 days |
 | Inconclusive logo URL | 3 days |
 | Website with a logo found | 30 days |
@@ -501,7 +531,9 @@ The ingest report counts the services left without any logo by reason in
 `services_without_logo`: `no_website`, `waiting` (not looked up yet),
 `no_logo_on_site`, or the lookup's failure (`dns`, `connect`, `timeout`, `tls`,
 `http`, `http_transient`, `model`, `other`). It also reports how many of them publish
-a broken metadata logo, and how many metadata logos were inconclusive. A service
+a broken metadata logo, how many metadata logos were inconclusive, and how many logos
+have been measured (`logos_measured`) and are shown as their mark alone
+(`logos_shown_as_mark`). A service
 with no logo shows a monogram of its name. A federation's or identity provider's logo
 would look like the service's own, so it is not used as a fallback. Website lookup needs an Anthropic key, the same one natural-language search
 uses (`ANTHROPIC_API_KEY`, or `anthropic_api_key_ssm_parameter` in `infra/opentofu`).
