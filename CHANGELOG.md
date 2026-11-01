@@ -9,6 +9,13 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A long badge no longer runs past its card's edge.** Badges never wrapped, so one
+  wider than the card, such as "On OFAC's consolidated list, confirmed 2026-11-01",
+  crossed the card's border. A badge now wraps onto a second line when it is wider than
+  the card, with rounded corners, and stays on one line otherwise.
+
 ## [0.4.0] - 2026-11-01
 
 ### Added
