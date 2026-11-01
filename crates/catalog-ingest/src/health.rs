@@ -18,8 +18,15 @@
 //! schedule spread across runs, not all at once: hosts that answered every
 //! [`RECHECK_OK`], failing or unclear ones every [`RECHECK_FAILING`], so a failing
 //! host collects its checks over several days.
+//!
+//! Checks run in a random order, login hosts first. When many in a row can't reach
+//! their host, the run asks a host that answered earlier before it stops for a
+//! network that looks down ([`crate::logos::Breaker`]): in name order, one
+//! organization's retired hosts came in a row, and on 2026-11-01 stopped 2,683 of a
+//! run's 4,000 checks.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::BuildHasher;
 
 use anyhow::Result;
 use catalog_core::health::{self, Outcome};
@@ -51,6 +58,9 @@ pub struct Options {
     /// Most hosts and pages to check per run; the rest wait for the next.
     pub max_checks: usize,
     pub deadline: Deadline,
+    /// A URL that answered earlier in the run (the InCommon aggregate), asked before
+    /// checks stop for a network that looks down.
+    pub canary: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -60,7 +70,8 @@ pub struct Report {
     /// Due, but over this run's cap; they wait for the next run.
     pub waiting: usize,
     pub stopped_for_time: usize,
-    /// Not started because checks in a row could not reach anything.
+    /// Not started because checks in a row could not reach their host, and neither
+    /// could the canary.
     pub skipped_network_down: usize,
     /// Services by status after this run.
     pub services: BTreeMap<String, usize>,
@@ -95,7 +106,7 @@ enum LinkOutcome {
 }
 
 /// What to check, in priority order: login hosts first.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Job {
     Host(String),
     Link(String),
@@ -133,17 +144,22 @@ async fn check_with(
         }
     }
     report.waiting = jobs.len().saturating_sub(opts.max_checks);
-    let to_run: Vec<Job> = jobs.into_iter().take(opts.max_checks).collect();
+    // Login hosts first, each kind in a random order: in name order, one
+    // organization's dead hosts come in a row and look like the network going down.
+    let order = std::hash::RandomState::new();
+    let mut to_run: Vec<Job> = jobs.into_iter().collect();
+    to_run.sort_by_cached_key(|j| (matches!(j, Job::Link(_)), order.hash_one(j)));
+    to_run.truncate(opts.max_checks);
     let started = to_run.len();
 
-    let breaker = std::sync::Arc::new(Breaker::default());
+    let breaker = std::sync::Arc::new(Breaker::probing(&http, opts.canary.as_deref()));
     let results: Vec<(Job, Option<Outcome>, Option<LinkOutcome>)> = opts
         .deadline
         .until(stream::iter(to_run))
         .map(|job| {
             let (http, breaker) = (http.clone(), breaker.clone());
             async move {
-                if breaker.open() {
+                if breaker.network_down().await {
                     return (job, None, None);
                 }
                 match &job {
@@ -527,6 +543,7 @@ mod tests {
             cache: Location::parse(path.to_str().unwrap()).unwrap(),
             max_checks: max,
             deadline: Deadline::none(),
+            canary: None,
         };
         let r = check_with(&mut services, opts(10), plain(), "http")
             .await
@@ -565,6 +582,64 @@ mod tests {
             .unwrap();
         assert_eq!((r.hosts_checked, r.waiting), (1, 1));
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// Forty dead hosts are not an outage while the canary answers: every one is
+    /// checked. When the canary is dead too, the run stops early.
+    #[tokio::test]
+    async fn dead_hosts_in_a_row_stop_the_run_only_when_the_canary_fails_too() {
+        let addr = stub().await;
+        // Closed ports: each connection is refused, as for a retired host.
+        let closed: Vec<String> = (0..40)
+            .map(|_| {
+                let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+                l.local_addr().unwrap().to_string()
+            })
+            .collect();
+        let services = || -> Vec<Service> {
+            closed
+                .iter()
+                .map(|h| Service {
+                    entity_id: format!("https://{h}/"),
+                    endpoint_hosts: vec![h.clone()],
+                    ..Default::default()
+                })
+                .collect()
+        };
+        for (canary, all_checked) in [
+            (format!("http://{addr}/"), true),
+            (format!("http://{}/", closed[0]), false),
+        ] {
+            let path = std::env::temp_dir().join(format!(
+                "incatalog-health-breaker-{}-{all_checked}.json",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_file(&path);
+            let r = check_with(
+                &mut services(),
+                Options {
+                    cache: Location::parse(path.to_str().unwrap()).unwrap(),
+                    max_checks: 100,
+                    deadline: Deadline::none(),
+                    canary: Some(canary.clone()),
+                },
+                plain(),
+                "http",
+            )
+            .await
+            .unwrap();
+            let _ = std::fs::remove_file(&path);
+            if all_checked {
+                assert_eq!(
+                    (r.hosts_checked, r.skipped_network_down),
+                    (40, 0),
+                    "{canary}"
+                );
+            } else {
+                assert!(r.skipped_network_down > 0, "{canary}: {r:?}");
+                assert_eq!(r.hosts_checked + r.skipped_network_down, 40);
+            }
+        }
     }
 
     #[test]

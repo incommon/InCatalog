@@ -171,7 +171,8 @@ it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services
 - **Spread over runs.** Results are kept in `health-cache.json` beside the snapshot.
   Hosts that answered are rechecked every 72 hours and failing ones about daily, each
   lengthened by up to a quarter so they don't all come due at once. Login hosts come
-  first. At most `CATALOG_HEALTH_MAX_CHECKS` (default 4000) run per run, and
+  first, each kind in a random order, so one organization's retired hosts don't come
+  in a row and look like the network going down. At most `CATALOG_HEALTH_MAX_CHECKS` (default 4000) run per run, and
   `make backfill` works through the first pass. `CATALOG_SKIP_HEALTH` turns the step
   off; a failure in it is a warning, not a failed run.
 - **On the site,** a dead service's card has a zebra-striped white and black ring
@@ -521,11 +522,14 @@ little:
 Each run looks up at most `CATALOG_LOGO_MAX_LOOKUPS` websites (default 300),
 starting with the sites behind the most services, so the first few runs fill the cache
 gradually. A transient failure is retried twice within the run, after 3 and 12
-seconds. If 12 lookups in a row cannot reach their site at all, the network is down
-rather than the sites, so the run stops looking up and leaves the rest uncached for
-the next run, with a warning. One local run on 2026-10-28 shows why: it cached 520
-sites as DNS failures within ten seconds, and kept them for 3 days. Host names are
-resolved 8 at a time.
+seconds. If 12 lookups in a row cannot reach their site at all, the run asks
+InCommon's metadata URL, which answered earlier in the run. If that answers too, the
+failures were the sites' own and lookups go on. If it doesn't, the network is down,
+so the run stops looking up and leaves the rest uncached, with a warning, until the
+metadata URL answers again (asked at most every 30 seconds). One local run on
+2026-10-28 shows why the network matters: it cached 520 sites as DNS failures within
+ten seconds, and kept them for 3 days. The health checks below use the same breaker.
+Host names are resolved 8 at a time.
 
 The ingest report counts the services left without any logo by reason in
 `services_without_logo`: `no_website`, `waiting` (not looked up yet),

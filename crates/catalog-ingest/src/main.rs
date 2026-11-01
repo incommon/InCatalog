@@ -440,6 +440,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
                 cache: Location::parse(&cache)?,
                 max_checks: args.health_max_checks,
                 deadline: deadline.share(0.5),
+                canary: Some(args.incommon_url.clone()),
             },
         )
         .await
@@ -449,7 +450,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
                 stopped_for_time("health", report.stopped_for_time);
                 if report.skipped_network_down > 0 {
                     warnings.push(format!(
-                        "health checks stopped after repeated connection failures; {} wait for the next run",
+                        "health checks stopped: hosts in a row could not be reached, and neither could InCommon's metadata; {} wait for the next run",
                         report.skipped_network_down
                     ));
                 }
@@ -486,6 +487,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
                 max_lookups: args.logo_max_lookups,
                 claude,
                 deadline,
+                canary: Some(args.incommon_url.clone()),
             },
         )
         .await?;
@@ -493,7 +495,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         stopped_for_time("logos", report.stopped_for_time);
         if report.sites_skipped_network_down > 0 {
             warnings.push(format!(
-                "website logo lookups stopped after repeated connection failures; {} sites wait for the next run",
+                "website logo lookups stopped: sites in a row could not be reached, and neither could InCommon's metadata; {} sites wait for the next run",
                 report.sites_skipped_network_down
             ));
         }
