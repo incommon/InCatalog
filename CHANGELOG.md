@@ -22,6 +22,7 @@ section must be written before it is cut.
   site, a confirmed match's card is near-black with an amber hazard-striped edge, a
   possible match gets a quiet ⚠ badge, and the service page shows what matched and
   links OFAC's own search. It is a pointer to OFAC's lists, not sanctions screening.
+  (#54)
 - **Whether a service still answers.** Ingest checks each service's login hosts for
   their name, a connection and a valid certificate, and its information,
   organization and privacy pages for 404s, spread over runs. Each service gets a
@@ -52,7 +53,7 @@ section must be written before it is cut.
 - **A slow download outside the time budget can't use up an ingest run.** Reading
   InCommon's import filter report now stops after 60 seconds, and OFAC's lists after
   90, with a warning, so a slow server can't hold the 15-minute run past the point
-  where caches are saved and the snapshot is written.
+  where caches are saved and the snapshot is written. (#54)
 - **A plural search word no longer matches longer words through its singular.**
   "physics" was cut to "physic" and matched as a word beginning, so "physics journals"
   found the New England Journal of Medicine through "physicians". The word as typed
