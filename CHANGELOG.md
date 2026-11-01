@@ -20,11 +20,15 @@ section must be written before it is cut.
   carries on if it answers. When it doesn't, the step waits for it to answer again,
   asked at most every 30 seconds, rather than stopping for the rest of the run. Health
   checks also run in a random order, login hosts first. The warnings now say the
-  metadata URL was unreachable too.
+  metadata URL was unreachable too. (#63)
 - **`make backfill` waits for the health checks too.** It stopped when summaries,
   sharing labels, sectors and logos were done, with up to 12,805 health checks still
   waiting. It now counts the checks over the run's cap, out of time, or skipped for
-  the network, as the README says.
+  the network, as the README says. (#63)
+- **A long badge no longer runs past its card's edge.** Badges never wrapped, so one
+  wider than the card, such as "On OFAC's consolidated list, confirmed 2026-11-01",
+  crossed the card's border. A badge now wraps onto a second line when it is wider than
+  the card, with rounded corners, and stays on one line otherwise. (#64)
 
 ## [0.4.0] - 2026-11-01
 

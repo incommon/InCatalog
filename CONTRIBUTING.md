@@ -74,8 +74,15 @@ changelog fix). The PR description names those PRs and says why they have none.
      gh release create vX.Y.Z --verify-tag --title "InCatalog X.Y.Z" --notes-file -
    ```
 
-7. Merge `release/X.Y.Z` back into `develop` (by PR), so `develop` has the bump and the
-   dated section.
+7. Merge `main` back into `develop` by PR, so `develop` has the bump, the dated
+   section and `main`'s merge commit. Merging the release branch instead leaves that
+   commit out, and GitHub keeps showing `main` as having changes to merge. GitHub
+   deletes `release/X.Y.Z` when its PR merges, so push a branch at the tag:
+
+   ```bash
+   git push origin vX.Y.Z^{commit}:refs/heads/back-merge/X.Y.Z
+   gh pr create --base develop --head back-merge/X.Y.Z --title "Merge X.Y.Z back into develop"
+   ```
 
 A hotfix is the same from `hotfix/<name>` off `main`, with a PATCH bump.
 
