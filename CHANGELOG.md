@@ -9,6 +9,8 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
 ### Added
 
 - **InCommon's logotype, "powered by Internet2".** The InCommon lockup floats,
@@ -29,7 +31,8 @@ section must be written before it is cut.
   login handler, and a service with neither to its information or organization URL,
   labelled as the site. Every URL comes from the signed metadata and must be `https:`
   on the default port with a public host. The button is SeamlessAccess's, with its
-  wording, blue and open-door logomark (self-hosted in `web/brand/`). Ingest now keeps
+  wording, blue and open-door logomark, self-hosted in `web/brand/` and, like the
+  InCommon logotypes, not licensed with the code (`NOTICE`). Ingest now keeps
   each RequestInitiator and DiscoveryResponse endpoint (`request_initiators`,
   `discovery_responses`), and the service detail carries `login`: its `target`
   (`route` and `url`) and the conditions that hid it (`blocked_by`). (#55, #56)
@@ -50,7 +53,9 @@ section must be written before it is cut.
   site, a confirmed match's card is near-black with an amber hazard-striped edge, a
   possible match gets a quiet ⚠ badge, and the service page shows what matched and
   links OFAC's own search. It is a pointer to OFAC's lists, not sanctions screening.
-  (#54)
+  Ingest settings: `--ofac-sdn-url` and `--ofac-consolidated-url`
+  (`CATALOG_OFAC_SDN_URL`, `CATALOG_OFAC_CONSOLIDATED_URL`) point at other copies of
+  the lists, and `--skip-ofac` (`CATALOG_SKIP_OFAC`) leaves them out. (#54)
 - **Whether a service still answers.** Ingest checks each service's login hosts for
   their name, a connection and a valid certificate, and its information,
   organization and privacy pages for 404s, spread over runs. Each service gets a
@@ -59,7 +64,12 @@ section must be written before it is cut.
   (`health`). Results carry `status` and `unreachable_since`, a `status` facet counts
   them, and `/v1/meta` counts `by_status`. On the site, an unreachable service's card
   has a zebra-striped ring and a dated badge, a Reachability facet filters on it, and
-  "dead services" or "broken links" read as `status=dead`. (#52)
+  "dead services" or "broken links" read as `status=dead`. The checks are kept in
+  `health-cache.json` beside the snapshot, so the deployed ingest role may now read and
+  write `snapshots/health-cache.json` (a `tofu apply`). Ingest settings:
+  `--health-max-checks` (`CATALOG_HEALTH_MAX_CHECKS`, default 4,000 per run),
+  `--health-cache` (`CATALOG_HEALTH_CACHE`) and `--skip-health`
+  (`CATALOG_SKIP_HEALTH`). (#52)
 - **Why InCommon filtered a service out of its eduGAIN import.** Ingest reads InCommon's
   newest import filter report and attaches each failed check, with InCommon's message,
   to the `edugain-only` services it names (`import_filter` on the service). The API
@@ -67,7 +77,10 @@ section must be written before it is cut.
   `/v1/meta` names the report used. On the site these services have a red outline and
   a "Filtered by InCommon" badge, a facet lists the reasons, and the service page shows
   each check and links the report. "Services filtered by InCommon" now reads as
-  `availability=edugain-only`. (#51)
+  `availability=edugain-only`. A missing or stale report is a snapshot warning, not a
+  failed run. Ingest settings: `--filter-report-index` (`CATALOG_FILTER_REPORT_INDEX`)
+  points at another report index, and `--skip-filter-report`
+  (`CATALOG_SKIP_FILTER_REPORT`) leaves it out. (#51)
 
 ### Changed
 
@@ -81,8 +94,9 @@ section must be written before it is cut.
   artwork fills the square tile now wins over a larger wide banner, and the website
   lookup prefers a square mark. The box is stored, not a cropped image: logos still
   load from their own URLs. SVG is drawn with no fonts and nothing fetched or read
-  beyond the downloaded bytes. Logos (`logos[].box`, `discovered_logo.box`), service
-  summaries (`logo_box`) and the service detail (`logo`) carry the box. Every cached
+  beyond the downloaded bytes, and a raster over 4,096 pixels on a side isn't
+  decoded. Logos (`logos[].box`, `discovered_logo.box`), service summaries
+  (`logo_box`) and the service detail (`logo`) carry the box. Every cached
   working logo is fetched once more to be measured. New dependencies: `image` and
   `resvg`, both MIT or Apache-2.0. (#58)
 - **The deployed catalog reads a curation overlay.** `curation/curation.json` is now
@@ -91,6 +105,13 @@ section must be written before it is cut.
   CARSI, whose metadata names China United Network Communications Group Co.Ltd, on
   OFAC's NS-CMIC list. The note says that listing restricts the company's securities,
   not buying its services (OFAC FAQ 905). (#59)
+- **The OpenTofu stack is in `infra/opentofu`,** renamed from `infra/terraform`. The
+  Makefile, README, workflows and `infra/state-bucket.sh` follow. A working copy
+  needs `make init` again, and any script of your own that names the old path needs
+  changing. Nothing changes in AWS: the backend settings and state key are the
+  same. (#50)
+- **Building needs Rust 1.88** (`rust-version`, up from 1.85), for the `image`
+  crate. (#58)
 - **`/v1/services` leaves out dead services by default.** `status` defaults to
   `alive,unknown`; pass `status=dead` or `status=all` to include them. Nothing drops out
   at rollout: a service is `unknown`, and shown, until checks over several days find
@@ -106,7 +127,9 @@ section must be written before it is cut.
   "physics" was cut to "physic" and matched as a word beginning, so "physics journals"
   found the New England Journal of Medicine through "physicians". The word as typed
   still matches the start of a word, and its singular now matches only that whole
-  word: "journals" still finds "journal" and "clinics" finds "clinic". (#41)
+  word: "journals" still finds "journal" and "clinics" finds "clinic". A word ending
+  in "-ies" now gives its real singular, so "libraries" finds "library" and no longer
+  "librarians". Provider search matches the same way. (#41)
 
 ## [0.3.0] - 2026-10-30
 
@@ -250,7 +273,8 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.3.0...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.0...develop
+[0.4.0]: https://github.com/incommon/InCatalog/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/incommon/InCatalog/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/incommon/InCatalog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/incommon/InCatalog/tree/v0.1.0
