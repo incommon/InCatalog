@@ -392,6 +392,13 @@ pub struct EntityAttribute {
     pub values: Vec<String>,
 }
 
+/// A metadata endpoint's `Location` and `Binding`, as published.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Endpoint {
+    pub location: String,
+    pub binding: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct RequestedAttribute {
     pub name: String,
@@ -451,6 +458,9 @@ pub struct Service {
     /// An `init:RequestInitiator` endpoint, where any IdP's user can start a login.
     #[serde(default)]
     pub supports_request_initiator: bool,
+    /// The `init:RequestInitiator` endpoints, as published. See [`crate::login`].
+    #[serde(default)]
+    pub request_initiators: Vec<Endpoint>,
     /// Hosts of the `AssertionConsumerService` locations, lowercase, without repeats.
     #[serde(default)]
     pub endpoint_hosts: Vec<String>,

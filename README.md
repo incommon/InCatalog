@@ -182,6 +182,29 @@ it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services
   domain, a CNAME to a deleted cloud resource), and the private report on login
   hosts that could be taken over. See TODOS.md.
 
+### The Log in button
+
+A service's page has a Log in button only when the service is all of these, checked
+in one place (`catalog-core/src/login.rs`) and served as `login` on
+`/v1/services/{id}`, so the site and the API agree:
+
+- **multilateral** (its sharing label);
+- **alive** (its health `status`);
+- **not filtered by InCommon** (no `import_filter`: an InCommon IdP can't see it);
+- **no OFAC match**, possible or confirmed. A match curation dismissed doesn't
+  count, and neither does a country under an OFAC program.
+
+Anything else gets no button, and `login.blocked_by` says which conditions failed.
+The button goes to the SP's own login handler, the `init:RequestInitiator`
+endpoint (Shibboleth's `/Shibboleth.sso/Login`), which asks for the user's
+institution; ingest keeps each one's `Location` and `Binding` as `request_initiators`.
+An SP that publishes none gets a link to its `mdui:InformationURL` or organization URL
+instead, labelled as the site, not a login. Every URL comes from the signed metadata,
+never from a request, and must be `https:` on the default port with a public address
+or a dotted name that isn't local (`localhost`, `.local`, `.internal`). Getting in
+still depends on the user's IdP releasing what the SP needs, and the button says so.
+Logging in through the user's own IdP, once they've chosen it, is in TODOS.md.
+
 ### Traps the code handles
 
 These are all cases where a naive implementation produces a clean, plausible, wrong

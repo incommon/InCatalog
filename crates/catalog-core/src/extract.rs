@@ -5,8 +5,8 @@
 
 use crate::categories;
 use crate::model::{
-    Contact, EntityAttribute, LangMap, Logo, Organization, Registration, RequestedAttribute,
-    Service,
+    Contact, Endpoint, EntityAttribute, LangMap, Logo, Organization, Registration,
+    RequestedAttribute, Service,
 };
 use crate::ns;
 use crate::xml::Element;
@@ -66,6 +66,15 @@ pub fn extract(entity: &Element) -> Extracted {
         }
         s.supports_discovery_response = sp_ext.child(ns::IDPDISC, "DiscoveryResponse").is_some();
         s.supports_request_initiator = sp_ext.child(ns::INIT, "RequestInitiator").is_some();
+        for ri in sp_ext.children(ns::INIT, "RequestInitiator") {
+            let e = Endpoint {
+                location: ri.attr("Location").unwrap_or("").trim().to_owned(),
+                binding: ri.attr("Binding").unwrap_or("").trim().to_owned(),
+            };
+            if !e.location.is_empty() && !s.request_initiators.contains(&e) {
+                s.request_initiators.push(e);
+            }
+        }
     }
 
     for kd in sp.children(ns::MD, "KeyDescriptor") {

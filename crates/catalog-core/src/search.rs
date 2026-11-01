@@ -245,6 +245,8 @@ pub struct ServiceDetail {
     pub sharing: SharingReading,
     /// Who runs it, and what decided that.
     pub sector: SectorReading,
+    /// Whether the page shows a Log in button, and where it goes.
+    pub login: crate::login::Login,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -657,6 +659,7 @@ impl Catalog {
             environment: self.entries[i].environment.clone(),
             sharing: self.entries[i].sharing.clone(),
             sector: self.entries[i].sector.clone(),
+            login: crate::login::login(s, self.entries[i].sharing.value),
         }
     }
 

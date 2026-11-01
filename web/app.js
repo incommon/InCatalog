@@ -378,11 +378,128 @@ function ofacNote(s) {
   );
 }
 
+// The markings a chip can carry, in the order the key lists them. The chips and the
+// key both test a service with these, so the key lists exactly what the chips show.
+const MARKINGS = [
+  {
+    key: "dead",
+    on: (s) => s.status === "dead",
+    swatch: () => h("span", { class: "card dead key-swatch" }),
+    label: "Unreachable from InCatalog: zebra-striped ring",
+    about: "reachability",
+  },
+  {
+    key: "filtered",
+    on: (s) => (s.filter_reasons || []).length > 0,
+    swatch: () => h("span", { class: "card filtered key-swatch" }),
+    label: "Filtered by InCommon\u2019s import: red outline",
+    about: "filtered",
+  },
+  {
+    key: "ofac",
+    on: (s) => s.ofac?.status === "confirmed",
+    swatch: () => h("span", { class: "card ofac key-swatch" }),
+    label: "On an OFAC list, confirmed: near-black card, amber stripe",
+    about: "ofac",
+  },
+  {
+    key: "ofac-possible",
+    on: (s) => s.ofac?.status === "possible",
+    swatch: () => h("span", { class: "badge ofac-possible key-swatch-badge" }, ofacGlyph()),
+    label: "Possible OFAC match: \u26a0\ufe0e alone",
+    about: "ofac",
+  },
+];
+const marked = (key, s) => MARKINGS.find((m) => m.key === key).on(s);
+
+// Whether the key is open, remembered in this browser only. Without storage it starts
+// open, except on narrow screens, where it starts collapsed.
+const KEY_STORE = "incatalog.chip-key";
+function keyOpen() {
+  try {
+    const v = localStorage.getItem(KEY_STORE);
+    if (v === "open" || v === "closed") return v === "open";
+  } catch {}
+  return !window.matchMedia("(max-width: 520px)").matches;
+}
+function rememberKey(open) {
+  try {
+    localStorage.setItem(KEY_STORE, open ? "open" : "closed");
+  } catch {}
+}
+
+// A view of service chips, with the key to their markings floating in its lower right.
+// The key follows the grid in the page, so it rests below the last row (never over a
+// chip or the pager) and floats only while the grid scrolls past; it never leaves the
+// grid's box, so it never covers the facets.
+function chipView(services) {
+  const grid = h("div", { class: "grid" }, services.map(serviceCard));
+  const rows = MARKINGS.filter((m) => services.some(m.on));
+  if (!rows.length) return h("div", { class: "chip-view" }, grid);
+  let open = keyOpen();
+  const list = h(
+    "ul",
+    { id: "chip-key-rows", hidden: !open },
+    rows.map((m) =>
+      h(
+        "li",
+        { "data-marking": m.key },
+        h("span", { class: "key-sample", "aria-hidden": "true" }, m.swatch()),
+        h("span", {}, m.label),
+        h("a", { href: `#/about/${m.about}`, "aria-label": `About: ${m.label}` }, "about"),
+      ),
+    ),
+  );
+  const toggle = h("button", { type: "button", class: "chip-key-toggle", "aria-expanded": String(open), "aria-controls": "chip-key-rows" }, "Key");
+  const key = h("section", { class: `chip-key${open ? " open" : ""}`, "aria-labelledby": "chip-key-title" }, h("h2", { id: "chip-key-title" }, toggle), list);
+  toggle.addEventListener("click", () => {
+    open = !open;
+    list.hidden = !open;
+    key.classList.toggle("open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    rememberKey(open);
+  });
+  const view = h("div", { class: "chip-view" }, grid, key);
+  // Focus Not Obscured (WCAG 2.4.11): a chip that takes focus under the floating key
+  // scrolls up clear of it.
+  grid.addEventListener("focusin", (e) => {
+    const r = e.target.getBoundingClientRect();
+    const k = key.getBoundingClientRect();
+    const overlap = r.bottom - k.top;
+    if (overlap > 0 && r.right > k.left && r.left < k.right) window.scrollBy(0, overlap + 12);
+  });
+  return view;
+}
+
+// The Log in button, as catalog-core/src/login.rs decides it: only on a service that
+// is multilateral, reachable, not filtered by InCommon and with no OFAC match. It goes
+// to the service's own login handler, which asks for your institution, or else to its
+// website, labelled as the site.
+const LOGIN_CAVEAT =
+  "Through your institution\u2019s account, on the service\u2019s own login page. Whether you get in depends on your institution releasing the attributes the service needs, and on any subscription it requires.";
+function loginEl(login) {
+  const t = login?.target;
+  if (!t || !t.url?.startsWith("https://") || !safeUrl(t.url)) return null;
+  const sp = t.route === "sp-initiated";
+  return h(
+    "div",
+    { class: "login" },
+    h("a", { class: sp ? "btn primary" : "btn", href: t.url, target: "_blank", rel: "noopener noreferrer" }, sp ? "Log in" : "Go to the service\u2019s site", " \u2197"),
+    h(
+      "p",
+      { class: "login-note" },
+      sp ? LOGIN_CAVEAT : "It publishes no login link, so this opens its own site, not a login.",
+      " ",
+      h("a", { href: "#/about/log-in" }, "When this shows"),
+    ),
+  );
+}
+
 function serviceCard(s) {
   const cats = s.categories.filter((c) => !QUIET_CATEGORIES.has(c));
-  const filtered = (s.filter_reasons || []).length > 0;
-  const dead = s.status === "dead";
-  const ofac = s.ofac?.status === "confirmed";
+  const filtered = marked("filtered", s);
+  const dead = marked("dead", s);
+  const ofac = marked("ofac", s);
   return h(
     "a",
     { class: `card${filtered ? " filtered" : ""}${dead ? " dead" : ""}${ofac ? " ofac" : ""}`, href: `#/services/${s.id}` },
@@ -844,7 +961,7 @@ async function search(params) {
     chips.length ? h("div", { class: "active-filters" }, chips) : "",
     h("div", { class: "resultbar" }, h("span", {}, page.total ? `${fmt(first)}–${fmt(last)} of ${fmt(page.total)} services` : ""), sort),
     page.items.length
-      ? h("div", { class: "grid" }, page.items.map(serviceCard))
+      ? chipView(page.items)
       : h(
           "div",
           { class: "empty" },
@@ -952,6 +1069,7 @@ async function serviceView(id) {
             siteHost ? h("a", { href: siteLogo.page, target: "_blank", rel: "noopener noreferrer" }, siteHost) : "the organization's website",
             ".",
           ),
+        loginEl(d.login),
       ),
     ),
     h(
@@ -1215,7 +1333,7 @@ async function providerView(id) {
       p.registrars.length ? ` · registered by ${p.federations.join(", ") || p.registrars.join(", ")}` : "",
       p.urls[0] && safeUrl(p.urls[0]) ? [" · ", h("a", { href: p.urls[0], target: "_blank", rel: "noopener noreferrer" }, "website ↗")] : "",
     ),
-    h("div", { class: "grid" }, d.services.map(serviceCard)),
+    chipView(d.services),
   );
 }
 
@@ -1296,10 +1414,14 @@ const FILTER_HELP = [
   ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],
   ["Run by", "The kind of organization that registered the service: a university, a research institution, a company, a library, a museum or archive, government, a hospital, a school, a publisher, a nonprofit, or a federation or network. It describes who runs the service, not who it is for. It comes from the catalog\u2019s curation, else from the organization\u2019s name (\u201cUniversity\u201d, \u201cBibliothek\u201d, \u201cMinistry\u201d, \u201cGmbH\u201d) or a government domain, else from Claude\u2019s reading of the organization (marked \u2726). \u201cLibrary services\u201d, \u201cmuseum SPs\u201d, and \u201crun by libraries\u201d filter by it; \u201clibrary management system\u201d searches the words."],
   ["US sanctions (OFAC)", "The countries under the US Treasury\u2019s country-wide sanctions programs, as OFAC lists them, rechecked every 90 days: Cuba, Iran, and North Korea. They are listed because the US government publishes them, not as this catalog\u2019s judgment. OFAC\u2019s programs also cover three regions of Ukraine that have no country code of their own; the rest of Ukraine isn\u2019t under them, so Ukraine isn\u2019t listed. Searching \u201csanctioned countries\u201d reads as this list. It is shown even when no service is registered there."],
-  ["Markings", "A card can carry several markings, from the outside in: the zebra-striped ring of an unreachable service sits outside the card, the red outline of a service InCommon filtered at its border, and the amber hazard stripe of a confirmed OFAC match inside its left edge, on a near-black card. Each comes with a badge that says it in words."],
+  ["Markings", "A card can carry several markings, from the outside in: the zebra-striped ring of an unreachable service sits outside the card, the red outline of a service InCommon filtered at its border, and the amber hazard stripe of a confirmed OFAC match inside its left edge, on a near-black card. Each comes with a badge that says it in words. The key in the lower right of the cards lists the markings on the cards shown; it collapses to a \u201cKey\u201d button, and this browser remembers which you chose."],
+  ["Log in", `A service\u2019s page has a Log in button only when the service is open to any institution, reachable, not filtered by InCommon, and has no OFAC match, possible or confirmed. Otherwise it has none. The button goes to the service\u2019s own login page, which its metadata names and which asks for your institution. A service that names none gets a link to its own site instead, labelled as the site. Every link comes from the service\u2019s signed metadata and must be https on a public host. ${SHARING_CAVEAT}`],
   ["Requests", "A user attribute the service asks identity providers for, such as email or ORCID."],
   ["Seen in", "Which aggregate the service appears in: InCommon\u2019s or eduGAIN\u2019s."],
 ];
+
+// Entries the chips' key and the Log in button link to, as #/about/<anchor>.
+const HELP_ANCHOR = { Reachability: "reachability", "Filtered by InCommon for": "filtered", "OFAC list match": "ofac", Markings: "markings", "Log in": "log-in" };
 
 function howToSearch(regions, exs) {
   const kinds = { geographic: "UN M49 region", common: "Common name", political: "Grouping", network: "Research network", sanctions: "US sanctions (OFAC)" };
@@ -1314,7 +1436,7 @@ function howToSearch(regions, exs) {
       {},
       "Type a service\u2019s name, or ask in plain words. Above the results, the page shows how it read your search, and you can search the exact words instead. Different filters combine: a service must match all of them.",
     ),
-    h("dl", { class: "kv" }, FILTER_HELP.map(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])),
+    h("dl", { class: "kv" }, FILTER_HELP.map(([k, v]) => [h("dt", { id: HELP_ANCHOR[k] && `help-${HELP_ANCHOR[k]}`, tabindex: HELP_ANCHOR[k] && "-1" }, k), h("dd", {}, v)])),
     exs.length > 0 &&
       h(
         "div",
@@ -1375,7 +1497,7 @@ function howToSearch(regions, exs) {
   );
 }
 
-async function aboutView() {
+async function aboutView(anchor) {
   setNav("about");
   render(loading());
   let m, cats, regions, exs;
@@ -1514,6 +1636,11 @@ async function aboutView() {
     ),
     h("p", { class: "mono" }, "API: ", h("a", { href: `${API}/openapi.json` }, "OpenAPI document"), " · data refreshes when the federations republish (daily)."),
   );
+  const target = anchor && document.getElementById(`help-${anchor}`);
+  if (target) {
+    target.scrollIntoView();
+    target.focus({ preventScroll: true });
+  }
 }
 
 // ---------- release notes ----------
@@ -1662,7 +1789,7 @@ async function route() {
   if (head === "services" && id) return serviceView(id);
   if (head === "providers") return id ? providerView(id) : providersView(params);
   if (head === "federations") return federationsView(params);
-  if (head === "about") return aboutView();
+  if (head === "about") return aboutView(id);
   if (head === "releases") return releasesView(id && decodeURIComponent(id));
   render(h("div", { class: "empty" }, "Lost in the underworld. ", h("a", { href: "#/" }, "Return to the surface.")));
 }
