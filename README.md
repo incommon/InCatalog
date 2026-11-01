@@ -816,7 +816,9 @@ in [CONTRIBUTING.md](CONTRIBUTING.md). Release notes are in [CHANGELOG.md](CHANG
 Licensed under the [Apache License, Version 2.0](LICENSE); see also [NOTICE](NOTICE). The
 bundled Poppins fonts in `web/fonts/` are under the SIL Open Font License
 (`web/fonts/OFL.txt`). The SeamlessAccess logomark in `web/brand/` is SeamlessAccess's
-mark, not licensed with the code; `web/brand/README.md` says where it came from.
+mark, not licensed with the code. The InCommon and Internet2 logotypes in `web/brand/`
+are Internet2's trademarks, used with permission and not licensed with the code; a
+fork must remove them. `web/brand/README.md` says where each came from.
 Dependency licenses are held to an allow-list in CI with
 [`cargo-deny`](deny.toml), and their attributions are generated with
 [`cargo-about`](about.toml) into `THIRD-PARTY-LICENSES.html`, which the image build

@@ -76,6 +76,14 @@
   --foot-bg: #00365e;
   --foot-ink: #f7f5eb;
   --radius: 10px;
+  /* InCommon's lockup, floating at the bottom of the window with the footer. 64px
+     keeps "Powered by" no smaller than incommon.org shows it (63px), so it never
+     shrinks; its clear space is a quarter of its height. --floater-h is the floater's
+     height, which app.js keeps current as the footer wraps; whatever sits at the
+     bottom of the window leaves room for it. */
+  --lockup-h: 64px;
+  --lockup-space: calc(var(--lockup-h) / 4);
+  --floater-h: 150px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --sans: Poppins, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ui: var(--sans);
@@ -116,6 +124,8 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* Scrolling to a focused element or an anchor stops above the floater. */
+html { scroll-padding-bottom: var(--floater-h); }
 /* `hidden` must win over any display rule (.facet button is display: flex), or a
    list's "+ N more" items show from the start and the button reveals nothing. */
 [hidden] { display: none !important; }
@@ -164,11 +174,29 @@ main:focus { outline: none; }
 .foot a { color: inherit; }
 .foot .version { margin-left: 8px; padding: 1px 7px; border: 1px solid currentColor; border-radius: 999px; text-decoration: none; opacity: 0.8; white-space: nowrap; }
 .foot .version:hover { opacity: 1; color: inherit; }
+/* The last thing on the page, stuck to the bottom of the window until the page
+   scrolls down to it. */
+.floater {
+  position: sticky; bottom: 0; z-index: 6; display: flex; flex-direction: column;
+  align-items: center; background: var(--bg); border-top: 1px solid var(--line);
+}
+.floater .foot { align-self: stretch; }
+.lockup { display: block; margin: var(--lockup-space); line-height: 0; }
+.lockup img { display: block; height: var(--lockup-h); width: auto; }
+.lockup .lockup-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lockup .lockup-light { display: none; }
+  :root:not([data-theme="light"]) .lockup .lockup-dark { display: block; }
+}
+:root[data-theme="dark"] .lockup .lockup-light { display: none; }
+:root[data-theme="dark"] .lockup .lockup-dark { display: block; }
 
 /* ---------- landing: the federation network ---------- */
 body.landing main { max-width: none; padding: 0; }
 body.landing .foot { position: relative; z-index: 2; }
-.network { position: relative; height: calc(100vh - 110px); min-height: 560px; overflow: hidden; }
+/* 60px is the top bar, so the landing page fills the window without scrolling, down
+   to a window about 690px tall, where the search panel still fits. */
+.network { position: relative; height: calc(100vh - 60px - var(--floater-h)); min-height: 480px; overflow: hidden; }
 .network canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 /* Wide screens: the search on the left, the globe on the right. Narrow: the search
    on top, the globe below it. network.js reads the same breakpoint. */
@@ -235,7 +263,7 @@ form.busy button::after { content: " …"; }
 .search-head .searchbox { flex: 1; min-width: 240px; box-shadow: none; }
 .layout { display: grid; grid-template-columns: 260px 1fr; gap: 28px; align-items: start; }
 .layout > * { min-width: 0; }
-.facets { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding-right: 4px; }
+.facets { position: sticky; top: 12px; max-height: calc(100vh - 24px - var(--floater-h)); overflow: auto; padding-right: 4px; }
 .facet { margin-bottom: 18px; }
 .facet h3 { font: 600 11px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
 .facet h3 .mode { font-weight: 400; letter-spacing: 0; text-transform: none; margin-left: 6px; }
@@ -339,15 +367,15 @@ button.chip:hover { border-color: var(--accent); }
   .card.dead::before { animation: none; }
 }
 .badge.dead { color: var(--ink); border: 1px dashed var(--ink); }
-/* The key to the chips' markings: it follows the grid in the page and sticks to the
-   bottom of the window while the grid scrolls past, so it floats in the grid's lower
+/* The key to the chips' markings: it follows the grid in the page and sticks just
+   above the floater while the grid scrolls past, so it floats in the grid's lower
    right but never leaves the grid's box. At rest it sits below the last row, so it
    never hides a chip or the pager. Each swatch is a tiny chip with the chips' own
    classes, so its zebra ring, outline and stripe are the same rules, reduced motion
    included. */
 .chip-view { position: relative; }
 .chip-key {
-  position: sticky; bottom: 12px; z-index: 5; width: max-content; max-width: 100%;
+  position: sticky; bottom: calc(var(--floater-h) + 12px); z-index: 5; width: max-content; max-width: 100%;
   margin: 12px 0 0 auto; padding: 4px; background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--radius); font: 12px var(--ui);
   box-shadow: 0 8px 28px -12px rgba(0,0,0,0.35);

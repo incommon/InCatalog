@@ -14,6 +14,11 @@ used as SeamlessAccess publishes it for reuse on the "Access through your
 institution" button. It is not licensed under the Apache License; see
 web/brand/README.md.
 
+The InCommon and Internet2 logotypes (web/brand/incommon-poweredbyi2-lockup-*.png)
+are trademarks of Internet2, used with permission. They are not licensed under the
+Apache License, and a fork of this product must remove them; see
+web/brand/README.md.
+
 This product includes third-party open-source software, distributed under
 permissive licenses (predominantly MIT and Apache-2.0, plus BSD-3-Clause, ISC,
 Zlib, Unicode-3.0 and CDLA-Permissive-2.0) and, for four crates of Servo's CSS

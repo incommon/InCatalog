@@ -11,6 +11,12 @@ section must be written before it is cut.
 
 ### Added
 
+- **InCommon's logotype, "powered by Internet2".** The InCommon lockup floats,
+  centered, at the bottom of every page, with the footer (the snapshot line and the
+  version) beneath it, and links to incommon.org. It is orange on the light theme and
+  white on the dark one, self-hosted in `web/brand/` with its source. The logotypes
+  are Internet2's trademarks, used with permission and not licensed with the code
+  (`NOTICE`).
 - **An "Access through your institution" button on a service's page.** It shows only on
   a service that is multilateral, alive, not filtered out of InCommon's eduGAIN
   import, and has no OFAC match, possible or confirmed; anything else gets none. For a

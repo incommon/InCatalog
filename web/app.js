@@ -1821,6 +1821,14 @@ async function route() {
 window.addEventListener("hashchange", route);
 route();
 
+// The floater (InCommon's lockup and the footer) is stuck to the bottom of the window,
+// and its height changes as the footer wraps; styles.css leaves room for it with
+// --floater-h.
+const floater = document.querySelector(".floater");
+new ResizeObserver(() => {
+  document.documentElement.style.setProperty("--floater-h", `${floater.offsetHeight}px`);
+}).observe(floater);
+
 meta()
   .then((m) => {
     const lm = m.sources.map((s) => s.last_modified).filter(Boolean);
