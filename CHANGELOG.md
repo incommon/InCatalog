@@ -85,6 +85,12 @@ section must be written before it is cut.
   summaries (`logo_box`) and the service detail (`logo`) carry the box. Every cached
   working logo is fetched once more to be measured. New dependencies: `image` and
   `resvg`, both MIT or Apache-2.0. (#58)
+- **The deployed catalog reads a curation overlay.** `curation/curation.json` is now
+  committed and `infra/opentofu` uploads it beside the snapshot. Its first decision
+  confirms the one possible OFAC match: China Unicom's 5G campus network service in
+  CARSI, whose metadata names China United Network Communications Group Co.Ltd, on
+  OFAC's NS-CMIC list. The note says that listing restricts the company's securities,
+  not buying its services (OFAC FAQ 905).
 - **`/v1/services` leaves out dead services by default.** `status` defaults to
   `alive,unknown`; pass `status=dead` or `status=all` to include them. Nothing drops out
   at rollout: a service is `unknown`, and shown, until checks over several days find

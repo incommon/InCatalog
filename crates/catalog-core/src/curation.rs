@@ -82,3 +82,45 @@ impl CurationFile {
 pub fn provider_name(s: &Service) -> Option<&str> {
     pick(&s.organization.display_names, None).or_else(|| pick(&s.organization.names, None))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The committed overlays parse, and each OFAC decision names one entry and one
+    /// provider or service: a misspelled key would otherwise be dropped silently.
+    #[test]
+    fn the_committed_overlays_are_well_formed() {
+        for (name, bytes) in [
+            (
+                "curation.json",
+                &include_bytes!("../../../curation/curation.json")[..],
+            ),
+            (
+                "curation.example.json",
+                &include_bytes!("../../../curation/curation.example.json")[..],
+            ),
+        ] {
+            let file = CurationFile::from_json(bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+            for d in &file.ofac {
+                let (list, uid) = d.entry.split_once(':').unwrap_or_default();
+                assert!(
+                    matches!(list, "sdn" | "consolidated") && uid.parse::<u64>().is_ok(),
+                    "{name}: entry {}",
+                    d.entry
+                );
+                assert!(
+                    d.provider.is_some() != d.service.is_some(),
+                    "{name}: {} names neither or both of provider and service",
+                    d.entry
+                );
+                assert!(
+                    chrono::NaiveDate::parse_from_str(&d.date, "%Y-%m-%d").is_ok(),
+                    "{name}: {} date {}",
+                    d.entry,
+                    d.date
+                );
+            }
+        }
+    }
+}
