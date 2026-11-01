@@ -43,6 +43,13 @@ serves it per release at `/v1/releases` and `/v1/releases/{version}`, and the fo
 version links to `#/releases/<version>`. So the notes always match the running build,
 and a test fails if the `Cargo.toml` version has no section.
 
+**Release notes on GitHub note every change.** The release PR into `main` and the
+GitHub release for the tag both carry the release's complete notes: every entry of its
+dated `CHANGELOG.md` section, under the same headings and with the PR numbers, never a
+summary or a list of highlights. Every PR merged since the last release has an entry,
+unless it changed nothing users, API clients or operators would notice (TODOs, CI, a
+changelog fix). The PR description names those PRs and says why they have none.
+
 **Cutting a release** under gitflow, for version `X.Y.Z`:
 
 1. Branch `release/X.Y.Z` from `develop`.
@@ -50,16 +57,32 @@ and a test fails if the `Cargo.toml` version has no section.
    `cargo check` so `Cargo.lock` follows.
 3. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (the
    release date), add an empty `## [Unreleased]` above it, and update the link
-   definitions at the bottom.
-4. Open a PR from `release/X.Y.Z` into `main`. CI's `release notes / version` check
+   definitions at the bottom. Check every PR since the last tag against it:
+   `git log --first-parent --format=%s vPREV..develop` lists them.
+4. Open a PR from `release/X.Y.Z` into `main`, its description the section's every
+   entry and the PRs left out, as above. CI's `release notes / version` check
    fails unless `CHANGELOG.md` has a dated section for the `Cargo.toml` version and
    `vX.Y.Z` is not tagged yet. Only fixes for the release land on the branch now.
 5. Merge it, then tag the merge commit on `main` and push the tag:
    `git tag -s vX.Y.Z -m "InCatalog X.Y.Z" && git push origin vX.Y.Z`. The tag builds
    the image and pushes it as `:vX.Y.Z` as well as `:<sha>`; deploying it is still the
    manual promotion `build-images.yml` describes.
-6. Merge `release/X.Y.Z` back into `develop` (by PR), so `develop` has the bump and the
-   dated section.
+6. Publish the GitHub release for the tag, its notes the whole dated section:
+
+   ```bash
+   awk -v v=X.Y.Z 'index($0, "## [" v "]") == 1 {f=1; next} /^## \[/ || /^\[[^]]*\]: / {f=0} f' CHANGELOG.md |
+     gh release create vX.Y.Z --verify-tag --title "InCatalog X.Y.Z" --notes-file -
+   ```
+
+7. Merge `main` back into `develop` by PR, so `develop` has the bump, the dated
+   section and `main`'s merge commit. Merging the release branch instead leaves that
+   commit out, and GitHub keeps showing `main` as having changes to merge. GitHub
+   deletes `release/X.Y.Z` when its PR merges, so push a branch at the tag:
+
+   ```bash
+   git push origin vX.Y.Z^{commit}:refs/heads/back-merge/X.Y.Z
+   gh pr create --base develop --head back-merge/X.Y.Z --title "Merge X.Y.Z back into develop"
+   ```
 
 A hotfix is the same from `hotfix/<name>` off `main`, with a PATCH bump.
 

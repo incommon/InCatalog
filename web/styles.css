@@ -465,7 +465,10 @@ ul.health-hosts code { font: 12px var(--mono); overflow-wrap: anywhere; }
 .card .org { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .card p { margin: 0; font-size: 13px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
-.badge { font: 11px var(--ui); padding: 2px 7px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+/* A badge wraps only when it is wider than the card (a long OFAC or reachability
+   badge), and never runs past the card's edge. A 9px radius is a pill on one line
+   and keeps its corners on two. */
+.badge { font: 11px var(--ui); padding: 2px 7px; border-radius: 9px; background: var(--chip); color: var(--muted); max-width: 100%; overflow-wrap: anywhere; }
 .badge.cat { color: var(--second); }
 .badge.avail { color: var(--accent); }
 .badge.cur { color: var(--ok); }
