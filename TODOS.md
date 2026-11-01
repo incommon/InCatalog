@@ -127,14 +127,15 @@ checks accessibility today, and `web/` has no build or Node tooling.
   - the About page
   - the chip markings: the red outline, alive and dead, and OFAC
   - the floating key, open and collapsed
+  - the floater at the bottom of every page (InCommon's lockup and the footer)
 
   Add the floating key's own tests (`chipView` in `web/app.js`): it lists exactly the
   markings on the page, is absent when there are none, rests below the last chip,
   keeps its collapsed state across reloads, and its swatches use the chips' classes.
 
   Add keyboard-only Playwright tests that tab through each page. They check that every
-  control can be reached and operated, and that the floating key never covers the
-  focused element (2.4.11, Focus Not Obscured).
+  control can be reached and operated, and that neither the floating key nor the
+  floater ever covers the focused element (2.4.11, Focus Not Obscured).
 - **Criteria the planned work runs into.** Settle these in the TODOs that add them,
   not after:
   - **Pause, Stop, Hide (2.2.2).** The dead services' zebra ring (which stops within five seconds) and the landing
@@ -237,46 +238,27 @@ The fix:
   - Visual: a contact sheet of real logos (Penn State's and DIRISA's among them) in
     both tile sizes, to check by eye before and after.
 
-## The InCommon logotype, with "powered by Internet2" under it
+## The InCommon lockup: official SVGs and the brand guidelines
 
-Show the InCommon logotype with the "powered by Internet2" sublogotype beneath it, as
-one lockup. The site already uses InCommon's colors and typeface, but its only mark is
-InCatalog's own: the inline SVG in `.brand` in `web/index.html`.
+The lockup floats at the bottom of every page (`.floater` in `web/index.html` and
+`web/styles.css`), from two PNGs whose original source isn't recorded
+(`web/brand/README.md`). What's left:
 
-- **Official artwork only.** Get the lockup files from Internet2's brand or marketing
-  team, as SVG, in every version the brand guidelines allow. Don't redraw, recolor or
-  re-space them, and don't copy them from a website. Record where each file came from,
-  its version and the date, beside the files (for example `web/brand/README.md`).
-- **Follow the guidelines.** Clear space, minimum size, and which version goes on which
-  background. "powered by Internet2" is the smaller line, so its smallest legible size
-  sets the lockup's minimum height. If the lockup can't stay legible at phone width,
-  use whichever smaller-screen arrangement the guidelines allow, rather than letting
-  it shrink.
-- **Where.** In the top bar, to the left of InCatalog's mark, separated by a thin
-  rule, so it reads as an InCommon service. It links to incommon.org, and it is not
-  part of the "InCatalog home" link. Decide whether the footer carries it too.
-  - The lockup is two lines, so the top bar gets taller. Check the landing globe and
-    the facets' sticky position still line up.
-  - Below 520px the top bar stacks (`styles.css`). Check the lockup there and at
-    320 CSS px.
-- **Both themes.** Use the reversed version on dark backgrounds. The theme comes from
-  `prefers-color-scheme` or from `data-theme` on the root, so a `<picture>` with a media
-  query alone would miss `data-theme`. Swap the versions with the same selectors the
-  theme tokens use. If the guidelines allow a single-color version, one inline SVG in
-  `currentColor` is simpler.
-- **Self-hosted.** Serve the files from the site's own origin (for example
-  `web/brand/`), which the CSP's `img-src 'self'` already allows. Cache them like the
-  other static assets.
-- **Accessible.** One accessible name for the lockup: "InCommon, powered by Internet2".
-  A logotype is exempt from WCAG's text-contrast minimums, but the link around it
-  still needs a visible focus style and a big enough target. Add it to the pages the
-  WCAG scan covers.
-- **Trademarks aren't Apache-2.0.** The license excludes trademarks (§6), so say in
-  `NOTICE` and the README's License section that the InCommon and Internet2 logotypes
-  are Internet2's trademarks, used with permission, and not licensed with the code.
-  Say too that a fork must remove them.
-- **Check.** Look at it in both themes, at desktop width, at 520px and at 320 CSS px,
-  against the guidelines' clear-space and minimum-size rules.
+- **Official files.** Get the lockup from Internet2's brand or marketing team, as
+  SVG, in every version the guidelines allow, with the guidelines themselves. Replace
+  the PNGs, and record each file's source, version, date and SHA-256 in
+  `web/brand/README.md`. If a single-color version is allowed, one inline SVG in
+  `currentColor` is simpler than swapping two images.
+- **Written permission.** InCommon's Trademark and Logos page requires InCommon's
+  written permission to use its logo. Keep a record of it, since `NOTICE` says
+  "used with permission".
+- **The guidelines' clear space and minimum size.** The site's 64px height and 16px
+  clear space are its own choice, since nothing published gives either. Replace them
+  with the guidelines' values.
+- **The floater's height on phones.** At 320 CSS px the lockup and the wrapped footer
+  take about 205px of the window. If that's too much, use a smaller-screen arrangement
+  the guidelines allow, or let the floater collapse on scroll. Don't shrink the lockup
+  below its minimum.
 
 ## TLS letter grades from testssl.sh, and a post-quantum badge
 
