@@ -2159,6 +2159,29 @@ mod tests {
         }
     }
 
+    /// "Sanctioned" reads as OFAC's country-wide programs, and never searches the
+    /// services' own text.
+    #[test]
+    fn sanctions_read_as_the_ofac_grouping() {
+        let v = vocab();
+        for q in [
+            "services in OFAC countries",
+            "sanctioned countries",
+            "services from US-sanctioned countries",
+            "anything in countries under US sanctions",
+            "embargoed countries",
+            "sanctioned",
+        ] {
+            let i = v.interpret(q);
+            assert_eq!(i.params.region.as_deref(), Some("ofac"), "{q}");
+            assert_eq!(i.params.q, None, "{q}");
+        }
+        let i = v.interpret("wikis in sanctioned countries");
+        assert_eq!(i.params.region.as_deref(), Some("ofac"));
+        assert_eq!(i.params.q.as_deref(), Some("wikis"));
+        assert!(i.notes.iter().any(|n| n.contains("OFAC")), "{:?}", i.notes);
+    }
+
     #[test]
     fn african_blocs_by_name() {
         let v = vocab();

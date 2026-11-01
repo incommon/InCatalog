@@ -5,7 +5,9 @@
 //!
 //! The newest log in the index is fetched on every run (about 25 KiB; the index
 //! itself is about 2 MiB). A missing or unreadable report is a snapshot warning, not
-//! a failed run: the services are still listed, only without a reason.
+//! a failed run: the services are still listed, only without a reason. The step runs
+//! before the steps that share the run's time budget, so it has a fixed limit of its
+//! own ([`TIME_LIMIT`]).
 
 use anyhow::{Context, Result};
 use catalog_core::import_filter;
@@ -15,13 +17,25 @@ use chrono::{DateTime, SecondsFormat, Utc};
 /// Older than this, the report no longer describes the aggregates being read.
 const STALE_AFTER_HOURS: i64 = 48;
 
+/// The index and the newest log usually take a second or two.
+pub const TIME_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
 pub async fn attach(
     http: &reqwest::Client,
     index_url: &str,
+    time_limit: std::time::Duration,
     services: &mut [Service],
     warnings: &mut Vec<String>,
 ) -> Option<FilterReportInfo> {
-    match fetch_and_apply(http, index_url, services).await {
+    let fetched = tokio::time::timeout(time_limit, fetch_and_apply(http, index_url, services))
+        .await
+        .unwrap_or_else(|_| {
+            Err(anyhow::anyhow!(
+                "it took longer than {} s to read",
+                time_limit.as_secs()
+            ))
+        });
+    match fetched {
         Ok(info) => {
             let age = Utc::now()
                 - DateTime::parse_from_rfc3339(&info.reported_at)
@@ -126,7 +140,7 @@ mod tests {
         let index_url = stub(Some(index_at(now)), LOG).await;
         let (mut services, mut warnings) = (services(), Vec::new());
         let http = crate::fetch::client().unwrap();
-        let info = attach(&http, &index_url, &mut services, &mut warnings)
+        let info = attach(&http, &index_url, TIME_LIMIT, &mut services, &mut warnings)
             .await
             .unwrap();
         assert!(warnings.is_empty(), "{warnings:?}");
@@ -153,9 +167,11 @@ mod tests {
         let index_url = stub(Some(index_at(three_days_ago)), LOG).await;
         let (mut services, mut warnings) = (services(), Vec::new());
         let http = crate::fetch::client().unwrap();
-        assert!(attach(&http, &index_url, &mut services, &mut warnings)
-            .await
-            .is_some());
+        assert!(
+            attach(&http, &index_url, TIME_LIMIT, &mut services, &mut warnings)
+                .await
+                .is_some()
+        );
         assert_eq!(warnings.len(), 1);
         assert!(
             warnings[0].contains("may be out of date"),
@@ -164,15 +180,40 @@ mod tests {
         );
     }
 
+    /// A server that takes the connection and never answers must not hold up the run.
+    #[tokio::test]
+    async fn a_report_that_never_arrives_stops_at_the_time_limit() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let index_url = format!(
+            "http://{}/reports/index.html",
+            listener.local_addr().unwrap()
+        );
+        let (mut services, mut warnings) = (services(), Vec::new());
+        let http = crate::fetch::client().unwrap();
+        let started = std::time::Instant::now();
+        let limit = std::time::Duration::from_millis(300);
+        assert!(
+            attach(&http, &index_url, limit, &mut services, &mut warnings)
+                .await
+                .is_none()
+        );
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+        assert!(warnings[0].contains("took longer than"), "{}", warnings[0]);
+        assert!(services.iter().all(|s| s.import_filter.is_none()));
+        drop(listener);
+    }
+
     #[tokio::test]
     async fn a_missing_report_is_a_warning() {
         let http = crate::fetch::client().unwrap();
         for index in [None, Some("<html>no logs today</html>".to_owned())] {
             let index_url = stub(index, LOG).await;
             let (mut services, mut warnings) = (services(), Vec::new());
-            assert!(attach(&http, &index_url, &mut services, &mut warnings)
-                .await
-                .is_none());
+            assert!(
+                attach(&http, &index_url, TIME_LIMIT, &mut services, &mut warnings)
+                    .await
+                    .is_none()
+            );
             assert_eq!(warnings.len(), 1);
             assert!(warnings[0].contains("unavailable"), "{}", warnings[0]);
             assert!(services.iter().all(|s| s.import_filter.is_none()));

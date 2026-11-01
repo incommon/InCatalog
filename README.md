@@ -49,6 +49,8 @@ blending them.
 | REFEDS Metadata Explorer (MET) | `https://met.refeds.org` | Every federation that publishes a given entity. Linked, not ingested |
 | REFEDS specifications | `https://refeds.org/specifications` | The entity-category and assurance URIs, encoded in `catalog-core/src/categories.rs` |
 | InCommon import filter report | `https://mdq.incommon.org/reports/md_filter_report/` | Why InCommon's eduGAIN import removed each entity it removed: the newest hourly log, read on every ingest |
+| OFAC's SDN and consolidated lists | `https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/{SDN,CONSOLIDATED}.XML` | The entities on the US Treasury's sanctions lists, compared with each provider's name and domains on every ingest |
+| OFAC FAQ 10 | `https://ofac.treasury.gov/faqs/10` | Which jurisdictions are under OFAC's country-wide programs: the `ofac` grouping in `regions.json`, rechecked every 90 days |
 
 The retired `md.incommon.org` aggregate and `wayf.incommonfederation.org` discovery
 service are not used. Every metadata resource now lives under `mdq.incommon.org`.
@@ -97,6 +99,51 @@ check by name, with InCommon's message, the report's URL and its time.
   warning and the services are listed without a reason; one more than 48 hours old
   also gets a warning. `CATALOG_SKIP_FILTER_REPORT` turns the step off, and
   `CATALOG_FILTER_REPORT_INDEX` points it at another index.
+
+### US sanctions (OFAC)
+
+Two questions, answered from the US Treasury's Office of Foreign Assets Control (OFAC)
+and labeled as OFAC's every time, never as "sanctioned" on the catalog's own word:
+
+- **Services in countries under country-wide programs:** `region=ofac`, "US sanctions
+  (OFAC)". It lists the jurisdictions OFAC's
+  [FAQ 10](https://ofac.treasury.gov/faqs/10) names: Cuba, Iran, and North Korea. The
+  Crimea and the so-called DNR and LNR regions of Ukraine have no ISO code, and the rest
+  of Ukraine is not under those programs, so Ukraine is not listed; Syria's program was
+  revoked on 2025-07-01 and is recorded under `left`. The grouping is its own kind,
+  `sanctions`, with its own heading in the site's filters, and is rechecked every 90
+  days rather than yearly. Iran's federation (IRFED) is in eduGAIN, but no service it
+  registers was in the snapshot of 2026-11-01, so the grouping finds none today.
+- **Services whose organization may be on OFAC's lists:** `ofac=possible,confirmed`.
+  Ingest reads the SDN list and the consolidated (non-SDN) list on every run
+  (`catalog-core/src/ofac.rs`) and compares only entries for entities, never
+  individuals, vessels, or aircraft:
+  - a **name** matches when the organization's name equals the entry's name or a strong
+    a.k.a., ignoring case, punctuation, a leading "The" and a trailing legal form
+    (`Co., Ltd.`, `LLC`, `GmbH`); a single word under five letters never matches
+  - a **domain** matches when a host of the service (its entityID, login endpoints,
+    organization or information page) is a website the entry lists, or under it; a
+    website with a path, such as a social media page, is not a domain
+  - **a name is not an identity.** Every match is `possible` and shows the entry it
+    matched, until the curation overlay confirms or dismisses it
+    ([Curation overlay](#curation-overlay)). Nothing is confirmed automatically. The
+    service carries its matches as `ofac`, results carry the strongest, and
+    `/v1/meta` names both lists with their publication dates and counts matches by
+    service and provider. On 2026-11-01 one service matched: a CARSI service whose
+    organization name is that of a company on the consolidated list.
+- **Not a compliance check.** This points to OFAC's lists as of their publication date.
+  It is not sanctions screening or legal advice, and the site links
+  [OFAC's own search](https://sanctionssearch.ofac.treas.gov/) on every match.
+- **On the site,** a confirmed match's card is near-black with an amber hazard-striped
+  left edge and a badge that names the list and the date ("On OFAC's SDN list,
+  confirmed 2026-11-01"); a possible match gets only a quiet ⚠ "Possible OFAC match"
+  badge; a service merely in an OFAC country gets neither. Markings combine from the
+  outside in: an unreachable card's zebra ring outside it, a filtered card's red
+  outline at its border, the OFAC stripe inside it.
+- **If a list can't be read,** or both take longer than 90 seconds, the snapshot
+  carries a warning and no service has a match, rather than matches against half of
+  OFAC's lists. `CATALOG_SKIP_OFAC` turns the step off, and `CATALOG_OFAC_SDN_URL` and
+  `CATALOG_OFAC_CONSOLIDATED_URL` point it elsewhere.
 
 ### Whether a service still answers
 
@@ -183,7 +230,7 @@ Every endpoint is a `GET`. The OpenAPI document is at `/openapi.json`.
 | `/v1/ask?q=` | Read a plain-language search and find results, loosening it when it matches nothing (see Natural-language search) |
 | `/v1/interpret?q=` | Only the reading: the filters a plain-language search maps to |
 | `/v1/meta` | Snapshot provenance (URLs, `Last-Modified`, SHA-256, `validUntil`, signature status), counts, caveats |
-| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, `sharing`, and `sector` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
+| `/v1/services` | Search. `q`, `federation`, `country`, `region`, `environment`, `sharing`, `sector`, `filter_reason`, `ofac`, and `status` (comma-separated or repeated, OR), `category` (comma-separated, AND), `availability`, `attribute`, `provider`, `source`, `provider_type`, `lang`, `sort`, `page`, `per_page`. Returns facet counts |
 | `/v1/services/{id}` | One service. `id` is the lowercase hex SHA-1 of the entityID, which is the same identifier MDQ uses, so `{sha1}` is accepted as a prefix |
 | `/v1/lookup?entity_id=` | One service, by entityID |
 | `/v1/providers`, `/v1/providers/{id}` | Services grouped by registered organization name |
@@ -227,6 +274,10 @@ what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
 
   The EU is not Europe, and Schengen is not the EU: Norway and Switzerland are in it,
   and Ireland and Cyprus are not.
+- **US sanctions (OFAC)** (`ofac`, kind `sanctions`) are the countries under OFAC's
+  country-wide programs, listed because the US government publishes them, not as the
+  catalog's judgment (see [US sanctions (OFAC)](#us-sanctions-ofac)). They are rechecked
+  every 90 days.
 - **Research and education networks** stand for the countries of their member
   networks: GÉANT (its 37 national members and the Nordic NRENs through NORDUnet),
   RedCLARA, APAN, WACREN, UbuntuNet, and ASREN. Their names count as regions only with
@@ -244,11 +295,14 @@ what "Europe" meant. `/v1/regions` lists them all. The definitions are data, in
   - the Alliance of Sahel States (Burkina Faso, Mali, Niger) is not listed, as a
     politically sensitive grouping
 
-  Groupings whose membership is contested, or that label countries by a judgment
-  (sanctions lists, "developed countries"), are left out on purpose.
-- **Every list is rechecked yearly.** Each entry records the date it was checked
-  against its source. A test fails once any entry is more than a year old, as a prompt
-  to recheck it and update `checked`.
+  - OFAC's programs for three regions of Ukraine, which have no ISO code, leave Ukraine
+    out of the `ofac` grouping
+
+  Groupings whose membership is contested, or that label countries by the catalog's
+  own judgment ("developed countries", "Global South"), are left out on purpose.
+- **Every list is rechecked yearly,** and sanctions programs every 90 days. Each entry
+  records the date it was checked against its source. A test fails once an entry is
+  older than that, as a prompt to recheck it and update `checked`.
 - **Federations that list several countries** are in a region when any of their
   countries is, the same rule `country` applies. WAYF (Denmark, Iceland, Greenland) is
   in Europe, the EU, and Northern America. A federation that lists no country is in
@@ -594,6 +648,24 @@ In AWS, set `curation_file` in `infra/opentofu`. Curated values are stored apart
 (`service.curated`) and are labeled as curated in the UI, so a reader always knows which
 statements came from the federation.
 
+It is also the only place a possible OFAC match is confirmed or dismissed. Each
+decision names the entry (`sdn:<uid>` or `consolidated:<uid>`, since UIDs repeat across
+the two lists), the organization name or the one entityID it applies to, the decision,
+its date, and an optional note shown with it:
+
+```json
+{
+  "ofac": [
+    { "entry": "consolidated:30942", "provider": "Example Telecom Group Co., Ltd.",
+      "decision": "dismissed", "date": "2026-11-01", "note": "A different company of the same name." }
+  ]
+}
+```
+
+A dismissed match disappears; a confirmed one gets the full OFAC marking with its date.
+A decision whose entry no longer matches, because it left OFAC's lists or the service
+changed, does nothing and is listed as a snapshot warning.
+
 This is also the seam for provider-maintained content later: an editing workflow only
 has to produce this file.
 
@@ -671,6 +743,9 @@ integrity guarantee. **Do not use this catalog as a trust source for SAML config
   registrant chose. It does not resolve parent/subsidiary or system/campus relationships.
   Vendors that register one SP per customer appear as a single provider with many
   services, which is usually what a catalog reader wants.
+- **Not sanctions screening.** OFAC matches compare names and domains with OFAC's lists
+  as published; a possible match is a name collision until curators confirm it, and a
+  missed match proves nothing. Use OFAC's own search for an answer.
 - **SAML only.** Services that federate only with OpenID Connect are absent.
 - **Assertions, not behavior.** A category tag records what was asserted or assigned in
   metadata. It does not guarantee that any particular identity provider releases

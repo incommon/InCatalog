@@ -184,6 +184,69 @@ pub struct FilterFinding {
     pub message: String,
 }
 
+/// An entry on one of OFAC's sanctions lists that this service's organization name or
+/// domain matched. A possible match is a name collision until the curation overlay
+/// confirms it; the catalog never states that a provider is sanctioned. See
+/// [`crate::ofac`].
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct OfacMatch {
+    /// `possible` until the curation overlay confirms it.
+    pub status: crate::ofac::MatchStatus,
+    /// `sdn` or `consolidated`.
+    pub list: crate::ofac::List,
+    /// The entry's UID on that list.
+    pub uid: String,
+    /// The entry's name, as OFAC lists it.
+    pub name: String,
+    /// OFAC's program tags for the entry, such as `CUBA` or `CMIC-EO13959`.
+    pub programs: Vec<String>,
+    /// What matched.
+    pub matched_on: Vec<MatchBasis>,
+    /// When OFAC published the list this was read from.
+    pub list_published: Option<String>,
+    /// When the curation overlay confirmed it.
+    pub decided: Option<String>,
+    /// The curators' note on it.
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct MatchBasis {
+    /// `name` (the organization's name equals the entry's name or a strong a.k.a.)
+    /// or `domain` (a host of the service is a website the entry lists, or under it).
+    pub on: String,
+    /// The service's side: its organization name, or the host.
+    pub ours: String,
+    /// The list's side: the name or website domain as OFAC lists it.
+    pub theirs: String,
+}
+
+/// OFAC's lists as a snapshot used them, and what they matched.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct OfacReport {
+    pub lists: Vec<OfacListInfo>,
+    /// Services whose strongest match is possible.
+    pub possible: usize,
+    /// Services with a match the curation overlay confirmed.
+    pub confirmed: usize,
+    /// Matches the curation overlay dismissed as name collisions.
+    pub dismissed: usize,
+    /// Providers (by organization name) with a possible or confirmed match.
+    pub providers: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct OfacListInfo {
+    /// `sdn` or `consolidated`.
+    pub list: String,
+    pub url: String,
+    /// When OFAC published it.
+    pub published: Option<String>,
+    pub fetched_at: String,
+    /// Entries for entities, the only ones compared.
+    pub entities: usize,
+}
+
 /// Whether a service still answers, from ingest's own checks of its hosts. See
 /// [`crate::health`].
 #[derive(
@@ -400,6 +463,10 @@ pub struct Service {
     /// InCommon's report says. See [`ImportFilter`].
     #[serde(default)]
     pub import_filter: Option<ImportFilter>,
+    /// Entries on OFAC's sanctions lists its organization name or domain matched,
+    /// confirmed first. Empty for almost every service. See [`OfacMatch`].
+    #[serde(default)]
+    pub ofac: Vec<OfacMatch>,
     /// eduGAIN federation code for the registrar, when eduGAIN lists it.
     pub federation: Option<String>,
     /// Factual observations about this entity's metadata (not judgments about its operator).
@@ -498,6 +565,9 @@ pub struct Snapshot {
     /// InCommon's import filter report, when ingest could read it.
     #[serde(default)]
     pub import_filter_report: Option<FilterReportInfo>,
+    /// OFAC's sanctions lists, when ingest could read them.
+    #[serde(default)]
+    pub ofac: Option<OfacReport>,
     pub warnings: Vec<String>,
 }
 
