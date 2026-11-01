@@ -17,7 +17,7 @@ use utoipa::ToSchema;
 
 use crate::categories::CATEGORIES;
 use crate::environment::Environment;
-use crate::model::{Availability, Federation, Service};
+use crate::model::{Availability, Federation, HealthStatus, Service};
 use crate::regions::{self, REGIONS};
 use crate::search::split_list;
 use crate::sector::Sector;
@@ -43,6 +43,10 @@ pub struct InterpretedParams {
     /// Comma-separated category keys.
     pub category: Option<String>,
     pub availability: Option<String>,
+    /// `dead`, `alive`, `unknown`, or `all`: whether the service still answers.
+    /// Absent means the default, `alive,unknown`.
+    #[serde(default)]
+    pub status: Option<String>,
     pub attribute: Option<String>,
     pub source: Option<String>,
     pub provider_type: Option<String>,
@@ -83,6 +87,7 @@ impl Interpretation {
             &p.sector,
             &p.category,
             &p.availability,
+            &p.status,
             &p.attribute,
             &p.source,
             &p.provider_type,
@@ -124,6 +129,7 @@ struct Phrase {
 enum Field {
     // Order is match priority when two phrases of equal length compete.
     Availability,
+    Status,
     Source,
     Environment,
     Sharing,
@@ -140,6 +146,7 @@ impl Field {
     fn key(self) -> &'static str {
         match self {
             Field::Availability => "availability",
+            Field::Status => "status",
             Field::Source => "source",
             Field::Environment => "environment",
             Field::Sharing => "sharing",
@@ -694,6 +701,26 @@ const ENVIRONMENT_EXCLUDED: &[&str] = &[
     "sandboxes",
 ];
 
+/// Ways to ask for services that no longer answer. Searching for them turns the
+/// default filter, which leaves them out, around.
+const DEAD_ALIASES: &[&str] = &[
+    "dead services",
+    "dead sites",
+    "dead links",
+    "broken links",
+    "broken services",
+    "unreachable",
+    "unreachable services",
+    "not responding",
+    "nonresponsive",
+    "non-responsive",
+    "offline services",
+    "services that are down",
+    "bad certificates",
+    "expired certificates",
+    "invalid certificates",
+];
+
 /// Who a service is for: anyone's institution, or one institution's.
 const SHARING_ALIASES: &[(&str, &[&str])] = &[
     (
@@ -995,6 +1022,9 @@ impl Vocab {
             for n in *names {
                 v.add(n, Field::Availability, a.key(), a.label(), false);
             }
+        }
+        for n in DEAD_ALIASES {
+            v.add(n, Field::Status, "dead", HealthStatus::Dead.label(), false);
         }
         for (env, names) in ENVIRONMENT_ALIASES {
             for n in *names {
@@ -1315,6 +1345,7 @@ impl Vocab {
                     continue;
                 }
                 "availability" => &mut p.availability,
+                "status" => &mut p.status,
                 "attribute" => &mut p.attribute,
                 "source" => &mut p.source,
                 "provider_type" => &mut p.provider_type,
@@ -1421,6 +1452,9 @@ impl Vocab {
             availability: keep("availability", p.availability, &|v| {
                 Availability::from_key(v).is_some()
             }),
+            status: keep("status", p.status.map(|v| v.to_lowercase()), &|v| {
+                v == "all" || HealthStatus::from_key(v).is_some()
+            }),
             attribute: keep("attribute", p.attribute, &|v| {
                 self.attributes.iter().any(|(n, _)| n == v)
             }),
@@ -1444,6 +1478,9 @@ impl Vocab {
                 .find(|d| d.key == value)
                 .map(|d| d.label.to_owned()),
             "availability" => Availability::from_key(value).map(|a| a.label().to_owned()),
+            "status" => HealthStatus::from_key(value)
+                .map(|s| s.label().to_owned())
+                .or_else(|| (value == "all").then(|| "Any status".to_owned())),
             "environment" => Some(environment_label(value)),
             "sharing" => Some(sharing_label(value)),
             "sector" => Some(sector_label(value)),
@@ -2024,6 +2061,37 @@ mod tests {
         assert_eq!(p.region.as_deref(), Some("europe,eu"));
         assert_eq!(notes.len(), 2, "{notes:?}");
         assert_eq!(vocab().label("region", "brics"), "BRICS");
+    }
+
+    #[test]
+    fn asking_for_dead_services_turns_the_default_around() {
+        for q in [
+            "dead services",
+            "journals with broken links",
+            "unreachable services in SWAMID",
+            "expired certificates",
+        ] {
+            let i = vocab().interpret(q);
+            assert_eq!(i.params.status.as_deref(), Some("dead"), "{q}");
+        }
+        assert_eq!(vocab().interpret("journals").params.status, None);
+        let mut notes = Vec::new();
+        let p = vocab().validate(
+            InterpretedParams {
+                status: Some("ALL".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.status.as_deref(), Some("all"));
+        let p = vocab().validate(
+            InterpretedParams {
+                status: Some("zombie".into()),
+                ..Default::default()
+            },
+            &mut notes,
+        );
+        assert_eq!(p.status, None);
     }
 
     #[test]

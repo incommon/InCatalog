@@ -18,8 +18,8 @@ use crate::environment::{self, EnvironmentReading};
 use crate::federations::normalize_reg_auth;
 use crate::import_filter::{self, Reason};
 use crate::model::{
-    pick, Availability, Curated, Federation, FilterReportInfo, Service, Snapshot, Source,
-    SourceInfo,
+    pick, Availability, Curated, Federation, FilterReportInfo, HealthStatus, Service, Snapshot,
+    Source, SourceInfo,
 };
 use crate::nl::{Interpretation, Vocab};
 use crate::regions::{self, RegionExpansion, REGIONS};
@@ -82,6 +82,14 @@ pub struct ServiceQuery {
     /// matches. Only `edugain-only` services have a reason.
     #[param(value_type = Option<Vec<String>>, style = Form, explode)]
     pub filter_reason: Option<String>,
+    /// Whether the service still answers, from the catalog's own checks of its login
+    /// hosts: `alive`, `dead` (unreachable from the catalog for several days), or
+    /// `unknown` (not checked yet, or no clear answer), comma-separated or as
+    /// repeated parameters, or `all`. **Defaults to `alive,unknown`**, so dead
+    /// services are left out unless asked for. A failure seen from outside isn't
+    /// proof: some services answer only from their campus network.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub status: Option<String>,
     /// Requested attribute, by `Name` or `FriendlyName` (case-insensitive).
     pub attribute: Option<String>,
     /// Provider ID from `/v1/providers`.
@@ -149,6 +157,10 @@ pub struct ServiceSummary {
     /// Why InCommon's import filtered it out (see `filter_reason` on
     /// `/v1/services`); empty unless InCommon's report gives a reason.
     pub filter_reasons: Vec<Reason>,
+    /// `alive`, `dead`, or `unknown` (see `status` on `/v1/services`).
+    pub status: HealthStatus,
+    /// When `dead`: the first failed check of the run of failures.
+    pub unreachable_since: Option<String>,
     pub registrar: Option<String>,
     pub federation: Option<String>,
     pub federation_name: Option<String>,
@@ -304,6 +316,8 @@ pub struct Counts {
     pub federations: usize,
     pub identity_providers: usize,
     pub by_availability: BTreeMap<String, usize>,
+    /// Services by `status`. `services` counts all of them, dead ones included.
+    pub by_status: BTreeMap<String, usize>,
     pub incommon_registered_services: usize,
 }
 
@@ -570,6 +584,8 @@ impl Catalog {
             categories: s.categories.clone(),
             availability: s.availability,
             filter_reasons: e.filter_reasons.clone(),
+            status: crate::health::status(s),
+            unreachable_since: s.health.as_ref().and_then(|h| h.since.clone()),
             registrar: s.registrar().map(str::to_owned),
             federation: fed.map(|f| f.code.clone()),
             federation_name: fed.map(|f| f.name.clone()),
@@ -706,6 +722,10 @@ impl Catalog {
                         if let Some(a) = s.availability {
                             bump(a.key(), a.label());
                         }
+                    }
+                    Dim::Status => {
+                        let v = crate::health::status(s);
+                        bump(v.key(), v.label());
                     }
                     Dim::FilterReason => {
                         for r in &self.entries[i].filter_reasons {
@@ -958,7 +978,11 @@ impl Catalog {
             .filter(|s| !hidden(s))
             .collect();
         let mut by_availability = BTreeMap::new();
+        let mut by_status = BTreeMap::new();
         for s in &visible {
+            *by_status
+                .entry(crate::health::status(s).key().to_owned())
+                .or_default() += 1;
             if let Some(a) = s.availability {
                 *by_availability.entry(a.key().to_owned()).or_default() += 1;
             }
@@ -994,6 +1018,7 @@ impl Catalog {
                     .filter(|s| s.registrar() == Some(INCOMMON_REGISTRAR))
                     .count(),
                 by_availability,
+                by_status,
             },
             warnings: self.snapshot.warnings.clone(),
             caveats,
@@ -1009,6 +1034,7 @@ enum Dim {
     Category,
     Availability,
     FilterReason,
+    Status,
     Environment,
     Sharing,
     Sector,
@@ -1018,13 +1044,14 @@ enum Dim {
 }
 
 impl Dim {
-    const ALL: [Dim; 12] = [
+    const ALL: [Dim; 13] = [
         Dim::Federation,
         Dim::Country,
         Dim::Region,
         Dim::Category,
         Dim::Availability,
         Dim::FilterReason,
+        Dim::Status,
         Dim::Environment,
         Dim::Sharing,
         Dim::Sector,
@@ -1041,6 +1068,7 @@ impl Dim {
             Dim::Category => "category",
             Dim::Availability => "availability",
             Dim::FilterReason => "filter_reason",
+            Dim::Status => "status",
             Dim::Environment => "environment",
             Dim::Sharing => "sharing",
             Dim::Sector => "sector",
@@ -1074,6 +1102,8 @@ struct Filters {
     availability: Option<Option<Availability>>,
     /// Filter reason keys, lowercase; like `environments`.
     filter_reasons: Vec<String>,
+    /// Status keys; empty when `all` was asked for. Defaults to alive and unknown.
+    statuses: Vec<String>,
     /// Environment keys, lowercase; a service must be in one. An unknown key adds
     /// nothing, and on its own matches nothing.
     environments: Vec<String>,
@@ -1133,6 +1163,19 @@ impl Filters {
             regions: named_regions,
             categories: split_list(q.category.as_deref()),
             availability: nonempty(&q.availability).map(|a| Availability::from_key(&a)),
+            statuses: {
+                let asked: Vec<String> = split_list(q.status.as_deref())
+                    .iter()
+                    .map(|v| v.to_lowercase())
+                    .collect();
+                if asked.is_empty() {
+                    vec!["alive".into(), "unknown".into()]
+                } else if asked.iter().any(|v| v == "all") {
+                    Vec::new()
+                } else {
+                    asked
+                }
+            },
             filter_reasons: split_list(q.filter_reason.as_deref())
                 .iter()
                 .map(|v| v.to_lowercase())
@@ -1205,6 +1248,15 @@ impl Filters {
                     return false;
                 }
             }
+        }
+        if on(Dim::Status)
+            && !self.statuses.is_empty()
+            && !self
+                .statuses
+                .iter()
+                .any(|k| k == crate::health::status(s).key())
+        {
+            return false;
         }
         if on(Dim::FilterReason)
             && !self.filter_reasons.is_empty()
@@ -2115,6 +2167,56 @@ mod tests {
             services,
             ..Default::default()
         })
+    }
+
+    #[test]
+    fn status_defaults_to_alive_and_unknown() {
+        use crate::model::{Health, HealthStatus};
+        let svc = |id: &str, status: Option<HealthStatus>| Service {
+            entity_id: id.into(),
+            id: crate::entity_hash(id),
+            health: status.map(|status| Health {
+                status,
+                since: (status == HealthStatus::Dead).then(|| "2026-10-20T00:00:00Z".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let c = Catalog::new(Snapshot {
+            services: vec![
+                svc("https://a.example/sp", Some(HealthStatus::Alive)),
+                svc("https://d.example/sp", Some(HealthStatus::Dead)),
+                svc("https://u.example/sp", Some(HealthStatus::Unknown)),
+                svc("https://n.example/sp", None),
+            ],
+            ..Default::default()
+        });
+        let page = |v: Option<&str>| {
+            c.search(&ServiceQuery {
+                status: v.map(Into::into),
+                ..Default::default()
+            })
+        };
+        let default = page(None);
+        assert_eq!(default.total, 3, "dead is left out by default");
+        assert!(default.items.iter().all(|s| s.status != HealthStatus::Dead));
+        assert_eq!(page(Some("dead")).total, 1);
+        assert_eq!(page(Some("all")).total, 4);
+        assert_eq!(page(Some("Alive, dead")).total, 2);
+        assert_eq!(page(Some("unknown")).total, 2, "never checked is unknown");
+
+        let facet: Vec<(&str, usize)> = default.facets["status"]
+            .iter()
+            .map(|f| (f.value.as_str(), f.count))
+            .collect();
+        assert_eq!(
+            facet,
+            [("unknown", 2), ("alive", 1), ("dead", 1)],
+            "the facet counts dead too"
+        );
+        let d = &page(Some("dead")).items[0];
+        assert_eq!(d.unreachable_since.as_deref(), Some("2026-10-20T00:00:00Z"));
+        assert_eq!(c.meta().counts.by_status.get("dead"), Some(&1));
     }
 
     #[test]

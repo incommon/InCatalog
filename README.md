@@ -98,6 +98,43 @@ check by name, with InCommon's message, the report's URL and its time.
   also gets a warning. `CATALOG_SKIP_FILTER_REPORT` turns the step off, and
   `CATALOG_FILTER_REPORT_INDEX` points it at another index.
 
+### Whether a service still answers
+
+Metadata outlives the services it describes, so ingest checks each service and gives
+it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services unless
+`status=dead` or `status=all` asks for them.
+
+- **Login hosts decide it.** Each `endpoint_hosts` host (the
+  `AssertionConsumerService` hosts) gets one `HEAD https://<host>/` through the same
+  guarded client as the logo checks. Any HTTP answer counts, whatever its status: a
+  login endpoint expects a SAML POST, so many answer anything else with an error.
+  What counts is the name, the connection, and the certificate.
+- **Only evidence counts toward dead:** a name that doesn't exist, a refused
+  connection, or a certificate that has expired, is for another name, or isn't
+  trusted. Timeouts, temporary DNS failures and names that resolve only to private
+  addresses are no clear answer, because some services answer only from their own
+  campus.
+- **Thresholds** (`catalog-core/src/health.rs`): a host is alive for 14 days after it
+  answers, and dead after 3 failures in a row spanning at least 72 hours; one answer
+  clears that. A service is alive when any of its login hosts is, dead when every one
+  is, and unknown otherwise, including when it lists none or was never checked.
+- **Pages meant to be read** (information, organization and privacy URLs) get a
+  `HEAD`, falling back to `GET`. A 404 or 410 lists the page as a broken link on the
+  service (`health.broken_links`), but never makes the service dead.
+- **Spread over runs.** Results are kept in `health-cache.json` beside the snapshot.
+  Hosts that answered are rechecked every 72 hours and failing ones about daily, each
+  lengthened by up to a quarter so they don't all come due at once. Login hosts come
+  first. At most `CATALOG_HEALTH_MAX_CHECKS` (default 4000) run per run, and
+  `make backfill` works through the first pass. `CATALOG_SKIP_HEALTH` turns the step
+  off; a failure in it is a warning, not a failed run.
+- **On the site,** a dead service's card has a zebra-striped white and black ring
+  whose stripes travel around it for a few seconds (still with reduced motion), and
+  a badge with the date. The Reachability facet filters on status, and the service
+  page shows each login host's latest check.
+- **Not yet:** recognizing a name that now points elsewhere (a lapsed or parked
+  domain, a CNAME to a deleted cloud resource), and the private report on login
+  hosts that could be taken over. See TODOS.md.
+
 ### Traps the code handles
 
 These are all cases where a naive implementation produces a clean, plausible, wrong

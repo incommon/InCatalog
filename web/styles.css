@@ -65,6 +65,9 @@
   --warn: #8a6400;
   /* Services InCommon's import filtered out: their cards' outline and badge. */
   --filtered: #c0262d;
+  /* Unreachable services: a ring of white and black, which reads on either theme. */
+  --pulse-light: #ffffff;
+  --pulse-dark: #000000;
   --foot-bg: #00365e;
   --foot-ink: #f7f5eb;
   --radius: 10px;
@@ -278,6 +281,33 @@ button.chip:hover { border-color: var(--accent); }
 /* Filtered by InCommon's import: a red outline, always with the badge that says so. */
 .card.filtered, .card.filtered:hover { border-color: var(--filtered); box-shadow: inset 0 0 0 1px var(--filtered); }
 .badge.filtered { color: var(--filtered); border: 1px solid var(--filtered); }
+/* Unreachable from InCatalog: a ring of wide diagonal white and black zebra stripes
+   just outside the card, travelling clockwise around it, always with the badge that
+   says so. It runs for under five seconds (WCAG 2.2.2) and then holds still; with
+   reduced motion it never moves. It sits outside the border, so a filtered card's red
+   outline stays visible inside it.
+   Each edge is its own strip of 45-degree stripes. A stripe pair is 16.97px across,
+   which is 24px along an edge (16.97 x sqrt 2), so a 24px tile repeats seamlessly and
+   moving it 24px moves the stripes exactly one pair. */
+.card.dead { position: relative; }
+.card.dead::before {
+  content: ""; position: absolute; inset: -6px; border-radius: 4px; pointer-events: none;
+  --zebra: repeating-linear-gradient(45deg, var(--pulse-dark) 0 8.485px, var(--pulse-light) 8.485px 16.97px);
+  background-image: var(--zebra), var(--zebra), var(--zebra), var(--zebra);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 24px 6px, 24px 6px, 6px 24px, 6px 24px;
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  animation: zebra-march 1.2s linear 4;
+}
+@keyframes zebra-march {
+  to { background-position: 24px 0, -24px 100%, 0 -24px, 100% 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.dead::before { animation: none; }
+}
+.badge.dead { color: var(--ink); border: 1px dashed var(--ink); }
+ul.health-hosts { margin: 4px 0 0; padding-left: 18px; }
+ul.health-hosts code { font: 12px var(--mono); overflow-wrap: anywhere; }
 .filter-note { margin-top: 12px; font-size: 13px; }
 .filter-note h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
 .filter-note ul { margin: 4px 0; padding-left: 18px; }

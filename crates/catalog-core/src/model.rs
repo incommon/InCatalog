@@ -184,6 +184,105 @@ pub struct FilterFinding {
     pub message: String,
 }
 
+/// Whether a service still answers, from ingest's own checks of its hosts. See
+/// [`crate::health`].
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    ToSchema,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum HealthStatus {
+    /// On a recent check, a login host resolved, connected and passed TLS.
+    Alive,
+    /// Every login host has failed several checks in a row over several days.
+    Dead,
+    /// Not checked yet, or no clear answer yet.
+    #[default]
+    Unknown,
+}
+
+impl HealthStatus {
+    pub const ALL: [HealthStatus; 3] = [
+        HealthStatus::Alive,
+        HealthStatus::Unknown,
+        HealthStatus::Dead,
+    ];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            HealthStatus::Alive => "alive",
+            HealthStatus::Dead => "dead",
+            HealthStatus::Unknown => "unknown",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            HealthStatus::Alive => "Reachable",
+            HealthStatus::Dead => "Unreachable from InCatalog",
+            HealthStatus::Unknown => "Not checked, or no clear answer",
+        }
+    }
+
+    pub fn from_key(k: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.key() == k)
+    }
+}
+
+/// What ingest's checks found for a service. Observed from outside, not reported by
+/// the registrant.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct Health {
+    pub status: HealthStatus,
+    /// When `dead`: the first failed check of the run of failures.
+    pub since: Option<String>,
+    /// The last time a login host answered.
+    pub last_ok: Option<String>,
+    /// Each login host (`endpoint_hosts`) and what its checks found.
+    pub hosts: Vec<HostHealth>,
+    /// Information, organization and privacy pages that answered 404 or 410. A broken
+    /// page doesn't make a service dead.
+    pub broken_links: Vec<BrokenLink>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct HostHealth {
+    pub host: String,
+    pub status: HealthStatus,
+    /// What the latest check found when it failed: `dns` (the name doesn't exist),
+    /// `connect` (refused), `tls_expired`, `tls_name` (certificate for another
+    /// name), `tls_untrusted`, `tls`, or for no clear answer `dns_transient`,
+    /// `private_address` (resolves only inside a network), `timeout`, `other`.
+    pub failure: Option<String>,
+    pub detail: Option<String>,
+    pub checked_at: Option<String>,
+    pub last_ok: Option<String>,
+    /// The first failed check of the current run of failures.
+    pub first_failed: Option<String>,
+    pub failures_in_a_row: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct BrokenLink {
+    pub url: String,
+    /// `information`, `organization`, or `privacy`.
+    pub kind: String,
+    /// Such as `HTTP 404`.
+    pub detail: String,
+    /// The first check that found it broken.
+    pub since: String,
+}
+
 /// The import filter report a snapshot used.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct FilterReportInfo {
@@ -323,6 +422,10 @@ pub struct Service {
     /// Generated sector of the organization. See [`SectorLabel`].
     #[serde(default)]
     pub sector: Option<SectorLabel>,
+
+    /// Whether it still answers, from ingest's checks. See [`Health`].
+    #[serde(default)]
+    pub health: Option<Health>,
 }
 
 impl Service {

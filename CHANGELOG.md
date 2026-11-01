@@ -11,6 +11,15 @@ section must be written before it is cut.
 
 ### Added
 
+- **Whether a service still answers.** Ingest checks each service's login hosts for
+  their name, a connection and a valid certificate, and its information,
+  organization and privacy pages for 404s, spread over runs. Each service gets a
+  `status`: `alive`, `dead` (every login host failed 3 checks in a row over at least
+  72 hours), or `unknown`, with each host's latest check and any broken pages
+  (`health`). Results carry `status` and `unreachable_since`, a `status` facet counts
+  them, and `/v1/meta` counts `by_status`. On the site, an unreachable service's card
+  has a zebra-striped ring and a dated badge, a Reachability facet filters on it, and
+  "dead services" or "broken links" read as `status=dead`. (#52)
 - **Why InCommon filtered a service out of its eduGAIN import.** Ingest reads InCommon's
   newest import filter report and attaches each failed check, with InCommon's message,
   to the `edugain-only` services it names (`import_filter` on the service). The API
@@ -19,6 +28,13 @@ section must be written before it is cut.
   a "Filtered by InCommon" badge, a facet lists the reasons, and the service page shows
   each check and links the report. "Services filtered by InCommon" now reads as
   `availability=edugain-only`. (#51)
+
+### Changed
+
+- **`/v1/services` leaves out dead services by default.** `status` defaults to
+  `alive,unknown`; pass `status=dead` or `status=all` to include them. Nothing drops out
+  at rollout: a service is `unknown`, and shown, until checks over several days find
+  it dead. (#52)
 
 ### Fixed
 
