@@ -29,9 +29,10 @@
 //! A failed lookup is only as permanent as its cause. DNS, connection, timeout, 5xx,
 //! 429, and model failures are retried within the run with backoff and cached for
 //! hours; a 404 or a TLS failure is cached for days. When lookups keep failing to
-//! connect at all, the network is down rather than the sites: the run stops looking
-//! up and leaves the rest uncached for the next run. (On 2026-10-28 one local run
-//! cached 520 sites as DNS failures within ten seconds, and kept them for 3 days.)
+//! connect at all, the network may be down rather than the sites: the run asks a host
+//! that answered earlier ([`Breaker`]), and if that fails too it stops looking up and
+//! leaves the rest uncached for the next run. (On 2026-10-28 one local run cached 520
+//! sites as DNS failures within ten seconds, and kept them for 3 days.)
 
 use std::collections::{BTreeMap, HashMap};
 use std::net::{IpAddr, SocketAddr};
@@ -68,8 +69,11 @@ const RETRY_BACKOFF: [Duration; 2] = if cfg!(test) {
 } else {
     [Duration::from_secs(3), Duration::from_secs(12)]
 };
-/// Lookups in a row that fail to connect at all before the run stops looking up.
+/// Lookups in a row that fail to connect at all before the breaker asks whether the
+/// network is down.
 const NETWORK_DOWN_AFTER: usize = 12;
+/// How long the breaker trusts its last answer before asking again.
+const PROBE_EVERY: Duration = Duration::from_secs(30);
 /// Host names resolved at once. Lookups and image checks share it.
 const DNS_AT_ONCE: usize = 8;
 /// Longest a single image may take to measure.
@@ -88,6 +92,9 @@ pub struct Options {
     pub claude: Option<Claude>,
     /// When to stop starting checks and lookups (see `budget`).
     pub deadline: Deadline,
+    /// A URL that answered earlier in the run (the InCommon aggregate), asked before
+    /// lookups stop for a network that looks down ([`Breaker`]).
+    pub canary: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -201,14 +208,53 @@ impl Failure {
     }
 }
 
-/// Counts lookups in a row that could not reach their site. Many in a row means
-/// the network is down, not the sites.
+/// Asks whether the network is up: `true` when the canary answered.
+pub(crate) type Probe = Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
+
+/// Counts lookups in a row that could not reach their site. Many in a row may mean
+/// the network is down, or only a run of dead sites: one organization's retired host
+/// names, checked side by side. So before stopping anything it asks the probe, a
+/// host that answered earlier in the run. If that answers, the failures were the
+/// sites' own and the count starts again; if not, the network is down until the
+/// probe answers again, asked at most every [`PROBE_EVERY`]. Without a probe, the
+/// count alone decides.
 #[derive(Default)]
 pub(crate) struct Breaker {
     in_a_row: AtomicUsize,
+    probe: Option<Probe>,
+    /// When the probe was last asked, and whether it answered.
+    last: tokio::sync::Mutex<Option<(tokio::time::Instant, bool)>>,
 }
 
 impl Breaker {
+    pub(crate) fn new(probe: Option<Probe>) -> Self {
+        Breaker {
+            probe,
+            ..Default::default()
+        }
+    }
+
+    /// A probe that asks `canary` with `http`: any HTTP answer means the network is
+    /// up. No probe for a canary that isn't an `http(s):` URL.
+    pub(crate) fn probing(http: &reqwest::Client, canary: Option<&str>) -> Self {
+        let probe = canary
+            .filter(|c| c.starts_with("https://") || c.starts_with("http://"))
+            .map(|c| {
+                let (http, canary) = (http.clone(), c.to_owned());
+                Arc::new(move || {
+                    let (http, canary) = (http.clone(), canary.clone());
+                    Box::pin(async move {
+                        http.head(&canary)
+                            .timeout(Duration::from_secs(10))
+                            .send()
+                            .await
+                            .is_ok()
+                    }) as futures::future::BoxFuture<'static, bool>
+                }) as Probe
+            });
+        Breaker::new(probe)
+    }
+
     pub(crate) fn record(&self, failure: Option<Failure>) {
         if failure.is_some_and(Failure::unreachable) {
             self.in_a_row.fetch_add(1, Ordering::SeqCst);
@@ -217,8 +263,31 @@ impl Breaker {
         }
     }
 
-    pub(crate) fn open(&self) -> bool {
-        self.in_a_row.load(Ordering::SeqCst) >= NETWORK_DOWN_AFTER
+    pub(crate) async fn network_down(&self) -> bool {
+        let tripped = || self.in_a_row.load(Ordering::SeqCst) >= NETWORK_DOWN_AFTER;
+        if !tripped() {
+            return false;
+        }
+        let Some(probe) = &self.probe else {
+            return true;
+        };
+        // One probe at a time; the others wait for its answer.
+        let mut last = self.last.lock().await;
+        if !tripped() {
+            return false;
+        }
+        let up = match *last {
+            Some((at, up)) if at.elapsed() < PROBE_EVERY => up,
+            _ => {
+                let up = probe().await;
+                *last = Some((tokio::time::Instant::now(), up));
+                up
+            }
+        };
+        if up {
+            self.in_a_row.store(0, Ordering::SeqCst);
+        }
+        !up
     }
 }
 
@@ -405,7 +474,7 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
             stale.truncate(opts.max_lookups);
             let started = stale.len();
             let claude = Arc::new(claude.clone());
-            let breaker = Arc::new(Breaker::default());
+            let breaker = Arc::new(Breaker::probing(&http, opts.canary.as_deref()));
             let found: Vec<Option<(String, Site)>> = opts
                 .deadline
                 .until(stream::iter(stale))
@@ -430,7 +499,7 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
             if report.sites_skipped_network_down > 0 {
                 tracing::warn!(
                     skipped = report.sites_skipped_network_down,
-                    "website lookups stopped: {NETWORK_DOWN_AFTER} in a row could not reach their site, so the network looks down"
+                    "website lookups stopped: {NETWORK_DOWN_AFTER} in a row could not reach their site, and neither could the canary, so the network looks down"
                 );
             }
             cache.sites.extend(found.into_iter().flatten());
@@ -521,12 +590,12 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Site>,
 {
-    if breaker.open() {
+    if breaker.network_down().await {
         return None;
     }
     let mut site = attempt().await;
     for wait in RETRY_BACKOFF {
-        if !site.failure().is_some_and(Failure::transient) || breaker.open() {
+        if !site.failure().is_some_and(Failure::transient) || breaker.network_down().await {
             break;
         }
         tokio::time::sleep(wait).await;
@@ -1257,8 +1326,9 @@ mod tests {
         .unwrap();
         assert_eq!(tries.load(Ordering::SeqCst), 1);
 
-        // Twelve unreachable sites in a row open the breaker, and later lookups are
-        // not attempted; a site that answers in between resets the count.
+        // Without a probe, twelve unreachable sites in a row open the breaker, and
+        // later lookups are not attempted; a site that answers in between resets the
+        // count.
         let breaker = Breaker::default();
         for _ in 0..NETWORK_DOWN_AFTER - 1 {
             with_retries(&breaker, || async { site("error", dns, 0) })
@@ -1270,16 +1340,90 @@ mod tests {
         })
         .await
         .unwrap();
-        assert!(!breaker.open());
+        assert!(!breaker.network_down().await);
         for _ in 0..NETWORK_DOWN_AFTER {
             with_retries(&breaker, || async { site("error", dns, 0) })
                 .await
                 .unwrap();
         }
-        assert!(breaker.open());
+        assert!(breaker.network_down().await);
         assert!(with_retries(&breaker, || async { site("found", "", 0) })
             .await
             .is_none());
+    }
+
+    /// A probe that answers `up`, counting how often it is asked.
+    fn probe(up: Arc<std::sync::atomic::AtomicBool>, asked: Arc<AtomicUsize>) -> Probe {
+        Arc::new(move || {
+            asked.fetch_add(1, Ordering::SeqCst);
+            let up = up.load(Ordering::SeqCst);
+            Box::pin(async move { up }) as futures::future::BoxFuture<'static, bool>
+        })
+    }
+
+    /// A run of dead sites is not an outage when the canary still answers.
+    #[tokio::test]
+    async fn dead_sites_in_a_row_are_not_an_outage_when_the_canary_answers() {
+        let up = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let asked = Arc::new(AtomicUsize::new(0));
+        let breaker = Breaker::new(Some(probe(up, asked.clone())));
+        for _ in 0..NETWORK_DOWN_AFTER * 5 {
+            breaker.record(Some(Failure::Dns));
+            assert!(!breaker.network_down().await);
+        }
+        // Asked once: within PROBE_EVERY its answer stands, and each time the count
+        // reached the limit that answer started it again.
+        assert_eq!(asked.load(Ordering::SeqCst), 1);
+    }
+
+    /// A real outage stops the lookups until the canary answers again, and the
+    /// canary is asked at most once per [`PROBE_EVERY`] meanwhile.
+    #[tokio::test(start_paused = true)]
+    async fn an_outage_lasts_until_the_canary_answers_again() {
+        let up = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let asked = Arc::new(AtomicUsize::new(0));
+        let breaker = Breaker::new(Some(probe(up.clone(), asked.clone())));
+        for _ in 0..NETWORK_DOWN_AFTER {
+            breaker.record(Some(Failure::Connect));
+        }
+        for _ in 0..10 {
+            assert!(breaker.network_down().await);
+        }
+        assert_eq!(asked.load(Ordering::SeqCst), 1);
+
+        // Back up, but the last answer still stands until it is due again.
+        up.store(true, Ordering::SeqCst);
+        assert!(breaker.network_down().await);
+        tokio::time::advance(PROBE_EVERY).await;
+        assert!(!breaker.network_down().await);
+        assert_eq!(asked.load(Ordering::SeqCst), 2);
+    }
+
+    /// The canary is asked over HTTP; any answer, whatever its status, is up.
+    #[tokio::test]
+    async fn the_canary_is_any_http_answer() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = axum::Router::new().fallback(|| async { axum::http::StatusCode::NOT_FOUND });
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let closed = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            l.local_addr().unwrap()
+        };
+        let http = reqwest::Client::new();
+        for (canary, down) in [
+            (Some(format!("http://{addr}/")), false),
+            (Some(format!("http://{closed}/")), true),
+            // Not a URL to ask: the count alone decides.
+            (Some("data/cache/incommon.xml".to_owned()), true),
+            (None, true),
+        ] {
+            let breaker = Breaker::probing(&http, canary.as_deref());
+            for _ in 0..NETWORK_DOWN_AFTER {
+                breaker.record(Some(Failure::Dns));
+            }
+            assert_eq!(breaker.network_down().await, down, "{canary:?}");
+        }
     }
 
     fn svc(entity_id: &str, org_url: Option<&str>, broken_logo: bool) -> Service {
@@ -1362,6 +1506,7 @@ mod tests {
                 max_lookups: 10,
                 claude: None,
                 deadline: Deadline::none(),
+                canary: None,
             },
         )
         .await
@@ -1383,6 +1528,7 @@ mod tests {
                 max_lookups: 10,
                 claude: None,
                 deadline: Deadline::after(std::time::Duration::ZERO),
+                canary: None,
             },
         )
         .await
