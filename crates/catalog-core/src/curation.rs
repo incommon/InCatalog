@@ -10,6 +10,9 @@
 //!
 //! Curated values are stored on `Service::curated`, never merged into the
 //! metadata-derived fields, so a reader can always tell which is which.
+//!
+//! It is also the only place a possible match against OFAC's sanctions lists is
+//! confirmed or dismissed (`ofac`, see [`crate::ofac::Decision`]).
 
 use std::collections::HashMap;
 
@@ -23,6 +26,9 @@ pub struct CurationFile {
     pub services: HashMap<String, CuratedEntry>,
     #[serde(default)]
     pub providers: HashMap<String, CuratedEntry>,
+    /// Decisions on possible OFAC matches.
+    #[serde(default)]
+    pub ofac: Vec<crate::ofac::Decision>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

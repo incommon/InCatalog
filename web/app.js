@@ -97,7 +97,7 @@ const fedKey = (index, v) => (index?.get(v.toLowerCase())?.ra ?? v).trim().repla
 // Filters that take several values, kept comma-separated in the URL as the API reads them:
 // a service must carry every category, and may be registered by any of the federations,
 // in any of the countries or regions, or be in any of the environments.
-const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any", filter_reason: "any", status: "any" };
+const MULTI = { category: "all", federation: "any", country: "any", region: "any", environment: "any", sharing: "any", sector: "any", filter_reason: "any", ofac: "any", status: "any" };
 // Region names read "the European Union" in a sentence and "European Union" in a list.
 const bare = (label) => label.replace(/^the /, "");
 const listOf = (v) => (v || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -179,6 +179,21 @@ const HOST_FAILURE = {
   other: "the check failed",
 };
 const IMPORT_POLICY_URL = "https://spaces.at.internet2.edu/spaces/federation/pages/168691916/Interfederation+Technical+Policy";
+// OFAC's sanctions lists (catalog-core/src/ofac.rs). Every label says whose list it
+// is, and a possible match never reads as a finding.
+const OFAC_LIST = { sdn: "OFAC\u2019s SDN list", consolidated: "OFAC\u2019s consolidated list" };
+const OFAC_STATUS = { confirmed: "On an OFAC list, confirmed", possible: "Possible OFAC match" };
+const OFAC_SEARCH_URL = "https://sanctionssearch.ofac.treas.gov/";
+const OFAC_CAVEAT = "A pointer to OFAC\u2019s own lists as of their publication date, not sanctions screening or legal advice.";
+const ofacGlyph = () => h("span", { class: "ofac-glyph", "aria-hidden": "true" }, "\u26a0\ufe0e ");
+// The badge for a service's strongest match: which list and when, once confirmed;
+// only "possible" until then.
+function ofacBadge(o) {
+  if (!o) return null;
+  if (o.status === "confirmed")
+    return h("span", { class: "badge ofac", title: OFAC_CAVEAT }, ofacGlyph(), `On ${OFAC_LIST[o.list] || o.list}, confirmed${o.decided ? ` ${o.decided}` : ""}`);
+  return h("span", { class: "badge ofac-possible", title: `A name or domain matched an entry on ${OFAC_LIST[o.list] || o.list}; nobody has confirmed it is the same organization. ${OFAC_CAVEAT}` }, ofacGlyph(), OFAC_STATUS.possible);
+}
 // Sirtfi is near-universal and the InCommon tag is implied by the registrar, so
 // cards leave them off to keep the meaningful tags visible.
 const ENVIRONMENT = { production: "Production", test: "Test", staging: "Staging", development: "Development", unknown: "Unknown" };
@@ -320,13 +335,57 @@ function importFilterNote(s) {
   );
 }
 
+// Each entry on OFAC's lists the organization's name or domain matched, what matched,
+// and whether the catalog's curators confirmed it. Never a finding of the catalog's own.
+function ofacNote(s) {
+  const ms = s.ofac || [];
+  if (!ms.length) return null;
+  const confirmed = ms[0].status === "confirmed";
+  const basis = (b) =>
+    b.on === "domain"
+      ? ["the host ", h("code", {}, b.ours), b.ours === b.theirs ? " is the website it lists" : [" is under the website it lists, ", h("code", {}, b.theirs)]]
+      : ["the organization name \u201c", b.ours, "\u201d equals its name or a.k.a. \u201c", b.theirs, "\u201d"];
+  return h(
+    "section",
+    { class: `panel ofac-note${confirmed ? " ofac" : ""}` },
+    h("h2", {}, "US sanctions lists (OFAC)"),
+    h(
+      "ul",
+      {},
+      ms.map((m) =>
+        h(
+          "li",
+          {},
+          ofacBadge(m),
+          " ",
+          h("strong", {}, m.name),
+          ` on ${OFAC_LIST[m.list] || m.list} (entry ${m.uid}${m.programs.length ? `; programs ${m.programs.join(", ")}` : ""}${m.list_published ? `; list of ${m.list_published}` : ""}). Matched because `,
+          m.matched_on.map((b, i) => [i ? "; and " : "", basis(b)]),
+          ".",
+          m.status === "confirmed"
+            ? ` The catalog\u2019s curators confirmed on ${m.decided} that this is the same organization.${m.note ? ` ${m.note}` : ""}`
+            : " Nobody has confirmed that this is the same organization: a name is not an identity.",
+        ),
+      ),
+    ),
+    h(
+      "p",
+      { class: "gen-note" },
+      `${OFAC_CAVEAT} For an answer, use `,
+      h("a", { href: OFAC_SEARCH_URL, target: "_blank", rel: "noopener noreferrer" }, "OFAC\u2019s own search"),
+      ".",
+    ),
+  );
+}
+
 function serviceCard(s) {
   const cats = s.categories.filter((c) => !QUIET_CATEGORIES.has(c));
   const filtered = (s.filter_reasons || []).length > 0;
   const dead = s.status === "dead";
+  const ofac = s.ofac?.status === "confirmed";
   return h(
     "a",
-    { class: `card${filtered ? " filtered" : ""}${dead ? " dead" : ""}`, href: `#/services/${s.id}` },
+    { class: `card${filtered ? " filtered" : ""}${dead ? " dead" : ""}${ofac ? " ofac" : ""}`, href: `#/services/${s.id}` },
     h("div", { class: "card-top" }, logoEl(s.logo, s.name, false, s.logo_source === "website" ? "Logo from the organization's website" : null), h("div", { style: "min-width:0" }, h("h2", {}, s.name), s.organization && h("div", { class: "org" }, s.organization))),
     s.description &&
       h(
@@ -338,6 +397,7 @@ function serviceCard(s) {
     h(
       "div",
       { class: "badges" },
+      ofacBadge(s.ofac),
       NON_PRODUCTION[s.environment] && h("span", { class: "badge env", title: ENVIRONMENT_SOURCE[s.environment_source] }, NON_PRODUCTION[s.environment]),
       SHARING_BADGE[s.sharing] &&
         h(
@@ -533,6 +593,7 @@ async function landing() {
 const FACET_ORDER = [
   ["availability", "Availability"],
   ["filter_reason", "Filtered by InCommon for"],
+  ["ofac", "OFAC list match"],
   ["status", "Reachability"],
   ["environment", "Environment"],
   ["sharing", "Open to"],
@@ -541,6 +602,7 @@ const FACET_ORDER = [
   ["federation", "Registered by"],
   ["region", "Region"],
   ["grouping", "Grouping"],
+  ["sanctions", "US sanctions (OFAC)"],
   ["country", "Country"],
   ["attribute", "Requested attribute"],
   ["source", "Seen in"],
@@ -603,7 +665,7 @@ function regionFacet(regions, values, selected, refine) {
     const b = branch("common", "the common names", common.map((r) => h("div", { class: "region-row", style: "--depth:1" }, h("span", { class: "twisty" }), pickButton(r))), common.some((r) => isOn(r.key)));
     names = [h("div", { class: "region-row region-label" }, b.twisty, h("span", {}, "Common names")), b.list];
   }
-  const geoSelected = selected.filter((s) => regions.some((r) => r.key === s.toLowerCase() && r.kind !== "political" && r.kind !== "network"));
+  const geoSelected = selected.filter((s) => regions.some((r) => r.key === s.toLowerCase() && ["geographic", "common"].includes(r.kind)));
   const mode = selected.length > 1 && geoSelected.length && h("span", { class: "mode" }, "matching any");
   return h("div", { class: "facet region-facet" }, h("h3", {}, "Region", mode), tree, names);
 }
@@ -656,19 +718,23 @@ async function search(params) {
   }
 
   // Facets. Regions are listed in full from /v1/regions; the grouping facet is the
-  // region filter's political groupings and research networks, by count.
+  // region filter's political groupings and research networks, by count. OFAC's
+  // country-wide programs have a heading of their own and show even at 0.
   const regionKind = new Map(regions.map((r) => [r.key, r.kind]));
+  const regionCount = new Map((page.facets.region || []).map((v) => [v.value, v.count]));
   for (const [key, label] of FACET_ORDER) {
     if (key === "region") {
       const el = regionFacet(regions, page.facets.region || [], listOf(params.region), refine);
       if (el) facetsEl.append(el);
       continue;
     }
-    const param = key === "grouping" ? "region" : key;
+    const param = key === "grouping" || key === "sanctions" ? "region" : key;
     const values =
       key === "grouping"
-        ? (page.facets.region || []).filter((v) => !["geographic", "common"].includes(regionKind.get(v.value)))
-        : page.facets[key] || [];
+        ? (page.facets.region || []).filter((v) => ["political", "network"].includes(regionKind.get(v.value)))
+        : key === "sanctions"
+          ? regions.filter((r) => r.kind === "sanctions").map((r) => ({ value: r.key, label: "Countries in its programs", count: regionCount.get(r.key) || 0 }))
+          : page.facets[key] || [];
     if (!values.length) continue;
     const active = params[param];
     // Searches leave out unreachable services unless asked, so with no status chosen
@@ -684,6 +750,7 @@ async function search(params) {
         {
           type: "button",
           "aria-pressed": on ? "true" : "false",
+          class: v.count ? null : "zero",
           hidden: i >= limit && !on,
           onclick: () => {
             let next = on ? "" : v.value;
@@ -691,7 +758,7 @@ async function search(params) {
             refine({ [param]: next });
           },
         },
-        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : param === "region" ? bare(v.label) : key === "category" ? v.label : AVAILABILITY[v.value] || v.label),
+        h("span", {}, key === "country" ? `${flag(v.value)} ${v.label}` : param === "region" ? bare(v.label) : key === "category" ? v.label : key === "ofac" ? OFAC_STATUS[v.value] || v.label : AVAILABILITY[v.value] || v.label),
         h("span", { class: "n" }, fmt(v.count)),
       );
       list.append(btn);
@@ -718,6 +785,8 @@ async function search(params) {
   const chipLabel = (k, v) =>
     k === "availability"
       ? AVAILABILITY[v] || v
+      : k === "ofac"
+        ? OFAC_STATUS[v] || v
       : k === "environment" || k === "sharing" || k === "sector"
         ? ({ environment: ENVIRONMENT, sharing: SHARING, sector: SECTOR }[k])[v] || v
         : k === "category"
@@ -891,6 +960,7 @@ async function serviceView(id) {
       h(
         "div",
         {},
+        ofacNote(s),
         s.curated &&
           h(
             "section",
@@ -1221,15 +1291,18 @@ const FILTER_HELP = [
   ["Availability", "Where the service can be used from: InCommon only, exported to eduGAIN, or registered elsewhere and imported."],
   ["Reachability", "Whether the service still answers, from the catalog\u2019s own checks of its login hosts: their name, a connection, and a valid certificate, every few days. A login host counts as reachable for 14 days after it answers. A service is unreachable when every login host has failed three checks in a row over at least three days; its card then has a zebra-striped white and black border and says since when, and searches leave it out unless you pick \u201cUnreachable from InCatalog\u201d here. Some services answer only from their own campus, so a failure seen from outside isn\u2019t proof they\u2019re gone, and timeouts never count. A missing information or privacy page is listed on the service but doesn\u2019t make it unreachable."],
   ["Filtered by InCommon for", "Why InCommon’s eduGAIN import left a service out, as InCommon’s own import filter report states it, grouped by the rule in its import policy. These services have a red outline and a “Filtered by InCommon” badge, and their page lists each check they failed. The report is read on every refresh. An eduGAIN-only service the report doesn’t mention may be out of the import for another reason, such as timing between the two aggregates."],
+  ["OFAC list match", "Services whose organization name or domain matches an entity on OFAC\u2019s sanctions lists, the SDN list and the consolidated (non-SDN) list, read on every refresh. Names match only when equal apart from case, punctuation, and a legal form such as \u201cCo., Ltd.\u201d; a domain matches when a host of the service is a website the entry lists. Individuals are never compared. A name is not an identity, so a match stays a \u201cPossible OFAC match\u201d, marked with \u26a0\ufe0e alone, until the catalog\u2019s curators confirm or dismiss it; nothing is confirmed automatically. A confirmed match has a near-black card with an amber hazard-striped left edge and a badge that names the list and the date. This points to OFAC\u2019s own lists as of their publication date. It is not sanctions screening or legal advice: OFAC\u2019s own search, linked under Sources and on each match, is."],
   ["Environment", "Production, test, staging, or development. It is read from markers in the entityID or the name (test., -dev, \u201c(Staging)\u201d), or else from Claude\u2019s reading of the metadata (marked \u2726). Every environment is shown unless you pick some; test and staging copies rank below the live service they mirror."],
   ["Open to", `Any institution (multilateral) or one institution (bilateral). Per-campus tenants such as <campus>.zoom.us are decided from the metadata; most other labels are Claude\u2019s reading (marked \u2726). ${SHARING_CAVEAT}`],
   ["Run by", "The kind of organization that registered the service: a university, a research institution, a company, a library, a museum or archive, government, a hospital, a school, a publisher, a nonprofit, or a federation or network. It describes who runs the service, not who it is for. It comes from the catalog\u2019s curation, else from the organization\u2019s name (\u201cUniversity\u201d, \u201cBibliothek\u201d, \u201cMinistry\u201d, \u201cGmbH\u201d) or a government domain, else from Claude\u2019s reading of the organization (marked \u2726). \u201cLibrary services\u201d, \u201cmuseum SPs\u201d, and \u201crun by libraries\u201d filter by it; \u201clibrary management system\u201d searches the words."],
+  ["US sanctions (OFAC)", "The countries under the US Treasury\u2019s country-wide sanctions programs, as OFAC lists them, rechecked every 90 days: Cuba, Iran, and North Korea. They are listed because the US government publishes them, not as this catalog\u2019s judgment. OFAC\u2019s programs also cover three regions of Ukraine that have no country code of their own; the rest of Ukraine isn\u2019t under them, so Ukraine isn\u2019t listed. Searching \u201csanctioned countries\u201d reads as this list. It is shown even when no service is registered there."],
+  ["Markings", "A card can carry several markings, from the outside in: the zebra-striped ring of an unreachable service sits outside the card, the red outline of a service InCommon filtered at its border, and the amber hazard stripe of a confirmed OFAC match inside its left edge, on a near-black card. Each comes with a badge that says it in words."],
   ["Requests", "A user attribute the service asks identity providers for, such as email or ORCID."],
   ["Seen in", "Which aggregate the service appears in: InCommon\u2019s or eduGAIN\u2019s."],
 ];
 
 function howToSearch(regions, exs) {
-  const kinds = { geographic: "UN M49 region", common: "Common name", political: "Grouping", network: "Research network" };
+  const kinds = { geographic: "UN M49 region", common: "Common name", political: "Grouping", network: "Research network", sanctions: "US sanctions (OFAC)" };
   const byKey = new Map(regions.map((r) => [r.key, r]));
   const depth = (r) => (r.parent && byKey.has(r.parent) ? 1 + depth(byKey.get(r.parent)) : 0);
   return h(
@@ -1266,7 +1339,7 @@ function howToSearch(regions, exs) {
         h(
           "p",
           {},
-          "Each stands for a list of countries with its source. Geographic regions follow UN M49, each indented under the region it is part of. Common names such as the Middle East or the Balkans have no standard definition: each follows one cited source and says what it includes. Groupings say when their membership took effect, and every list says when it was last checked against its source. Contested lists are left out on purpose.",
+          "Each stands for a list of countries with its source. Geographic regions follow UN M49, each indented under the region it is part of. Common names such as the Middle East or the Balkans have no standard definition: each follows one cited source and says what it includes. Groupings say when their membership took effect, and every list says when it was last checked against its source. The countries under US sanctions are OFAC\u2019s own list, labeled as OFAC\u2019s and rechecked every 90 days. Contested lists, and lists that would label countries by this catalog\u2019s own judgment, are left out on purpose.",
         ),
         h(
           "div",
@@ -1367,6 +1440,42 @@ async function aboutView() {
         ),
       ),
     ),
+    m.ofac &&
+      h(
+        "section",
+        { class: "panel" },
+        h("h2", {}, "US sanctions lists (OFAC)"),
+        h(
+          "p",
+          {},
+          `Each refresh compares every organization\u2019s name and domains with the entities on OFAC\u2019s lists. ${fmt(m.ofac.possible)} services have a possible match and ${fmt(m.ofac.confirmed)} a confirmed one, from ${fmt(m.ofac.providers)} providers; the catalog\u2019s curators dismissed ${fmt(m.ofac.dismissed)} matches as name collisions. ${OFAC_CAVEAT} For an answer, use `,
+          h("a", { href: OFAC_SEARCH_URL, target: "_blank", rel: "noopener noreferrer" }, "OFAC\u2019s own search"),
+          ".",
+        ),
+        h(
+          "div",
+          { class: "table-wrap" },
+          h(
+            "table",
+            {},
+            h("thead", {}, h("tr", {}, h("th", {}, "List"), h("th", {}, "Published"), h("th", { class: "num" }, "Entities compared"), h("th", {}, "Fetched"))),
+            h(
+              "tbody",
+              {},
+              m.ofac.lists.map((l) =>
+                h(
+                  "tr",
+                  {},
+                  h("td", {}, h("a", { href: l.url }, OFAC_LIST[l.list] || l.list)),
+                  h("td", {}, l.published || "\u2014"),
+                  h("td", { class: "num" }, fmt(l.entities)),
+                  h("td", {}, l.fetched_at),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     h("section", { class: "panel" }, h("h2", {}, "Read with care"), h("ul", { class: "notes" }, m.caveats.map((c) => h("li", {}, c)))),
     m.warnings.length > 0 && h("section", { class: "panel" }, h("h2", {}, "Ingest warnings"), h("ul", { class: "notes" }, m.warnings.map((c) => h("li", {}, c)))),
     h(

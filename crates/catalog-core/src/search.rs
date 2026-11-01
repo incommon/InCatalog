@@ -18,10 +18,11 @@ use crate::environment::{self, EnvironmentReading};
 use crate::federations::normalize_reg_auth;
 use crate::import_filter::{self, Reason};
 use crate::model::{
-    pick, Availability, Curated, Federation, FilterReportInfo, HealthStatus, Service, Snapshot,
-    Source, SourceInfo,
+    pick, Availability, Curated, Federation, FilterReportInfo, HealthStatus, OfacReport, Service,
+    Snapshot, Source, SourceInfo,
 };
 use crate::nl::{Interpretation, Vocab};
+use crate::ofac::MatchStatus;
 use crate::regions::{self, RegionExpansion, REGIONS};
 use crate::sector::{self, Sector, SectorReading};
 use crate::sharing::{self, Sharing, SharingReading};
@@ -82,6 +83,15 @@ pub struct ServiceQuery {
     /// matches. Only `edugain-only` services have a reason.
     #[param(value_type = Option<Vec<String>>, style = Form, explode)]
     pub filter_reason: Option<String>,
+    /// Services whose organization name or domain matched an entry on OFAC's
+    /// sanctions lists: `possible` (a match nobody has confirmed: a name is not an
+    /// identity) or `confirmed` (confirmed by the catalog's curators),
+    /// comma-separated or as repeated parameters. See `ofac` on the service. A
+    /// pointer to OFAC's own lists as of their publication date, not sanctions
+    /// screening or legal advice. Services in countries under OFAC's country-wide
+    /// programs are `region=ofac`.
+    #[param(value_type = Option<Vec<String>>, style = Form, explode)]
+    pub ofac: Option<String>,
     /// Whether the service still answers, from the catalog's own checks of its login
     /// hosts: `alive`, `dead` (unreachable from the catalog for several days), or
     /// `unknown` (not checked yet, or no clear answer), comma-separated or as
@@ -157,6 +167,10 @@ pub struct ServiceSummary {
     /// Why InCommon's import filtered it out (see `filter_reason` on
     /// `/v1/services`); empty unless InCommon's report gives a reason.
     pub filter_reasons: Vec<Reason>,
+    /// Its strongest match on OFAC's sanctions lists, when its organization's name or
+    /// domain matched an entry (see `ofac` on `/v1/services`); absent otherwise. A
+    /// possible match is not a finding.
+    pub ofac: Option<OfacSummary>,
     /// `alive`, `dead`, or `unknown` (see `status` on `/v1/services`).
     pub status: HealthStatus,
     /// When `dead`: the first failed check of the run of failures.
@@ -167,6 +181,18 @@ pub struct ServiceSummary {
     pub countries: Vec<String>,
     pub sources: Vec<Source>,
     pub curated: Option<Curated>,
+}
+
+/// A service's strongest OFAC match, for a result card. The service's `ofac` has
+/// every match in full.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct OfacSummary {
+    /// `confirmed` or `possible`.
+    pub status: MatchStatus,
+    /// `sdn` or `consolidated`.
+    pub list: crate::ofac::List,
+    /// When the curation overlay confirmed it.
+    pub decided: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -333,6 +359,9 @@ pub struct Meta {
     pub sources: Vec<SourceInfo>,
     /// InCommon's import filter report this snapshot used, when ingest could read it.
     pub import_filter_report: Option<FilterReportInfo>,
+    /// OFAC's sanctions lists this snapshot was compared with, when ingest could read
+    /// them, and how many services matched.
+    pub ofac: Option<OfacReport>,
     pub counts: Counts,
     pub warnings: Vec<String>,
     pub caveats: Vec<String>,
@@ -349,6 +378,7 @@ struct Entry {
     sharing: SharingReading,
     sector: SectorReading,
     filter_reasons: Vec<Reason>,
+    ofac: Option<MatchStatus>,
     name: String,
     name_lc: String,
     org_lc: String,
@@ -480,6 +510,7 @@ impl Catalog {
                 sharing: sharing::classify(s, clusters.get(&s.entity_id)),
                 sector: sector::classify(s, &fed_hosts),
                 filter_reasons: import_filter::reasons(s),
+                ofac: crate::ofac::status(&s.ofac),
                 org_n: normalize(&pkey),
                 name_lc: name.to_lowercase(),
                 name,
@@ -584,6 +615,11 @@ impl Catalog {
             categories: s.categories.clone(),
             availability: s.availability,
             filter_reasons: e.filter_reasons.clone(),
+            ofac: s.ofac.first().map(|m| OfacSummary {
+                status: m.status,
+                list: m.list,
+                decided: m.decided.clone(),
+            }),
             status: crate::health::status(s),
             unreachable_since: s.health.as_ref().and_then(|h| h.since.clone()),
             registrar: s.registrar().map(str::to_owned),
@@ -730,6 +766,11 @@ impl Catalog {
                     Dim::FilterReason => {
                         for r in &self.entries[i].filter_reasons {
                             bump(r.key(), r.label());
+                        }
+                    }
+                    Dim::Ofac => {
+                        if let Some(m) = self.entries[i].ofac {
+                            bump(m.key(), m.label());
                         }
                     }
                     Dim::Environment => {
@@ -994,6 +1035,9 @@ impl Catalog {
             "Entity categories record what was asserted or assigned in metadata; they do not guarantee attribute release by any particular identity provider.".to_owned(),
             "Services that federate only with OpenID Connect do not appear in SAML metadata.".to_owned(),
         ];
+        if self.snapshot.ofac.is_some() {
+            caveats.push("OFAC matches compare organization names and domains with OFAC's published lists as of their publication date. A possible match is a name collision until the catalog's curators confirm it, and none of this is sanctions screening or legal advice: use OFAC's own search (https://sanctionssearch.ofac.treas.gov/).".to_owned());
+        }
         if self.snapshot.sources.iter().any(|s| !s.signature_verified) {
             caveats.push("Aggregates were fetched over TLS from the federation operators, but their XML signatures were not verified for this snapshot. Do not use this catalog as a trust source for SAML configuration; consume signed metadata directly.".to_owned());
         }
@@ -1004,6 +1048,7 @@ impl Catalog {
             generator: self.snapshot.generator.clone(),
             sources: self.snapshot.sources.clone(),
             import_filter_report: self.snapshot.import_filter_report.clone(),
+            ofac: self.snapshot.ofac.clone(),
             counts: Counts {
                 services: visible.len(),
                 providers: self
@@ -1034,6 +1079,7 @@ enum Dim {
     Category,
     Availability,
     FilterReason,
+    Ofac,
     Status,
     Environment,
     Sharing,
@@ -1044,13 +1090,14 @@ enum Dim {
 }
 
 impl Dim {
-    const ALL: [Dim; 13] = [
+    const ALL: [Dim; 14] = [
         Dim::Federation,
         Dim::Country,
         Dim::Region,
         Dim::Category,
         Dim::Availability,
         Dim::FilterReason,
+        Dim::Ofac,
         Dim::Status,
         Dim::Environment,
         Dim::Sharing,
@@ -1068,6 +1115,7 @@ impl Dim {
             Dim::Category => "category",
             Dim::Availability => "availability",
             Dim::FilterReason => "filter_reason",
+            Dim::Ofac => "ofac",
             Dim::Status => "status",
             Dim::Environment => "environment",
             Dim::Sharing => "sharing",
@@ -1102,6 +1150,8 @@ struct Filters {
     availability: Option<Option<Availability>>,
     /// Filter reason keys, lowercase; like `environments`.
     filter_reasons: Vec<String>,
+    /// OFAC match statuses, lowercase; like `environments`.
+    ofac: Vec<String>,
     /// Status keys; empty when `all` was asked for. Defaults to alive and unknown.
     statuses: Vec<String>,
     /// Environment keys, lowercase; a service must be in one. An unknown key adds
@@ -1177,6 +1227,10 @@ impl Filters {
                 }
             },
             filter_reasons: split_list(q.filter_reason.as_deref())
+                .iter()
+                .map(|v| v.to_lowercase())
+                .collect(),
+            ofac: split_list(q.ofac.as_deref())
                 .iter()
                 .map(|v| v.to_lowercase())
                 .collect(),
@@ -1264,6 +1318,14 @@ impl Filters {
                 .filter_reasons
                 .iter()
                 .any(|k| e.filter_reasons.iter().any(|r| r.key() == k))
+        {
+            return false;
+        }
+        if on(Dim::Ofac)
+            && !self.ofac.is_empty()
+            && !e
+                .ofac
+                .is_some_and(|m| self.ofac.iter().any(|k| k == m.key()))
         {
             return false;
         }

@@ -11,6 +11,17 @@ section must be written before it is cut.
 
 ### Added
 
+- **US sanctions (OFAC).** A new `ofac` grouping, kind `sanctions`, lists the
+  countries under OFAC's country-wide programs (Cuba, Iran, North Korea), from OFAC's
+  own FAQ, rechecked every 90 days; "sanctioned countries" reads as it. Ingest also
+  compares each provider's organization name and domains with the entities on OFAC's
+  SDN and consolidated lists. Every match is `possible` until the curation overlay
+  confirms or dismisses it (`ofac` in the overlay); individuals are never compared. The
+  API filters with `ofac=possible,confirmed`, services carry their matches as `ofac`,
+  results carry the strongest, and `/v1/meta` names both lists with their dates. On the
+  site, a confirmed match's card is near-black with an amber hazard-striped edge, a
+  possible match gets a quiet ⚠ badge, and the service page shows what matched and
+  links OFAC's own search. It is a pointer to OFAC's lists, not sanctions screening.
 - **Whether a service still answers.** Ingest checks each service's login hosts for
   their name, a connection and a valid certificate, and its information,
   organization and privacy pages for 404s, spread over runs. Each service gets a
@@ -38,6 +49,10 @@ section must be written before it is cut.
 
 ### Fixed
 
+- **A slow download outside the time budget can't use up an ingest run.** Reading
+  InCommon's import filter report now stops after 60 seconds, and OFAC's lists after
+  90, with a warning, so a slow server can't hold the 15-minute run past the point
+  where caches are saved and the snapshot is written.
 - **A plural search word no longer matches longer words through its singular.**
   "physics" was cut to "physic" and matched as a word beginning, so "physics journals"
   found the New England Journal of Medicine through "physicians". The word as typed

@@ -29,10 +29,18 @@
 //! - **Research and education networks** (GÉANT, RedCLARA, APAN, WACREN,
 //!   UbuntuNet, ASREN) stand for the countries of their member networks.
 //!
-//! Groupings whose membership is contested, or that label countries by a judgment
-//! (sanctions lists, "developed countries"), are left out on purpose. Where a list
-//! had a choice to make (G20's EU and AU seats, the AU's Sahrawi Republic,
-//! Mercosur's suspended Venezuela), its `note` says what was chosen.
+//! - **US sanctions (OFAC)** are the countries under the US Treasury's country-wide
+//!   sanctions programs, as OFAC itself lists them. They are here because the US
+//!   government publishes them, not because the catalog judges those countries, and
+//!   every label says whose list it is. They are their own kind
+//!   ([`RegionKind::Sanctions`]) and are rechecked every [`SANCTIONS_RECHECK_DAYS`]
+//!   days, since programs change faster than memberships.
+//!
+//! Groupings whose membership is contested, or that label countries by the
+//! catalog's own judgment ("developed countries", "Global South"), are left out on
+//! purpose. Where a list had a choice to make (G20's EU and AU seats, the AU's
+//! Sahrawi Republic, Mercosur's suspended Venezuela, OFAC's regions of Ukraine),
+//! its `note` says what was chosen.
 //!
 //! A federation that lists several countries is in a region when any of its
 //! countries is, the same rule the `country` filter applies: WAYF (Denmark, Iceland,
@@ -57,6 +65,22 @@ pub enum RegionKind {
     Political,
     /// The countries of a research and education network's member networks.
     Network,
+    /// The countries under a government's country-wide sanctions programs, as that
+    /// government lists them: OFAC's, for the United States.
+    Sanctions,
+}
+
+/// Every list is rechecked within a year; sanctions programs within this many days.
+pub const SANCTIONS_RECHECK_DAYS: i64 = 90;
+
+impl RegionKind {
+    /// How many days may pass before a list of this kind must be checked again.
+    pub fn recheck_days(self) -> i64 {
+        match self {
+            RegionKind::Sanctions => SANCTIONS_RECHECK_DAYS,
+            _ => 365,
+        }
+    }
 }
 
 /// One entry of `data/regions.json`.
@@ -224,11 +248,14 @@ mod tests {
             }
             assert_eq!(
                 r.as_of.is_some(),
-                matches!(r.kind, RegionKind::Political | RegionKind::Network),
+                matches!(
+                    r.kind,
+                    RegionKind::Political | RegionKind::Network | RegionKind::Sanctions
+                ),
                 "groupings are dated, regions are not: {}",
                 r.key
             );
-            if r.kind == RegionKind::Common {
+            if matches!(r.kind, RegionKind::Common | RegionKind::Sanctions) {
                 assert!(r.note.is_some(), "{} says how its list was chosen", r.key);
             }
             assert!(r.url.starts_with("https://"), "{}", r.key);
@@ -424,24 +451,65 @@ mod tests {
         );
     }
 
-    /// Membership moves, so every list is rechecked at least once a year. When this
-    /// fails, check the entry against its `url`, update it in `data/regions.json`,
-    /// and set `checked` to today.
+    /// Membership moves, so every list is rechecked at least once a year, and
+    /// sanctions programs every 90 days. When this fails, check the entry against
+    /// its `url`, update it in `data/regions.json`, and set `checked` to today.
     #[test]
-    fn every_list_was_checked_within_a_year() {
+    fn every_list_was_checked_within_its_limit() {
         let today = chrono::Utc::now().date_naive();
         for r in REGIONS.iter() {
             let checked = chrono::NaiveDate::parse_from_str(&r.checked, "%Y-%m-%d")
                 .unwrap_or_else(|e| panic!("{}: checked {:?}: {e}", r.key, r.checked));
             assert!(
-                (today - checked).num_days() <= 365,
-                "{} was last checked on {}; recheck it against {}",
+                (today - checked).num_days() <= r.kind.recheck_days(),
+                "{} was last checked on {}, more than {} days ago; recheck it against {}",
                 r.key,
                 r.checked,
+                r.kind.recheck_days(),
                 r.url
             );
             assert!(checked <= today, "{} is checked in the future", r.key);
         }
+    }
+
+    #[test]
+    fn sanctions_programs_are_rechecked_sooner() {
+        assert_eq!(RegionKind::Sanctions.recheck_days(), 90);
+        for k in [
+            RegionKind::Geographic,
+            RegionKind::Common,
+            RegionKind::Political,
+            RegionKind::Network,
+        ] {
+            assert_eq!(k.recheck_days(), 365, "{k:?}");
+        }
+    }
+
+    #[test]
+    fn ofac_lists_only_its_country_wide_programs() {
+        let ofac = get(crate::ofac::COUNTRY_GROUPING).unwrap();
+        assert_eq!(ofac.kind, RegionKind::Sanctions);
+        assert!(ofac.label.contains("OFAC") && ofac.label.contains("US"));
+        assert_eq!(ofac.countries(), ["CU", "IR", "KP"]);
+        assert!(ofac.url.starts_with("https://ofac.treasury.gov/"));
+        // Syria's program was revoked; that is recorded, not dropped silently.
+        assert_eq!(ofac.left.get("SY").map(String::as_str), Some("2025-07-01"));
+        // Crimea and the so-called DNR and LNR have no ISO code of their own, and
+        // the rest of Ukraine is not under country-wide sanctions: the note says so.
+        assert!(!ofac.countries().contains(&"UA"));
+        let note = ofac.note.as_deref().unwrap();
+        for word in [
+            "Crimea",
+            "Donetsk",
+            "Luhansk",
+            "Ukraine",
+            "Russia",
+            "Venezuela",
+        ] {
+            assert!(note.contains(word), "{word}");
+        }
+        assert!(ofac.reading_note.as_deref().unwrap().contains("OFAC"));
+        assert!(ofac.expansion().parent.is_none());
     }
 
     #[test]

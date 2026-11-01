@@ -13,6 +13,7 @@ mod fetch;
 mod filter_report;
 mod health;
 mod logos;
+mod ofac;
 mod sector;
 mod sharing;
 
@@ -26,6 +27,7 @@ use catalog_core::curation::CurationFile;
 use catalog_core::federations::{parse_edugain_federations, EDUGAIN_FEDERATIONS_URL};
 use catalog_core::import_filter::REPORT_INDEX_URL;
 use catalog_core::model::{Snapshot, Source};
+use catalog_core::ofac::{CONSOLIDATED_URL, SDN_URL};
 use catalog_core::SNAPSHOT_SCHEMA_VERSION;
 use catalog_store::Location;
 use clap::Parser;
@@ -67,6 +69,18 @@ struct Args {
     /// Skip InCommon's import filter report.
     #[arg(long, env = "CATALOG_SKIP_FILTER_REPORT")]
     skip_filter_report: bool,
+
+    /// OFAC's SDN list (XML), compared with each provider's name and domains.
+    #[arg(long, env = "CATALOG_OFAC_SDN_URL", default_value = SDN_URL)]
+    ofac_sdn_url: String,
+
+    /// OFAC's consolidated non-SDN list (XML).
+    #[arg(long, env = "CATALOG_OFAC_CONSOLIDATED_URL", default_value = CONSOLIDATED_URL)]
+    ofac_consolidated_url: String,
+
+    /// Skip OFAC's sanctions lists.
+    #[arg(long, env = "CATALOG_SKIP_OFAC")]
+    skip_ofac: bool,
 
     /// Optional editorial overlay (JSON), as a path, s3:// or https:// URI.
     #[arg(long, env = "CATALOG_CURATION")]
@@ -273,7 +287,27 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         filter_report::attach(
             &http,
             &args.filter_report_index,
+            filter_report::TIME_LIMIT,
             &mut services,
+            &mut warnings,
+        )
+        .await
+    };
+
+    // Matches are possible until the curation overlay confirms or dismisses them.
+    let ofac_report = if args.skip_ofac {
+        None
+    } else {
+        ofac::attach(
+            &http,
+            ofac::Options {
+                sdn: &args.ofac_sdn_url,
+                consolidated: &args.ofac_consolidated_url,
+                cache: &cache,
+                time_limit: ofac::TIME_LIMIT,
+            },
+            &mut services,
+            curation.as_ref().map_or(&[], |c| c.ofac.as_slice()),
             &mut warnings,
         )
         .await
@@ -479,6 +513,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         services,
         idp_counts,
         import_filter_report,
+        ofac: ofac_report,
         warnings,
     };
 
@@ -496,6 +531,7 @@ async fn run(args: Args, deadline: Deadline) -> Result<serde_json::Value> {
         "federations": snapshot.federations.len(),
         "sources": snapshot.sources,
         "import_filter_report": snapshot.import_filter_report,
+        "ofac": snapshot.ofac,
         "warnings": snapshot.warnings,
         "health": health_report,
         "logos": logo_report,

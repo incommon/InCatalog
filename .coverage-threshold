@@ -3,20 +3,20 @@
 # an unrelated PR cannot fail on run-to-run jitter.
 #
 # Measured 2026-11-01 (cargo llvm-cov --workspace, main.rs excluded):
-#   lines 88.30   regions 88.91   functions 88.69
+#   lines 89.68   regions 90.12   functions 89.55
 #
 # Branch coverage is NOT gated because it is not measured: branch counters need
 # -Z coverage-options=branch, which is nightly-only and fails on the pinned
 # stable toolchain. The functions figure is not branch coverage.
 #
 # Slack is sized in misses rather than points, because one miss moves each
-# metric differently: one uncovered function costs 0.075 points (1326
-# functions), one region 0.005 (18658 regions), one line 0.009 (10980 lines). The
-# gates below hold roughly 4 functions / 20 regions / 5 lines of headroom.
+# metric differently: one uncovered function costs 0.066 points (1521
+# functions), one region 0.005 (21549 regions), one line 0.008 (12685 lines). The
+# gates below hold roughly 4 functions / 25 regions / 10 lines of headroom.
 #
 # The lowest-covered code is the network edge (catalog-ingest fetch.rs and
 # logos.rs, catalog-store's S3 path, catalog-api state.rs). Tests there are the
 # cheapest way to raise these numbers.
-lines=88.2
-regions=88.8
-functions=88.3
+lines=89.6
+regions=90.0
+functions=89.3
