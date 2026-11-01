@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Run ingest in AWS again and again until nothing is waiting (`make backfill`): no
-# summary, sharing label, sector or website lookup left for a later run. Use it after
+# summary, sharing label, sector, website lookup or health check left for a later run. Use it after
 # a large change (a new field, a prompt change, a cleared cache) instead of waiting for
 # the daily runs to work through the backlog.
 #
@@ -82,6 +82,7 @@ import json, sys
 out = json.load(open(sys.argv[1]))
 step = lambda name: out.get(name) or {}
 logos = step("logos")
+health = step("health")
 waiting = {
     "summaries": step("summaries").get("waiting") or 0,
     "sharing": step("sharing").get("waiting") or 0,
@@ -89,6 +90,8 @@ waiting = {
     "logo sites": logos.get("sites_waiting") or 0,
     # Logo checks and lookups not started for time (the lookups are also sites).
     "logos out of time": logos.get("stopped_for_time") or 0,
+    # Over the run's cap, out of time, or stopped for a network that looked down.
+    "health checks": sum(health.get(k) or 0 for k in ("waiting", "stopped_for_time", "skipped_network_down")),
 }
 print(sum(waiting.values()))
 print(", ".join(f"{k} {v}" for k, v in waiting.items()))

@@ -11,10 +11,24 @@ section must be written before it is cut.
 
 ### Fixed
 
+- **A run of dead hosts no longer stops a run's health checks or logo lookups.** After
+  12 hosts in a row couldn't be reached, the health step and the website logo lookups
+  took the network to be down and skipped everything left in the run.
+  Checks went in name order, so one organization's retired hosts came in a row: on
+  2026-11-01 that skipped 2,683 of the first 0.4.0 run's 4,000 health checks. Now the
+  breaker first asks InCommon's metadata URL, which answered earlier in the run, and
+  carries on if it answers. When it doesn't, the step waits for it to answer again,
+  asked at most every 30 seconds, rather than stopping for the rest of the run. Health
+  checks also run in a random order, login hosts first. The warnings now say the
+  metadata URL was unreachable too. (#63)
+- **`make backfill` waits for the health checks too.** It stopped when summaries,
+  sharing labels, sectors and logos were done, with up to 12,805 health checks still
+  waiting. It now counts the checks over the run's cap, out of time, or skipped for
+  the network, as the README says. (#63)
 - **A long badge no longer runs past its card's edge.** Badges never wrapped, so one
   wider than the card, such as "On OFAC's consolidated list, confirmed 2026-11-01",
   crossed the card's border. A badge now wraps onto a second line when it is wider than
-  the card, with rounded corners, and stays on one line otherwise.
+  the card, with rounded corners, and stays on one line otherwise. (#64)
 
 ## [0.4.0] - 2026-11-01
 
