@@ -715,8 +715,9 @@ prompt over the organizations the rules leave undecided.
 
 Metadata cannot say whether a provider is commercial, give a plain-language summary, or
 add subject tags. `curation/curation.example.json` shows an overlay keyed by entityID or
-by organization name. Copy it to `curation/curation.json` and `make ingest` picks it up.
-In AWS, set `curation_file` in `infra/opentofu`. Curated values are stored apart from metadata
+by organization name. The deployed overlay is `curation/curation.json`, committed:
+`make ingest` picks it up, and `infra/opentofu/terraform.tfvars` points `curation_file`
+at it, so `make deploy` uploads it beside the snapshot. Curated values are stored apart from metadata
 (`service.curated`) and are labeled as curated in the UI, so a reader always knows which
 statements came from the federation.
 
@@ -834,7 +835,7 @@ crates/catalog-ingest   fetch + build snapshot (CLI and scheduled Lambda)
 crates/catalog-api      Axum API (local server and Lambda)
 web/                    static front end; network.js is the landing animation
 infra/opentofu          S3, Lambda, API Gateway, EventBridge, CloudFront (OpenTofu)
-curation/               overlay example
+curation/               the deployed overlay, and an example
 ```
 
 ## Contributing
