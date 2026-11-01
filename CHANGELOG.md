@@ -18,7 +18,7 @@ section must be written before it is cut.
   `/v1/meta` names the report used. On the site these services have a red outline and
   a "Filtered by InCommon" badge, a facet lists the reasons, and the service page shows
   each check and links the report. "Services filtered by InCommon" now reads as
-  `availability=edugain-only`.
+  `availability=edugain-only`. (#51)
 
 ### Fixed
 
