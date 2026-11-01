@@ -24,7 +24,7 @@ section must be written before it is cut.
   wording, blue and open-door logomark (self-hosted in `web/brand/`). Ingest now keeps
   each RequestInitiator and DiscoveryResponse endpoint (`request_initiators`,
   `discovery_responses`), and the service detail carries `login`: its `target`
-  (`route` and `url`) and the conditions that hid it (`blocked_by`). (#55)
+  (`route` and `url`) and the conditions that hid it (`blocked_by`). (#55, #56)
 - **A key to the cards' markings.** Results and provider pages show a key floating in
   the lower right of the cards. It lists only the markings on the cards shown
   (unreachable, filtered by InCommon, OFAC confirmed, possible OFAC match), each with a
