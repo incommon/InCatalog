@@ -18,7 +18,7 @@ section must be written before it is cut.
   delete markers and incomplete uploads are cleared too. Operators: `tofu apply`
   adds only `aws_s3_bucket_lifecycle_configuration.data`. Rerun
   `make state-bucket` to give the OpenTofu state bucket the same rule, which keeps
-  the 20 newest old versions of the state instead.
+  the 20 newest old versions of the state instead. (#82)
 
 ## [0.4.5] - 2026-11-01
 
