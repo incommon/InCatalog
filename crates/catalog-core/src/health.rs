@@ -18,6 +18,8 @@
 //!   [`DEAD_AFTER_HOURS`]. Timeouts, temporary DNS failures and names that resolve
 //!   only to private addresses are no clear answer: some services answer only from
 //!   their campus, and a failure seen from outside isn't proof.
+//! - **A name that doesn't exist is dead at once.** DNS answering NXDOMAIN
+//!   ([`DEAD_AT_ONCE`]) is the same answer from anywhere, so one is enough.
 //! - **A service** is alive when any login host is, dead when every one is, and
 //!   unknown otherwise, including when it lists none.
 
@@ -31,6 +33,8 @@ pub const DEAD_AFTER_FAILURES: u32 = 3;
 pub const DEAD_AFTER_HOURS: i64 = 72;
 /// How long a successful check keeps a host alive without another.
 pub const ALIVE_FOR_DAYS: i64 = 14;
+/// The failure that makes a host dead on its first check: the name doesn't exist.
+pub const DEAD_AT_ONCE: &str = "nxdomain";
 
 /// What one check of a host found.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +86,9 @@ pub fn host_status(h: &HostHealth, now: DateTime<Utc>) -> HealthStatus {
     let recent = parse(&h.last_ok).is_some_and(|t| now - t <= Duration::days(ALIVE_FOR_DAYS));
     if h.failure.is_none() && recent {
         return HealthStatus::Alive;
+    }
+    if h.failure.as_deref() == Some(DEAD_AT_ONCE) {
+        return HealthStatus::Dead;
     }
     let span = match (parse(&h.first_failed), parse(&h.checked_at)) {
         (Some(first), Some(last)) => last - first,
@@ -190,6 +197,26 @@ mod tests {
         observe(&mut h, t(5, 0), Outcome::Answered);
         assert_eq!(host_status(&h, t(5, 0)), HealthStatus::Alive);
         assert_eq!((h.failures_in_a_row, h.first_failed.as_deref()), (0, None));
+    }
+
+    #[test]
+    fn a_name_that_doesnt_exist_is_dead_at_once_and_clears_on_success() {
+        let mut h = HostHealth::default();
+        observe(&mut h, t(0, 0), Outcome::Answered);
+        observe(&mut h, t(1, 0), fail(DEAD_AT_ONCE, true));
+        assert_eq!(host_status(&h, t(1, 0)), HealthStatus::Dead);
+        assert_eq!(h.first_failed.as_deref(), Some("2026-11-02T00:00:00Z"));
+
+        observe(&mut h, t(2, 0), Outcome::Answered);
+        assert_eq!(host_status(&h, t(2, 0)), HealthStatus::Alive);
+
+        observe(&mut h, t(3, 0), fail(DEAD_AT_ONCE, true));
+        observe(&mut h, t(4, 0), fail("timeout", false));
+        assert_eq!(
+            host_status(&h, t(4, 0)),
+            HealthStatus::Unknown,
+            "only while the latest check found it"
+        );
     }
 
     #[test]

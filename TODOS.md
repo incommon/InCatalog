@@ -46,16 +46,13 @@ working name. These must change together, as a planned migration:
 
 ## Finish removing Terraform's name from the OpenTofu setup
 
-OpenTofu has applied the stack since #35, and its directory is `infra/opentofu/`. One
-reference still says Terraform, and it waits for the next release:
+OpenTofu has applied the stack since #35, and its directory is `infra/opentofu/`. The
+CI job is now `tofu fmt / validate` on `develop`; `main` still runs it as `terraform fmt
+/ validate`, and its branch protection requires that name. What's left:
 
-- **The CI job `terraform fmt / validate` → `tofu fmt / validate`.** `main`'s branch
-  protection requires the job by its exact name, so the timing matters. The rename
-  reaches `develop` first, while `main` keeps the old job until the next release merges.
-  Switch the protection while the next release PR into `main` is open, after its CI has
-  reported the new name. Switched earlier, a hotfix PR into `main` would wait forever
-  for a check that never reports; switched later, the release PR would. Then update
-  CONTRIBUTING's CI table and its rule about this name.
+- **Switch `main`'s branch protection to `tofu fmt / validate`** while the 0.5.0
+  release PR into `main` is open, after its CI has reported the new name
+  (CONTRIBUTING § What CI runs). Then delete this section.
 
 Leave alone: `.terraform/`, `.terraform.lock.hcl`, the `terraform {}` block and the
 `terraform_version` key that `make tofu-version` parses, which are OpenTofu's own names.
@@ -334,26 +331,3 @@ publishes, and say how sure the guess is:
 - **Show it** as "Shibboleth SP (from its endpoints)" on the service page, as a facet
   and in the API, and report a count per package. Never show a version: it would
   list who is behind on patches. That belongs in a private report, if anywhere.
-
-## Age out old versions in the versioned buckets after 7 days
-
-The data bucket keeps every version of every object (`aws_s3_bucket_versioning.data`
-in `infra/opentofu/main.tf`), and nothing ever removes them. Every ingest rewrites
-the snapshot and caches, so old versions pile up. On 2026-11-02 the bucket held 138
-versions: 131 noncurrent, 318 MB of its 334 MB. Versioning stays: it's how a bad
-run's cache is rolled back (the health cache's pre-edit version was the backup on
-2026-11-02).
-
-- **Data bucket:** an `aws_s3_bucket_lifecycle_configuration` with
-  `noncurrent_version_expiration { noncurrent_days = 7 }`, plus
-  `expired_object_delete_marker` and `abort_incomplete_multipart_upload` (7 days).
-  Consider `newer_noncurrent_versions` so a file that rarely changes always keeps a
-  few versions, however old.
-- **The OpenTofu state bucket** (`catabasis-tfstate-<account>`) is versioned by
-  `infra/state-bucket.sh`, outside the stack. Give it the same rule there, but keep
-  more of its history (for example the 20 newest noncurrent versions whatever their
-  age), since a state version is the rollback for a bad apply.
-- **The site bucket** isn't versioned; check that it stays that way, or give it the
-  same rule.
-- Check with a plan that only the lifecycle resources are added, and note it in the
-  CHANGELOG for operators.

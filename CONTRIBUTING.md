@@ -121,7 +121,7 @@ and on every push to `develop` and `main`. **A red build blocks merge — no exc
 | Check | What it does | Runs |
 |---|---|---|
 | `fmt / clippy / test / coverage` | `cargo fmt --check`, `clippy -D warnings`, `cargo test`, coverage gates | Rust-relevant changes; reports on every PR |
-| `terraform fmt / validate` | OpenTofu `fmt -check`, `validate` with `-lockfile=readonly`, at `.opentofu-version` | Always |
+| `tofu fmt / validate` | OpenTofu `fmt -check`, `validate` with `-lockfile=readonly`, at `.opentofu-version` | Always |
 | `license policy / third-party notices` | `cargo deny check licenses`; the third-party notices generate | Always |
 | `release notes / version` | On a PR into `main`: `CHANGELOG.md` has a dated section for the `Cargo.toml` version, and that version is not tagged yet (§ Versioning) | Always; checks only PRs into `main` |
 
@@ -134,18 +134,23 @@ The first two are **required** by `main`'s branch protection, by those exact nam
 the API embeds and a test parses. Other Markdown never counts. Pushes
 to `develop`/`main` always run everything.
 
-Two rules for anyone editing `ci.yml`:
+Rules for anyone editing `ci.yml`:
 
 - **The required check is `rust-gate`, named `fmt / clippy / test / coverage`.** It
   always runs and reports on behalf of the real `Rust suite` job. Renaming it breaks
   `main`'s branch protection.
 - **Never convert it to a workflow-level `paths:` filter.** A required check that never
   reports leaves the PR permanently unmergeable.
-- **The OpenTofu job is still named `terraform fmt / validate`,** the name `main`'s
-  branch protection requires. Renaming it needs that protection changed in the same
-  change. It installs `tofu` from the release with a checksum pinned in `ci.yml`
-  (the org's Actions policy blocks `opentofu/setup-opentofu`), so bumping
-  `.opentofu-version` means bumping that checksum too.
+- **Renaming a required check** (`fmt / clippy / test / coverage` or
+  `tofu fmt / validate`) reaches `develop` first, while `main` still reports the old
+  name. Switch `main`'s branch protection to the new name while the release PR that
+  carries it is open, after that PR's CI has reported the new name. Switched
+  earlier, a hotfix PR into `main` waits forever for a check that never reports;
+  switched later, the release PR does.
+- **The OpenTofu job, `tofu fmt / validate`,** installs `tofu` from the release with
+  a checksum pinned in `ci.yml` (the org's Actions policy blocks
+  `opentofu/setup-opentofu`), so bumping `.opentofu-version` means bumping that
+  checksum too.
 
 `make lint` and `make test` run the same checks locally.
 

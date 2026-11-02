@@ -363,7 +363,7 @@ async fn check_link(http: &reqwest::Client, url: &str) -> LinkOutcome {
 
 /// Never reached the host: what a network outage looks like too.
 fn unreachable(o: &Outcome) -> bool {
-    matches!(o, Outcome::Failed { kind, .. } if kind == "dns" || kind == "dns_transient" || kind == "connect")
+    matches!(o, Outcome::Failed { kind, .. } if kind == health::DEAD_AT_ONCE || kind == "dns" || kind == "dns_transient" || kind == "connect")
 }
 
 fn classify(e: &reqwest::Error) -> Outcome {
@@ -392,11 +392,12 @@ pub(crate) fn kind_of(text: &str) -> (&'static str, bool) {
     let any = |ks: &[&str]| ks.iter().any(|k| t.contains(k));
     if any(&["has no public address"]) {
         ("private_address", false)
+    } else if any(&["nxdomain"]) {
+        (health::DEAD_AT_ONCE, true)
     } else if any(&[
         "nodename nor servname",
         "name or service not known",
         "no address associated",
-        "nxdomain",
     ]) {
         ("dns", true)
     } else if any(&[
@@ -443,7 +444,7 @@ mod tests {
             ("dns error: failed to lookup address information: Name or service not known", ("dns", true)),
             ("dns error: failed to lookup address information: Temporary failure in name resolution", ("dns_transient", false)),
             ("dns error: intranet.example.edu has no public address", ("private_address", false)),
-            ("dns error: retired.example.edu: no such name (NXDOMAIN)", ("dns", true)),
+            ("dns error: retired.example.edu: no such name (NXDOMAIN)", ("nxdomain", true)),
             ("dns error: cname.example.edu: no address associated with the name", ("dns", true)),
             ("dns error: sp.example.edu: temporary failure in name resolution: request timed out", ("dns_transient", false)),
             ("invalid peer certificate: certificate expired: verification time 1793558769 (UNIX), but certificate is not valid after 1790000000 (UNIX)", ("tls_expired", true)),

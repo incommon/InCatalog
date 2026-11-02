@@ -365,8 +365,8 @@ pub struct Health {
 pub struct HostHealth {
     pub host: String,
     pub status: HealthStatus,
-    /// What the latest check found when it failed: `dns` (the name doesn't exist),
-    /// `connect` (refused), `tls_expired`, `tls_name` (certificate for another
+    /// What the latest check found when it failed: `nxdomain` (the name doesn't
+    /// exist, which makes the host dead at once), `dns` (no address), `connect` (refused), `tls_expired`, `tls_name` (certificate for another
     /// name), `tls_untrusted`, `tls`, or for no clear answer `dns_transient`,
     /// `private_address` (resolves only inside a network), `timeout`, `other`.
     pub failure: Option<String>,
