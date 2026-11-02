@@ -87,12 +87,6 @@ const OUTAGE_LIMIT: Duration = if cfg!(test) {
 };
 /// Host names resolved at once. Lookups and image checks share it.
 const DNS_AT_ONCE: usize = 8;
-/// Waits before looking a name up again after the system resolver failed with an
-/// OS error rather than an answer (see [`resolve_retrying`]).
-const LOOKUP_RETRIES: [Duration; 2] = [Duration::from_millis(250), Duration::from_secs(1)];
-/// Lookups looked up again after an OS error, since the process started. Steps report
-/// how many their run added.
-pub(crate) static LOOKUPS_RETRIED: AtomicUsize = AtomicUsize::new(0);
 /// Longest a single image may take to measure.
 const MEASURE_TIME: Duration = Duration::from_secs(5);
 /// A website logo whose artwork fills less of the square tile than this (a wide
@@ -141,9 +135,6 @@ pub struct Report {
     /// shown as their square mark without the words beside it.
     pub logos_measured: usize,
     pub logos_shown_as_mark: usize,
-    /// Name lookups this run looked up again after an OS error (see
-    /// [`resolve_retrying`]).
-    pub lookups_retried: usize,
 }
 
 /// Why a website lookup failed, read from its recorded detail, so entries cached
@@ -430,7 +421,6 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
     };
     let http = guarded_client()?;
     let mut report = Report::default();
-    let retried_before = LOOKUPS_RETRIED.load(Ordering::Relaxed);
 
     // 1. Check metadata logos.
     let mut wanted: Vec<String> = Vec::new();
@@ -642,7 +632,6 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
     {
         tracing::warn!(error = %e, "could not save the logo cache; the next run will repeat lookups");
     }
-    report.lookups_retried = LOOKUPS_RETRIED.load(Ordering::Relaxed) - retried_before;
     Ok(report)
 }
 
@@ -1231,42 +1220,16 @@ impl reqwest::dns::Resolve for PublicOnly {
         Box::pin(async move {
             let _permit = at_once.acquire_owned().await?;
             let host = name.as_str().to_owned();
-            let addrs: Vec<SocketAddr> =
-                resolve_retrying(|| tokio::net::lookup_host((host.as_str(), 0)))
-                    .await?
-                    .filter(|a| is_public(a.ip()))
-                    .collect();
+            let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 0))
+                .await?
+                .filter(|a| is_public(a.ip()))
+                .collect();
             if addrs.is_empty() {
                 return Err(format!("{host} has no public address").into());
             }
             Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
         })
     }
-}
-
-/// Looks a name up, and again after a pause when the lookup failed with an OS error.
-///
-/// The resolver's own answers ("not known", "temporary failure") come back as text
-/// with no OS error, and are returned at once. An OS error means getaddrinfo gave up
-/// with `EAI_SYSTEM`, and the error number is whatever the thread last left in
-/// `errno`. In Lambda about 1 lookup in 11 failed that way on 2026-11-01, as "Device
-/// or resource busy (os error 16)", spread evenly through every run; each one left a
-/// login host unknown for a day.
-async fn resolve_retrying<F, Fut, T>(mut lookup: F) -> std::io::Result<T>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = std::io::Result<T>>,
-{
-    for pause in LOOKUP_RETRIES {
-        match lookup().await {
-            Err(e) if e.raw_os_error().is_some() => {
-                LOOKUPS_RETRIED.fetch_add(1, Ordering::Relaxed);
-                tokio::time::sleep(pause).await;
-            }
-            answer => return answer,
-        }
-    }
-    lookup().await
 }
 
 #[cfg(test)]
@@ -1561,37 +1524,6 @@ mod tests {
             http.head(format!("http://{addr}/")).send().await.unwrap();
         }
         assert_eq!(accepted.load(Ordering::SeqCst), 3);
-    }
-
-    /// A lookup that failed with an OS error is tried twice more; the resolver's own
-    /// answers are not.
-    #[tokio::test(start_paused = true)]
-    async fn lookups_are_retried_only_after_an_os_error() {
-        let busy = || std::io::Error::from_raw_os_error(16);
-        let not_known = || {
-            std::io::Error::other("failed to lookup address information: Name or service not known")
-        };
-        for (answers, want_ok, want_calls) in [
-            (vec![Err(busy()), Ok(7)], true, 2),
-            (vec![Err(busy()), Err(busy()), Ok(7)], true, 3),
-            (vec![Err(busy()), Err(busy()), Err(busy()), Ok(7)], false, 3),
-            (vec![Err(not_known()), Ok(7)], false, 1),
-            (vec![Ok(7)], true, 1),
-        ] {
-            let answers = std::sync::Mutex::new(answers.into_iter());
-            let calls = AtomicUsize::new(0);
-            let started = tokio::time::Instant::now();
-            let got = resolve_retrying(|| {
-                calls.fetch_add(1, Ordering::Relaxed);
-                let next = answers.lock().unwrap().next().unwrap();
-                async move { next }
-            })
-            .await;
-            let calls = calls.into_inner();
-            assert_eq!((got.is_ok(), calls), (want_ok, want_calls));
-            let paused: Duration = LOOKUP_RETRIES[..calls - 1].iter().sum();
-            assert_eq!(started.elapsed(), paused);
-        }
     }
 
     /// The canary is asked over HTTP; any answer, whatever its status, is up.
