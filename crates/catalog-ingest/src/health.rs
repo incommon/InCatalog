@@ -27,6 +27,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::BuildHasher;
+use std::sync::atomic::Ordering;
 
 use anyhow::Result;
 use catalog_core::health::{self, Outcome};
@@ -78,6 +79,8 @@ pub struct Report {
     /// Login hosts whose latest check failed, by why.
     pub host_failures: BTreeMap<String, usize>,
     pub broken_links: usize,
+    /// Name lookups this run looked up again after an OS error.
+    pub lookups_retried: usize,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -129,6 +132,7 @@ async fn check_with(
         _ => Cache::default(),
     };
     let mut report = Report::default();
+    let retried_before = crate::logos::LOOKUPS_RETRIED.load(Ordering::Relaxed);
 
     let mut jobs: BTreeSet<Job> = BTreeSet::new();
     for s in services.iter() {
@@ -254,6 +258,7 @@ async fn check_with(
         }
     }
 
+    report.lookups_retried = crate::logos::LOOKUPS_RETRIED.load(Ordering::Relaxed) - retried_before;
     opts.cache
         .write(serde_json::to_vec(&cache)?, "application/json")
         .await?;

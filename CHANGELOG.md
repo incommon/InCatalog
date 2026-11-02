@@ -9,6 +9,13 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The DNS lookup retry described under 0.4.3 is now in the build.** The 0.4.3
+  release commit undid #70's code by mistake, so 0.4.3 shipped with that entry in its
+  notes but without the retry or the `lookups_retried` counts. This puts both back.
+  (#75)
+
 ## [0.4.3] - 2026-11-01
 
 ### Fixed
@@ -21,6 +28,8 @@ section must be written before it is cut.
   resolver's own answers ("not known", "temporary failure") are not retried. Health
   checks and logo lookups share the resolver, and both reports gain
   `lookups_retried`, how many lookups the run tried again. (#70)
+  **Not in the 0.4.3 build:** its release commit undid this change by mistake. It
+  shipped in the next release.
 
 ## [0.4.2] - 2026-11-01
 
