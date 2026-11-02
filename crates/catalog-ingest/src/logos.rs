@@ -1646,7 +1646,7 @@ mod tests {
         ))
         .unwrap();
         for (host, want) in [
-            ("gone.test", ("dns", true)),
+            ("gone.test", ("nxdomain", true)),
             ("bare.test", ("dns", true)),
             ("broken.test", ("dns_transient", false)),
             ("private.test", ("private_address", false)),
