@@ -156,13 +156,13 @@ it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services
   guarded client as the logo checks. Any HTTP answer counts, whatever its status: a
   login endpoint expects a SAML POST, so many answer anything else with an error.
   What counts is the name, the connection, and the certificate.
-- **Only evidence counts toward dead:** a name that doesn't exist, a refused
-  connection, or a certificate that has expired, is for another name, or isn't
-  trusted. Timeouts, temporary DNS failures and names that resolve only to private
-  addresses are no clear answer, because some services answer only from their own
-  campus. A lookup the system resolver gives up on with an OS error rather than an
-  answer is tried again after a quarter of a second and after a second; the run's
-  report counts these as `lookups_retried`.
+- **Only evidence counts toward dead:** a name that doesn't exist (NXDOMAIN) or has
+  no address, a refused connection, or a certificate that has expired, is for another
+  name, or isn't trusted. Timeouts, DNS server failures (SERVFAIL, REFUSED) and names
+  that resolve only to private addresses are no clear answer, because some services
+  answer only from their own campus. Names are looked up with Hickory DNS against the
+  servers in `/etc/resolv.conf`, not the system's getaddrinfo, so what DNS answered
+  is known: in Lambda, glibc reported a missing name as a system error.
 - **Thresholds** (`catalog-core/src/health.rs`): a host is alive for 14 days after it
   answers, and dead after 3 failures in a row spanning at least 72 hours; one answer
   clears that. A service is alive when any of its login hosts is, dead when every one
