@@ -165,7 +165,8 @@ it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services
   is known: in Lambda, glibc reported a missing name as a system error.
 - **Thresholds** (`catalog-core/src/health.rs`): a host is alive for 14 days after it
   answers, and dead after 3 failures in a row spanning at least 72 hours; one answer
-  clears that. A service is alive when any of its login hosts is, dead when every one
+  clears that. A name that doesn't exist (NXDOMAIN) makes a host dead on that check,
+  since DNS gives that answer from anywhere. A service is alive when any of its login hosts is, dead when every one
   is, and unknown otherwise, including when it lists none or was never checked.
 - **Pages meant to be read** (information, organization and privacy URLs) get a
   `HEAD`, falling back to `GET`. A 404 or 410 lists the page as a broken link on the

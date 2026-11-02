@@ -20,6 +20,15 @@ section must be written before it is cut.
   `make state-bucket` to give the OpenTofu state bucket the same rule, which keeps
   the 20 newest old versions of the state instead. (#82)
 
+- **A login host whose name doesn't exist (NXDOMAIN) is now dead on that check,**
+  not after 3 failures over 72 hours. DNS gives that answer from anywhere, so
+  waiting added nothing. One answer still makes the host alive again. A name with no
+  address keeps the 3-failure rule, as do refused connections and certificate
+  failures. In the API, these hosts' `failure` is now `nxdomain`, and `dns` means
+  the name has no address. Of the 1,127 hosts that 0.4.5 expected to read dead in
+  about four days, the NXDOMAIN ones will do so after their next check, within about
+  a day of deploying; those with no address still take the four days.
+
 ## [0.4.5] - 2026-11-01
 
 ### Changed
