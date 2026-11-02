@@ -335,7 +335,7 @@ publishes, and say how sure the guess is:
   and in the API, and report a count per package. Never show a version: it would
   list who is behind on patches. That belongs in a private report, if anywhere.
 
-## Age out old versions in the versioned buckets after 30 days
+## Age out old versions in the versioned buckets after 7 days
 
 The data bucket keeps every version of every object (`aws_s3_bucket_versioning.data`
 in `infra/opentofu/main.tf`), and nothing ever removes them. Every ingest rewrites
@@ -345,7 +345,7 @@ run's cache is rolled back (the health cache's pre-edit version was the backup o
 2026-11-02).
 
 - **Data bucket:** an `aws_s3_bucket_lifecycle_configuration` with
-  `noncurrent_version_expiration { noncurrent_days = 30 }`, plus
+  `noncurrent_version_expiration { noncurrent_days = 7 }`, plus
   `expired_object_delete_marker` and `abort_incomplete_multipart_upload` (7 days).
   Consider `newer_noncurrent_versions` so a file that rarely changes always keeps a
   few versions, however old.
