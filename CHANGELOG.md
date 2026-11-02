@@ -9,6 +9,17 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fewer login hosts are left unknown by a failed DNS lookup.** In Lambda about 1
+  lookup in 11 still failed with "Device or resource busy (os error 16)", spread
+  evenly through every 0.4.2 run: 1,172 login hosts in the health cache read unknown
+  for a day because of it. That error means the system resolver gave up without an
+  answer, so such a lookup is now tried again after 0.25 and 1 seconds. The
+  resolver's own answers ("not known", "temporary failure") are not retried. Health
+  checks and logo lookups share the resolver, and both reports gain
+  `lookups_retried`, how many lookups the run tried again.
+
 ## [0.4.2] - 2026-11-01
 
 ### Fixed
