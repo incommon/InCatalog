@@ -9,6 +9,8 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-02
+
 ### Changed
 
 - **Old object versions in the data bucket now expire after 7 days.** Every ingest
@@ -389,7 +391,8 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.5...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.5.0...develop
+[0.5.0]: https://github.com/incommon/InCatalog/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/incommon/InCatalog/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/incommon/InCatalog/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/incommon/InCatalog/compare/v0.4.2...v0.4.3
