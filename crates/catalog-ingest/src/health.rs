@@ -27,6 +27,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::BuildHasher;
+use std::sync::atomic::Ordering;
 
 use anyhow::Result;
 use catalog_core::health::{self, Outcome};
@@ -78,6 +79,8 @@ pub struct Report {
     /// Login hosts whose latest check failed, by why.
     pub host_failures: BTreeMap<String, usize>,
     pub broken_links: usize,
+    /// Name lookups this run looked up again after an OS error.
+    pub lookups_retried: usize,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -129,6 +132,7 @@ async fn check_with(
         _ => Cache::default(),
     };
     let mut report = Report::default();
+    let retried_before = crate::logos::LOOKUPS_RETRIED.load(Ordering::Relaxed);
 
     let mut jobs: BTreeSet<Job> = BTreeSet::new();
     for s in services.iter() {
@@ -254,6 +258,7 @@ async fn check_with(
         }
     }
 
+    report.lookups_retried = crate::logos::LOOKUPS_RETRIED.load(Ordering::Relaxed) - retried_before;
     opts.cache
         .write(serde_json::to_vec(&cache)?, "application/json")
         .await?;
@@ -589,13 +594,17 @@ mod tests {
     #[tokio::test]
     async fn dead_hosts_in_a_row_stop_the_run_only_when_the_canary_fails_too() {
         let addr = stub().await;
-        // Closed ports: each connection is refused, as for a retired host.
-        let closed: Vec<String> = (0..40)
-            .map(|_| {
-                let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-                l.local_addr().unwrap().to_string()
-            })
-            .collect();
+        // Closed ports: each connection is refused, as for a retired host. A port is
+        // free again once its listener drops, so the system can hand it out twice;
+        // two services on one host are one check, and the run would count 39.
+        let mut closed: Vec<String> = Vec::new();
+        while closed.len() < 40 {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let port = l.local_addr().unwrap().to_string();
+            if !closed.contains(&port) {
+                closed.push(port);
+            }
+        }
         let services = || -> Vec<Service> {
             closed
                 .iter()

@@ -9,6 +9,15 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-01
+
+### Fixed
+
+- **The DNS lookup retry described under 0.4.3 is now in the build.** The 0.4.3
+  release commit undid #70's code by mistake, so 0.4.3 shipped with that entry in its
+  notes but without the retry or the `lookups_retried` counts. This puts both back.
+  (#75)
+
 ## [0.4.3] - 2026-11-01
 
 ### Fixed
@@ -21,6 +30,8 @@ section must be written before it is cut.
   resolver's own answers ("not known", "temporary failure") are not retried. Health
   checks and logo lookups share the resolver, and both reports gain
   `lookups_retried`, how many lookups the run tried again. (#70)
+  **Not in the 0.4.3 build:** its release commit undid this change by mistake. It
+  shipped in 0.4.4.
 
 ## [0.4.2] - 2026-11-01
 
@@ -328,7 +339,8 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.3...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.4...develop
+[0.4.4]: https://github.com/incommon/InCatalog/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/incommon/InCatalog/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/incommon/InCatalog/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/incommon/InCatalog/compare/v0.4.0...v0.4.1
