@@ -46,6 +46,9 @@ use catalog_core::model::{DiscoveredLogo, LogoBox, Service};
 use catalog_store::Location;
 use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
+use hickory_resolver::config::LookupIpStrategy;
+use hickory_resolver::net::runtime::TokioRuntimeProvider;
+use hickory_resolver::{ResolverBuilder, TokioResolver};
 
 use crate::budget::Deadline;
 use reqwest::{StatusCode, Url};
@@ -87,12 +90,6 @@ const OUTAGE_LIMIT: Duration = if cfg!(test) {
 };
 /// Host names resolved at once. Lookups and image checks share it.
 const DNS_AT_ONCE: usize = 8;
-/// Waits before looking a name up again after the system resolver failed with an
-/// OS error rather than an answer (see [`resolve_retrying`]).
-const LOOKUP_RETRIES: [Duration; 2] = [Duration::from_millis(250), Duration::from_secs(1)];
-/// Lookups looked up again after an OS error, since the process started. Steps report
-/// how many their run added.
-pub(crate) static LOOKUPS_RETRIED: AtomicUsize = AtomicUsize::new(0);
 /// Longest a single image may take to measure.
 const MEASURE_TIME: Duration = Duration::from_secs(5);
 /// A website logo whose artwork fills less of the square tile than this (a wide
@@ -141,9 +138,6 @@ pub struct Report {
     /// shown as their square mark without the words beside it.
     pub logos_measured: usize,
     pub logos_shown_as_mark: usize,
-    /// Name lookups this run looked up again after an OS error (see
-    /// [`resolve_retrying`]).
-    pub lookups_retried: usize,
 }
 
 /// Why a website lookup failed, read from its recorded detail, so entries cached
@@ -430,7 +424,6 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
     };
     let http = guarded_client()?;
     let mut report = Report::default();
-    let retried_before = LOOKUPS_RETRIED.load(Ordering::Relaxed);
 
     // 1. Check metadata logos.
     let mut wanted: Vec<String> = Vec::new();
@@ -642,7 +635,6 @@ pub async fn enrich(services: &mut [Service], opts: Options) -> Result<Report> {
     {
         tracing::warn!(error = %e, "could not save the logo cache; the next run will repeat lookups");
     }
-    report.lookups_retried = LOOKUPS_RETRIED.load(Ordering::Relaxed) - retried_before;
     Ok(report)
 }
 
@@ -1189,9 +1181,7 @@ pub(crate) fn guarded_client_as(user_agent: &'static str) -> Result<reqwest::Cli
         .connect_timeout(Duration::from_secs(6))
         .timeout(Duration::from_secs(12))
         .pool_max_idle_per_host(0)
-        .dns_resolver(Arc::new(PublicOnly {
-            at_once: Arc::new(Semaphore::new(DNS_AT_ONCE)),
-        }))
+        .dns_resolver(Arc::new(PublicOnly::system()?))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
                 attempt.error("too many redirects")
@@ -1219,23 +1209,48 @@ pub(crate) fn allowed(url: &Url) -> bool {
 
 pub(crate) use catalog_core::net::is_public;
 
-/// Resolves through the system, a few names at a time, and keeps only public
-/// addresses.
+/// Asks DNS itself, a few names at a time, and keeps only public addresses.
+///
+/// It reads the servers in `/etc/resolv.conf` rather than calling getaddrinfo. In
+/// Lambda, glibc reported a name that doesn't exist as a system error, "Device or
+/// resource busy (os error 16)", which reads as a passing glitch: on 2026-11-02 the
+/// 1,127 login hosts failing that way failed it on every try, and 148 of 150 sampled
+/// were NXDOMAIN or had no address. Read from the answer, those count toward dead.
 struct PublicOnly {
     at_once: Arc<Semaphore>,
+    dns: TokioResolver,
+}
+
+impl PublicOnly {
+    fn system() -> Result<Self> {
+        Self::new(TokioResolver::builder_tokio()?)
+    }
+
+    fn new(mut builder: ResolverBuilder<TokioRuntimeProvider>) -> Result<Self> {
+        let opts = builder.options_mut();
+        // Both families, as getaddrinfo asks: a host with only an IPv6 address is up.
+        opts.ip_strategy = LookupIpStrategy::Ipv4AndIpv6;
+        opts.timeout = Duration::from_secs(2);
+        opts.attempts = 2;
+        Ok(Self {
+            at_once: Arc::new(Semaphore::new(DNS_AT_ONCE)),
+            dns: builder.build()?,
+        })
+    }
 }
 
 impl reqwest::dns::Resolve for PublicOnly {
     fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
-        let at_once = self.at_once.clone();
+        let (at_once, dns) = (self.at_once.clone(), self.dns.clone());
         Box::pin(async move {
             let _permit = at_once.acquire_owned().await?;
             let host = name.as_str().to_owned();
-            let addrs: Vec<SocketAddr> =
-                resolve_retrying(|| tokio::net::lookup_host((host.as_str(), 0)))
-                    .await?
-                    .filter(|a| is_public(a.ip()))
-                    .collect();
+            let addrs: Vec<SocketAddr> = addresses(&dns, &host)
+                .await?
+                .into_iter()
+                .filter(|ip| is_public(*ip))
+                .map(|ip| SocketAddr::new(ip, 0))
+                .collect();
             if addrs.is_empty() {
                 return Err(format!("{host} has no public address").into());
             }
@@ -1244,29 +1259,37 @@ impl reqwest::dns::Resolve for PublicOnly {
     }
 }
 
-/// Looks a name up, and again after a pause when the lookup failed with an OS error.
-///
-/// The resolver's own answers ("not known", "temporary failure") come back as text
-/// with no OS error, and are returned at once. An OS error means getaddrinfo gave up
-/// with `EAI_SYSTEM`, and the error number is whatever the thread last left in
-/// `errno`. In Lambda about 1 lookup in 11 failed that way on 2026-11-01, as "Device
-/// or resource busy (os error 16)", spread evenly through every run; each one left a
-/// login host unknown for a day.
-async fn resolve_retrying<F, Fut, T>(mut lookup: F) -> std::io::Result<T>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = std::io::Result<T>>,
-{
-    for pause in LOOKUP_RETRIES {
-        match lookup().await {
-            Err(e) if e.raw_os_error().is_some() => {
-                LOOKUPS_RETRIED.fetch_add(1, Ordering::Relaxed);
-                tokio::time::sleep(pause).await;
+/// A host name's addresses, or an error saying what DNS answered, in the words
+/// `health::kind_of` sorts failures by: a name that doesn't exist or has no address
+/// is an answer; anything else (a timeout, SERVFAIL, REFUSED) is not.
+async fn addresses(dns: &TokioResolver, host: &str) -> std::io::Result<Vec<IpAddr>> {
+    use std::io::{Error, ErrorKind};
+    let no_address = || {
+        Error::new(
+            ErrorKind::NotFound,
+            format!("{host}: no address associated with the name"),
+        )
+    };
+    // Fully qualified, so no search domain from resolv.conf is tried first.
+    let fqdn = format!("{}.", host.trim_end_matches('.'));
+    match dns.lookup_ip(fqdn.as_str()).await {
+        Ok(found) => {
+            let ips: Vec<IpAddr> = found.iter().collect();
+            if ips.is_empty() {
+                Err(no_address())
+            } else {
+                Ok(ips)
             }
-            answer => return answer,
         }
+        Err(e) if e.is_nx_domain() => Err(Error::new(
+            ErrorKind::NotFound,
+            format!("{host}: no such name (NXDOMAIN)"),
+        )),
+        Err(e) if e.is_no_records_found() => Err(no_address()),
+        Err(e) => Err(Error::other(format!(
+            "{host}: temporary failure in name resolution: {e}"
+        ))),
     }
-    lookup().await
 }
 
 #[cfg(test)]
@@ -1563,35 +1586,81 @@ mod tests {
         assert_eq!(accepted.load(Ordering::SeqCst), 3);
     }
 
-    /// A lookup that failed with an OS error is tried twice more; the resolver's own
-    /// answers are not.
-    #[tokio::test(start_paused = true)]
-    async fn lookups_are_retried_only_after_an_os_error() {
-        let busy = || std::io::Error::from_raw_os_error(16);
-        let not_known = || {
-            std::io::Error::other("failed to lookup address information: Name or service not known")
-        };
-        for (answers, want_ok, want_calls) in [
-            (vec![Err(busy()), Ok(7)], true, 2),
-            (vec![Err(busy()), Err(busy()), Ok(7)], true, 3),
-            (vec![Err(busy()), Err(busy()), Err(busy()), Ok(7)], false, 3),
-            (vec![Err(not_known()), Ok(7)], false, 1),
-            (vec![Ok(7)], true, 1),
+    /// A stand-in DNS server. `gone.test` doesn't exist, `bare.test` exists with no
+    /// address, `broken.test` fails (SERVFAIL), and `public.test` and
+    /// `private.test` have an IPv4 address each.
+    async fn stub_dns() -> SocketAddr {
+        use hickory_resolver::proto::op::{Message, OpCode, ResponseCode};
+        use hickory_resolver::proto::rr::rdata::A;
+        use hickory_resolver::proto::rr::{RData, Record, RecordType};
+        let sock = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let addr = sock.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut buf = [0u8; 512];
+            while let Ok((n, from)) = sock.recv_from(&mut buf).await {
+                let Ok(asked) = Message::from_vec(&buf[..n]) else {
+                    continue;
+                };
+                let query = asked.queries[0].clone();
+                let mut answer = Message::response(asked.metadata.id, OpCode::Query);
+                answer.metadata.recursion_desired = true;
+                answer.metadata.recursion_available = true;
+                answer.add_query(query.clone());
+                let a = |ip: [u8; 4]| {
+                    Record::from_rdata(query.name().clone(), 60, RData::A(A(ip.into())))
+                };
+                match (query.name().to_ascii().as_str(), query.query_type()) {
+                    ("gone.test.", _) => answer.metadata.response_code = ResponseCode::NXDomain,
+                    ("broken.test.", _) => answer.metadata.response_code = ResponseCode::ServFail,
+                    ("public.test.", RecordType::A) => {
+                        answer.add_answer(a([93, 184, 216, 34]));
+                    }
+                    ("private.test.", RecordType::A) => {
+                        answer.add_answer(a([10, 0, 0, 1]));
+                    }
+                    _ => {}
+                }
+                let _ = sock.send_to(&answer.to_vec().unwrap(), from).await;
+            }
+        });
+        addr
+    }
+
+    /// What DNS answered decides the failure: a name that doesn't exist, or exists
+    /// with no address, is evidence against the host; a server failure isn't.
+    #[tokio::test]
+    async fn dns_answers_decide_whether_a_name_is_gone() {
+        use hickory_resolver::config::{ConnectionConfig, NameServerConfig, ResolverConfig};
+        use reqwest::dns::Resolve;
+        let server = stub_dns().await;
+        let mut udp = ConnectionConfig::udp();
+        udp.port = server.port();
+        let config = ResolverConfig::from_parts(
+            None,
+            vec![],
+            vec![NameServerConfig::new(server.ip(), true, vec![udp])],
+        );
+        let resolver = PublicOnly::new(TokioResolver::builder_with_config(
+            config,
+            TokioRuntimeProvider::default(),
+        ))
+        .unwrap();
+        for (host, want) in [
+            ("gone.test", ("dns", true)),
+            ("bare.test", ("dns", true)),
+            ("broken.test", ("dns_transient", false)),
+            ("private.test", ("private_address", false)),
         ] {
-            let answers = std::sync::Mutex::new(answers.into_iter());
-            let calls = AtomicUsize::new(0);
-            let started = tokio::time::Instant::now();
-            let got = resolve_retrying(|| {
-                calls.fetch_add(1, Ordering::Relaxed);
-                let next = answers.lock().unwrap().next().unwrap();
-                async move { next }
-            })
-            .await;
-            let calls = calls.into_inner();
-            assert_eq!((got.is_ok(), calls), (want_ok, want_calls));
-            let paused: Duration = LOOKUP_RETRIES[..calls - 1].iter().sum();
-            assert_eq!(started.elapsed(), paused);
+            let Err(e) = resolver.resolve(host.parse().unwrap()).await else {
+                panic!("{host} resolved");
+            };
+            assert_eq!(crate::health::kind_of(&e.to_string()), want, "{host}: {e}");
         }
+        let Ok(addrs) = resolver.resolve("public.test".parse().unwrap()).await else {
+            panic!("public.test did not resolve");
+        };
+        let ips: Vec<IpAddr> = addrs.map(|a| a.ip()).collect();
+        assert_eq!(ips, vec![IpAddr::from([93, 184, 216, 34])]);
     }
 
     /// The canary is asked over HTTP; any answer, whatever its status, is up.
