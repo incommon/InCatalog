@@ -46,16 +46,13 @@ working name. These must change together, as a planned migration:
 
 ## Finish removing Terraform's name from the OpenTofu setup
 
-OpenTofu has applied the stack since #35, and its directory is `infra/opentofu/`. One
-reference still says Terraform, and it waits for the next release:
+OpenTofu has applied the stack since #35, and its directory is `infra/opentofu/`. The
+CI job is now `tofu fmt / validate` on `develop`; `main` still runs it as `terraform fmt
+/ validate`, and its branch protection requires that name. What's left:
 
-- **The CI job `terraform fmt / validate` → `tofu fmt / validate`.** `main`'s branch
-  protection requires the job by its exact name, so the timing matters. The rename
-  reaches `develop` first, while `main` keeps the old job until the next release merges.
-  Switch the protection while the next release PR into `main` is open, after its CI has
-  reported the new name. Switched earlier, a hotfix PR into `main` would wait forever
-  for a check that never reports; switched later, the release PR would. Then update
-  CONTRIBUTING's CI table and its rule about this name.
+- **Switch `main`'s branch protection to `tofu fmt / validate`** while the 0.5.0
+  release PR into `main` is open, after its CI has reported the new name
+  (CONTRIBUTING § What CI runs). Then delete this section.
 
 Leave alone: `.terraform/`, `.terraform.lock.hcl`, the `terraform {}` block and the
 `terraform_version` key that `make tofu-version` parses, which are OpenTofu's own names.
