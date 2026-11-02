@@ -14,7 +14,7 @@ section must be written before it is cut.
 - **The DNS lookup retry described under 0.4.3 is now in the build.** The 0.4.3
   release commit undid #70's code by mistake, so 0.4.3 shipped with that entry in its
   notes but without the retry or the `lookups_retried` counts. This puts both back.
-  (#PR)
+  (#75)
 
 ## [0.4.3] - 2026-11-01
 
