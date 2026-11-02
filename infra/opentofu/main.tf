@@ -78,6 +78,32 @@ resource "aws_s3_bucket_versioning" "data" {
   }
 }
 
+# Every ingest rewrites the snapshot and caches, so noncurrent versions pile up.
+# Keep them a week, which is the rollback window for a bad run's cache, and keep
+# the 3 newest of each object whatever their age, so a file that rarely changes
+# (curation.json) can still be rolled back.
+resource "aws_s3_bucket_lifecycle_configuration" "data" {
+  bucket     = aws_s3_bucket.data.id
+  depends_on = [aws_s3_bucket_versioning.data]
+
+  rule {
+    id     = "age-out-old-versions"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days           = 7
+      newer_noncurrent_versions = 3
+    }
+    expiration {
+      expired_object_delete_marker = true
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
   bucket = aws_s3_bucket.data.id
   rule {
@@ -429,6 +455,8 @@ resource "aws_lambda_permission" "api_gateway" {
 
 # ---------- static site ----------
 
+# Not versioned, on purpose: every deploy rewrites it from web/, so git is its
+# history. Versioning it would need the data bucket's lifecycle rule too.
 resource "aws_s3_bucket" "site" {
   bucket_prefix = "${var.name}-site-"
 }

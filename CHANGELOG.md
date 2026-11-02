@@ -9,6 +9,17 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **Old object versions in the data bucket now expire after 7 days.** Every ingest
+  rewrites the snapshot and caches, and every old version was kept: on 2026-11-02 the
+  bucket held 131 noncurrent versions, 318 MB of its 334 MB. Versioning stays on, and
+  the 3 newest old versions of each object are kept whatever their age. Leftover
+  delete markers and incomplete uploads are cleared too. Operators: `tofu apply`
+  adds only `aws_s3_bucket_lifecycle_configuration.data`. Rerun
+  `make state-bucket` to give the OpenTofu state bucket the same rule, which keeps
+  the 20 newest old versions of the state instead.
+
 ## [0.4.5] - 2026-11-01
 
 ### Changed
