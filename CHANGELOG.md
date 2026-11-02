@@ -9,6 +9,8 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-01
+
 ### Changed
 
 - **New dependency: `hickory-resolver` 0.26** (MIT or Apache-2.0) in `catalog-ingest`,
@@ -368,7 +370,8 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.4...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.4.5...develop
+[0.4.5]: https://github.com/incommon/InCatalog/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/incommon/InCatalog/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/incommon/InCatalog/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/incommon/InCatalog/compare/v0.4.1...v0.4.2
