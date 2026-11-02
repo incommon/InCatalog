@@ -36,7 +36,7 @@ section must be written before it is cut.
   and server failures (SERVFAIL, REFUSED) are not. A host is dead after 3 such
   failures in a row spanning at least 72 hours, and failing hosts are rechecked about
   daily, so expect most of those 1,127 hosts to read dead in about four days. A
-  service is dead only when every login host it lists is. (#PR)
+  service is dead only when every login host it lists is. (#79)
 
 ## [0.4.4] - 2026-11-01
 
