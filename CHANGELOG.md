@@ -18,7 +18,7 @@ section must be written before it is cut.
   answer, so such a lookup is now tried again after 0.25 and 1 seconds. The
   resolver's own answers ("not known", "temporary failure") are not retried. Health
   checks and logo lookups share the resolver, and both reports gain
-  `lookups_retried`, how many lookups the run tried again.
+  `lookups_retried`, how many lookups the run tried again. (#70)
 
 ## [0.4.2] - 2026-11-01
 
