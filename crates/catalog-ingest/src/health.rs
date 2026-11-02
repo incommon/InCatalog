@@ -27,7 +27,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::BuildHasher;
-use std::sync::atomic::Ordering;
 
 use anyhow::Result;
 use catalog_core::health::{self, Outcome};
@@ -79,8 +78,6 @@ pub struct Report {
     /// Login hosts whose latest check failed, by why.
     pub host_failures: BTreeMap<String, usize>,
     pub broken_links: usize,
-    /// Name lookups this run looked up again after an OS error.
-    pub lookups_retried: usize,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -132,7 +129,6 @@ async fn check_with(
         _ => Cache::default(),
     };
     let mut report = Report::default();
-    let retried_before = crate::logos::LOOKUPS_RETRIED.load(Ordering::Relaxed);
 
     let mut jobs: BTreeSet<Job> = BTreeSet::new();
     for s in services.iter() {
@@ -258,7 +254,6 @@ async fn check_with(
         }
     }
 
-    report.lookups_retried = crate::logos::LOOKUPS_RETRIED.load(Ordering::Relaxed) - retried_before;
     opts.cache
         .write(serde_json::to_vec(&cache)?, "application/json")
         .await?;
@@ -392,7 +387,7 @@ fn classify(e: &reqwest::Error) -> Outcome {
 }
 
 /// Which failure an error's text describes, and whether it counts as evidence.
-fn kind_of(text: &str) -> (&'static str, bool) {
+pub(crate) fn kind_of(text: &str) -> (&'static str, bool) {
     let t = text.to_lowercase();
     let any = |ks: &[&str]| ks.iter().any(|k| t.contains(k));
     if any(&["has no public address"]) {
@@ -448,6 +443,9 @@ mod tests {
             ("dns error: failed to lookup address information: Name or service not known", ("dns", true)),
             ("dns error: failed to lookup address information: Temporary failure in name resolution", ("dns_transient", false)),
             ("dns error: intranet.example.edu has no public address", ("private_address", false)),
+            ("dns error: retired.example.edu: no such name (NXDOMAIN)", ("dns", true)),
+            ("dns error: cname.example.edu: no address associated with the name", ("dns", true)),
+            ("dns error: sp.example.edu: temporary failure in name resolution: request timed out", ("dns_transient", false)),
             ("invalid peer certificate: certificate expired: verification time 1793558769 (UNIX), but certificate is not valid after 1790000000 (UNIX)", ("tls_expired", true)),
             ("invalid peer certificate: certificate not valid for name \"sp.example.org\"; certificate is only valid for DnsName(\"other.example.org\")", ("tls_name", true)),
             ("invalid peer certificate: UnknownIssuer", ("tls_untrusted", true)),

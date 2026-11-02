@@ -9,6 +9,35 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **New dependency: `hickory-resolver` 0.26** (MIT or Apache-2.0) in `catalog-ingest`,
+  which now resolves names itself rather than through getaddrinfo. It reads
+  `/etc/resolv.conf` and `/etc/hosts`, and asks for IPv4 and IPv6 addresses, as
+  getaddrinfo did. Fully qualified names are asked as given, so no search domain is
+  tried first.
+
+### Removed
+
+- **The retry after an OS error in a lookup, and `lookups_retried`** in the health
+  and logo reports (0.4.4). Every retried lookup failed again, and each one held a
+  lookup slot for 1.25 seconds.
+
+### Fixed
+
+- **Login hosts whose names no longer exist now count toward dead.** In Lambda,
+  glibc reported a name that doesn't exist as a system error, "Device or resource
+  busy (os error 16)", so those hosts read as a passing DNS glitch and their
+  services stayed unknown. The 0.4.4 retry showed it isn't a glitch: on 2026-11-02
+  all 1,127 such hosts failed it on every try, and 148 of 150 sampled were NXDOMAIN
+  or had no address in public DNS. Health checks and logo lookups now resolve names
+  with Hickory DNS, against the servers in `/etc/resolv.conf`, and read the answer:
+  NXDOMAIN and "no address" are evidence, as "name not known" always was; timeouts
+  and server failures (SERVFAIL, REFUSED) are not. A host is dead after 3 such
+  failures in a row spanning at least 72 hours, and failing hosts are rechecked about
+  daily, so expect most of those 1,127 hosts to read dead in about four days. A
+  service is dead only when every login host it lists is. (#79)
+
 ## [0.4.4] - 2026-11-01
 
 ### Fixed
