@@ -271,13 +271,14 @@ jobs:
           fi
           echo "Release $version has notes and is not tagged yet." >> "$GITHUB_STEP_SUMMARY"
 
-  # Also a required check on `main`, by this name. The name is Terraform's,
-  # kept when the stack moved to OpenTofu (ADR-0013 in incommon-hyperdrive):
-  # renaming it means changing main's branch protection in the same moment,
-  # and any open PR into main would wait forever for a check that no longer
-  # reports.
+  # Also a required check on `main`, by this name. It was `terraform fmt /
+  # validate` until the stack's move to OpenTofu (ADR-0013 in
+  # incommon-hyperdrive) was finished. Renaming a required check needs main's
+  # branch protection switched while the release PR that carries the rename
+  # is open (CONTRIBUTING § What CI runs), or a PR into main waits forever for
+  # a check that never reports.
   opentofu:
-    name: terraform fmt / validate
+    name: tofu fmt / validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
