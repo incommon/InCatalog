@@ -160,7 +160,9 @@ it a `status`: `alive`, `dead`, or `unknown`. Searches leave out `dead` services
   connection, or a certificate that has expired, is for another name, or isn't
   trusted. Timeouts, temporary DNS failures and names that resolve only to private
   addresses are no clear answer, because some services answer only from their own
-  campus.
+  campus. A lookup the system resolver gives up on with an OS error rather than an
+  answer is tried again after a quarter of a second and after a second; the run's
+  report counts these as `lookups_retried`.
 - **Thresholds** (`catalog-core/src/health.rs`): a host is alive for 14 days after it
   answers, and dead after 3 failures in a row spanning at least 72 hours; one answer
   clears that. A service is alive when any of its login hosts is, dead when every one
