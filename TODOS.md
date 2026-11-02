@@ -281,3 +281,56 @@ details page. Give services whose hosts negotiate a post-quantum key exchange a 
   - The deadline and per-run cap, and opted-out hosts skipped.
   - A private address refused before testssl.sh runs.
   - The badges on chips, including the floating key's rows.
+
+## Proxies: tell which SPs are proxies, and of what kind
+
+Many registered SPs are not the service people use but a proxy in front of it: a SAML
+bridge to other protocols or other services (SATOSA, CILogon, Globus Auth, eduTEAMS,
+Keycloak or SimpleSAMLphp as a hub), or a library access proxy (EZproxy, OpenAthens).
+Users reach the real service through it, and what it asks for and releases is the
+proxy's policy, not the service's. Flag them, with the kind where it can be told:
+
+- **Signals in metadata.** An entity with both an `SPSSODescriptor` and an
+  `IdPSSODescriptor` is almost always a proxy, but ingest drops the IdP role: keep
+  whether an entity has both. Endpoint paths and host names name some proxies
+  (`/ezproxy`, `login.ezproxy.`, `sp.openathens.net`, SATOSA's `/<backend>/acs/post`,
+  Keycloak's `/realms/<realm>/broker/`). The display name, description and
+  organization often say "proxy", "gateway" or "bridge". Check for any entity
+  attribute or category that marks a proxy (AARC's guidance, REFEDS) before
+  inventing one.
+- **Kinds worth telling apart:** library access proxy, protocol bridge (SAML to OIDC
+  or OAuth), research collaboration hub (one SP fronting many services), and a
+  commercial identity broker (Okta, Entra ID, Auth0 used as the SP).
+- **Signal it with its evidence.** A guess from a host name is weaker than both
+  roles in one entity, so show "proxy (likely)" with what it was read from, as a
+  badge, a facet and an API field. Let curation (`curation/curation.json`) confirm
+  or overrule it.
+- **Effect on other checks.** A proxy's login host being alive says nothing about the
+  services behind it, and its requested attributes are the hub's, so say so where
+  those are shown.
+
+## SAML software: tell what each SP runs, where it can be told
+
+Which software an SP runs decides which login routes work (see the access button's
+"Which routes really log people in" above), what to expect of its metadata, and
+which SPs a vulnerability advisory touches. Read it from what the SP already
+publishes, and say how sure the guess is:
+
+- **Endpoint paths** are the strongest public signal, but ingest keeps only the ACS
+  bindings and hosts, so keep the ACS, request initiator and discovery response URLs.
+  Known shapes: `/Shibboleth.sso/` (Shibboleth SP, and EZproxy and others that embed
+  it), `/simplesaml/module.php/saml/sp/` (SimpleSAMLphp), `/mellon/` (mod_auth_mellon),
+  `/realms/<realm>/broker/` (Keycloak), `/adfs/ls/` (AD FS), `/Saml2/Acs` (Sustainsys),
+  plus vendor patterns (Canvas, Blackboard, Salesforce, Okta, Entra ID) to collect
+  from the live aggregate.
+- **entityID shapes:** `https://<host>/shibboleth` is the Shibboleth SP default, and
+  `.../module.php/saml/sp/metadata.php/<name>` is SimpleSAMLphp's.
+- **Metadata habits:** Shibboleth's `init:RequestInitiator` and
+  `idpdisc:DiscoveryResponse` extensions, the NameID formats offered, and how keys are
+  published.
+- **From the health checks,** which already contact each login host: the `Server`
+  header and the status page each package serves (`/Shibboleth.sso/Status` is usually
+  local-only). Read only what one ordinary request returns; never probe for versions.
+- **Show it** as "Shibboleth SP (from its endpoints)" on the service page, as a facet
+  and in the API, and report a count per package. Never show a version: it would
+  list who is behind on patches. That belongs in a private report, if anywhere.
