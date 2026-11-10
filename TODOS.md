@@ -44,22 +44,6 @@ working name. These must change together, as a planned migration:
   wherever it is attached, before the first deploy under the new names, or deploys lose
   permission.
 
-## Finish removing Terraform's name from the OpenTofu setup
-
-OpenTofu has applied the stack since #35, and its directory is `infra/opentofu/`. The
-CI job is now `tofu fmt / validate` on `develop`; `main` still runs it as `terraform fmt
-/ validate`, and its branch protection requires that name. What's left:
-
-- **Switch `main`'s branch protection to `tofu fmt / validate`** while the 0.5.0
-  release PR into `main` is open, after its CI has reported the new name
-  (CONTRIBUTING § What CI runs). Then delete this section.
-
-Leave alone: `.terraform/`, `.terraform.lock.hcl`, the `terraform {}` block and the
-`terraform_version` key that `make tofu-version` parses, which are OpenTofu's own names.
-Also leave the state key `catabasis/terraform.tfstate` (move it only with the AWS rename
-above, which moves the state anyway), past CHANGELOG entries, and the "never run
-`terraform`" warnings.
-
 ## Finish the alive/dead checks: names that point elsewhere, and the private report
 
 Ingest checks login hosts and pages and labels services `alive`, `dead` or `unknown`
