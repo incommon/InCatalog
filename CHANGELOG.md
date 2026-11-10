@@ -9,6 +9,13 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **Plain wording for loading and missing pages.** The site said "descending…"
+  while it loaded and "Lost in the underworld" at an unknown address, left over from
+  the app's working name. It now says "loading…", and "No page at this address",
+  with a link back to the catalog.
+
 ## [0.5.0] - 2026-11-02
 
 ### Changed

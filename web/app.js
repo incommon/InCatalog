@@ -608,7 +608,7 @@ function render(...nodes) {
   fill(main, ...nodes);
 }
 
-const loading = () => h("div", { class: "loading" }, "descending…");
+const loading = () => h("div", { class: "loading" }, "loading…");
 const failure = (e) =>
   h("div", { class: "error" }, `The catalog API did not answer (${e.message}). Check that it is running and that config.js points at it.`);
 
@@ -1848,7 +1848,7 @@ async function route() {
   if (head === "federations") return federationsView(params);
   if (head === "about") return aboutView(id);
   if (head === "releases") return releasesView(id && decodeURIComponent(id));
-  render(h("div", { class: "empty" }, "Lost in the underworld. ", h("a", { href: "#/" }, "Return to the surface.")));
+  render(h("div", { class: "empty" }, "No page at this address. ", h("a", { href: "#/" }, "Back to the catalog.")));
 }
 
 window.addEventListener("hashchange", route);
