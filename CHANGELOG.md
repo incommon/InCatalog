@@ -9,6 +9,16 @@ section must be written before it is cut.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-20
+
+### Changed
+
+- **Dependency updates.** `flate2` 1.1.10 → 1.1.11 (fixes in its gzip reader and
+  sync flushes) and `aws-sigv4` 1.6.4 → 1.6.5, which brings `aws-smithy-runtime-api`
+  1.19.2 → 1.22.0 and `aws-smithy-types` 1.9.1 → 1.9.4. Nothing changes for users,
+  API clients or operators: InCatalog gzips its snapshot in memory, which those
+  flate2 fixes don't touch. (#93)
+
 ## [0.5.1] - 2026-11-10
 
 ### Changed
@@ -400,7 +410,8 @@ section must be written before it is cut.
   attributes, and a static web front end. It runs locally with `make dev` and in AWS
   as two Lambda functions from one container image.
 
-[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.5.1...develop
+[Unreleased]: https://github.com/incommon/InCatalog/compare/v0.5.2...develop
+[0.5.2]: https://github.com/incommon/InCatalog/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/incommon/InCatalog/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/incommon/InCatalog/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/incommon/InCatalog/compare/v0.4.4...v0.4.5
